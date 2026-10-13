@@ -1,50 +1,89 @@
-# Secret dan konfigurasi lingkungan lokal
-.env
-.env.local
-.env.*.local
-**/.env
-**/.env.local
+# ==============================================================================
+# Git Ignore - project-loe5 (Lukla Operations Engine)
+# ==============================================================================
 
-# Python
+# 1. Environment Variables, Secrets & Credentials
+# Abaikan seluruh file .env (dan variasinya), kecualikan .env.example
+.env*
+!.env.example
+**/.env*
+!**/.env.example
+*.pem
+*.key
+*.cert
+*.crt
+credentials.json
+client_secret*.json
+
+# 2. Python & Virtual Environments
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
 venv/
 env/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Testing & Linting Caches (Python)
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .coverage
+.coverage.*
 htmlcov/
-*.log
+nosetests.xml
+coverage.xml
+*.cover
 
-# Node.js / Next.js
+# 3. Node.js & Frontend (Next.js)
 node_modules/
 .next/
 out/
-build/
-dist/
 next-env.d.ts
 *.tsbuildinfo
+.turbo/
+.vercel/
+
+# NPM / Yarn / PNPM logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Database lokal / temporary
+# 4. Database Lokal, Cache & Log
 *.sqlite3
 *.db
+*.log
+*.pid
+*.seed
 
-# Editor & IDE
-.vscode/
+# 5. Editor & IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
+*~
+*.bak
+*.tmp
 
-# Sistem Operasi
+# 6. Sistem Operasi
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+[Dd]esktop.ini
 
-# Workspace Antigravity IDE temporary
+# 7. Antigravity IDE & Temporary Workspaces
 .system_generated/
 scratch/
