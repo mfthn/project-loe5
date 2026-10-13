@@ -1,0 +1,74 @@
+// Modul Produksi: line, alokasi penjahit, tarif, dan output 30 menit (FR-7)
+
+model ProductionLine {
+  id       String  @id @default(cuid())
+  name     String  @unique @db.VarChar(50)
+  capacity Int?
+  isActive Boolean @default(true) @map("is_active")
+
+  allocations LineAllocation[]
+  outputs     OutputRecord[]
+
+  @@map("production_lines")
+}
+
+// Riwayat penempatan penjahit. Satu penjahit hanya boleh punya satu baris dengan endedAt NULL (dijaga index parsial).
+model LineAllocation {
+  id            String         @id @default(cuid())
+  lineId        String         @map("line_id")
+  line          ProductionLine @relation(fields: [lineId], references: [id])
+  tailorId      String         @map("tailor_id")
+  tailor        User           @relation("TailorAllocations", fields: [tailorId], references: [id])
+  allocatedById String         @map("allocated_by")
+  allocatedBy   User           @relation("AllocationBy", fields: [allocatedById], references: [id])
+  allocatedAt   DateTime       @default(now()) @map("allocated_at") @db.Timestamptz(6)
+  endedAt       DateTime?      @map("ended_at") @db.Timestamptz(6)
+
+  @@index([lineId])
+  @@map("line_allocations")
+}
+
+// Tarif per klien dan komponen, berlaku sejak tanggal effectiveFrom.
+model RateCard {
+  id            String   @id @default(cuid())
+  clientId      String   @map("client_id")
+  client        Client   @relation(fields: [clientId], references: [id])
+  component     String   @db.VarChar(120)
+  cuttingRate   Decimal  @map("cutting_rate") @db.Decimal(14, 2)
+  sewingRate    Decimal  @map("sewing_rate") @db.Decimal(14, 2)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  createdById   String   @map("created_by")
+  createdBy     User     @relation(fields: [createdById], references: [id])
+
+  @@unique([clientId, component, effectiveFrom])
+  @@map("rate_cards")
+}
+
+// Satu baris = pcs yang diinput mandor untuk satu interval 30 menit.
+// Setelah verified_at terisi, baris terkunci oleh trigger. rateApplied dan wageAmount diisi trigger.
+model OutputRecord {
+  id            String          @id @default(cuid())
+  orderId       String          @map("order_id")
+  order         ProductionOrder @relation(fields: [orderId], references: [id])
+  lineId        String          @map("line_id")
+  line          ProductionLine  @relation(fields: [lineId], references: [id])
+  tailorId      String          @map("tailor_id")
+  tailor        User            @relation("TailorOutputs", fields: [tailorId], references: [id])
+  component     String          @db.VarChar(120)
+  intervalStart DateTime        @map("interval_start") @db.Timestamptz(6)
+  pcs           Int
+  recordedById  String          @map("recorded_by")
+  recordedBy    User            @relation("OutputRecorder", fields: [recordedById], references: [id])
+  verifiedById  String?         @map("verified_by")
+  verifiedBy    User?           @relation("OutputVerifier", fields: [verifiedById], references: [id])
+  verifiedAt    DateTime?       @map("verified_at") @db.Timestamptz(6)
+  rateApplied   Decimal?        @map("rate_applied") @db.Decimal(14, 2)
+  wageAmount    Decimal?        @map("wage_amount") @db.Decimal(14, 2)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([intervalStart])
+  @@index([tailorId, intervalStart])
+  @@index([orderId, intervalStart])
+  @@map("output_records")
+}

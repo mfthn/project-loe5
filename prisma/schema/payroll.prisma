@@ -1,0 +1,68 @@
+// Modul Payroll (FR-10)
+
+// Pengaturan tunggal. Constraint id = 1 ada di file SQL manual.
+model PayrollSetting {
+  id          Int      @id @default(1)
+  mealPercent Decimal  @default(12.5) @map("meal_percent") @db.Decimal(5, 2)
+  bonusPerPcs Decimal  @default(500) @map("bonus_per_pcs") @db.Decimal(14, 2)
+  updatedById String   @map("updated_by")
+  updatedBy   User     @relation(fields: [updatedById], references: [id])
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("payroll_settings")
+}
+
+model BonusRecipient {
+  id       String  @id @default(cuid())
+  userId   String  @unique @map("user_id")
+  user     User    @relation(fields: [userId], references: [id])
+  isActive Boolean @default(true) @map("is_active")
+
+  @@map("bonus_recipients")
+}
+
+// Header periode yang sudah difinalisasi. Append-only. Tanggal tidak boleh tumpang tindih (constraint SQL manual).
+model PayrollPeriod {
+  id                 String   @id @default(cuid())
+  startDate          DateTime @map("start_date") @db.Date
+  endDate            DateTime @map("end_date") @db.Date
+  totalWage          Decimal  @map("total_wage") @db.Decimal(14, 2)
+  totalMeal          Decimal  @map("total_meal") @db.Decimal(14, 2)
+  totalBonus         Decimal  @map("total_bonus") @db.Decimal(14, 2)
+  mealPercentApplied Decimal  @map("meal_percent_applied") @db.Decimal(5, 2)
+  bonusPerPcsApplied Decimal  @map("bonus_per_pcs_applied") @db.Decimal(14, 2)
+  finalizedById      String   @map("finalized_by")
+  finalizedBy        User     @relation(fields: [finalizedById], references: [id])
+  finalizedAt        DateTime @default(now()) @map("finalized_at") @db.Timestamptz(6)
+
+  items      PayrollItem[]
+  bonusItems PayrollBonusItem[]
+
+  @@map("payroll_periods")
+}
+
+model PayrollItem {
+  id         String        @id @default(cuid())
+  periodId   String        @map("period_id")
+  period     PayrollPeriod @relation(fields: [periodId], references: [id])
+  tailorId   String        @map("tailor_id")
+  tailor     User          @relation(fields: [tailorId], references: [id])
+  totalPcs   Int           @map("total_pcs")
+  wageAmount Decimal       @map("wage_amount") @db.Decimal(14, 2)
+  mealAmount Decimal       @map("meal_amount") @db.Decimal(14, 2)
+
+  @@unique([periodId, tailorId])
+  @@map("payroll_items")
+}
+
+model PayrollBonusItem {
+  id       String        @id @default(cuid())
+  periodId String        @map("period_id")
+  period   PayrollPeriod @relation(fields: [periodId], references: [id])
+  userId   String        @map("user_id")
+  user     User          @relation(fields: [userId], references: [id])
+  amount   Decimal       @db.Decimal(14, 2)
+
+  @@unique([periodId, userId])
+  @@map("payroll_bonus_items")
+}

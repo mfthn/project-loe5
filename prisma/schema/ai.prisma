@@ -1,0 +1,21 @@
+// Modul AI (P1): catatan pertanyaan dan jawaban asisten
+
+enum AiChannel {
+  OWNER_TRACKER
+  PROSPECT
+}
+
+model AiQueryLog {
+  id           BigInt    @id @default(autoincrement())
+  channel      AiChannel
+  userId       String?   @map("user_id")
+  user         User?     @relation(fields: [userId], references: [id])
+  question     String    @db.Text
+  answer       String    @db.Text
+  inputTokens  Int?      @map("input_tokens")
+  outputTokens Int?      @map("output_tokens")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([channel, createdAt])
+  @@map("ai_query_logs")
+}

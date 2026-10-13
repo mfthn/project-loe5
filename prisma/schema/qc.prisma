@@ -1,0 +1,32 @@
+// Modul QC dan Barang Jadi (FR-8, FR-9). Append-only.
+
+enum QcStatus {
+  LOLOS
+  REPAIR
+  DEFECT
+}
+
+enum DefectCategory {
+  JAHITAN
+  NODA
+  UKURAN
+  BAHAN
+  LAINNYA
+}
+
+model QcRecord {
+  id             String          @id @default(cuid())
+  orderId        String          @map("order_id")
+  order          ProductionOrder @relation(fields: [orderId], references: [id])
+  component      String          @db.VarChar(120)
+  qty            Int
+  status         QcStatus
+  defectCategory DefectCategory? @map("defect_category")
+  note           String?         @db.VarChar(500)
+  inspectorId    String          @map("inspector_id")
+  inspector      User            @relation(fields: [inspectorId], references: [id])
+  checkedAt      DateTime        @default(now()) @map("checked_at") @db.Timestamptz(6)
+
+  @@index([orderId, checkedAt])
+  @@map("qc_records")
+}

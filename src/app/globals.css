@@ -1,0 +1,148 @@
+/* Gaya global. Desain bersih dengan warna netral dan aksen biru.
+   Layout memakai CSS Grid dan Flexbox, sidebar berubah menjadi bar atas di layar kecil. */
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --text: #1c2233;
+  --muted: #6b7388;
+  --border: #e3e7ef;
+  --accent: #2459d6;
+  --accent-soft: #e8efff;
+  --ok: #17794a;
+  --ok-soft: #e4f6ec;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 15px;
+}
+a { color: var(--accent); text-decoration: none; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 0 0 12px; }
+p.muted, .muted { color: var(--muted); font-size: 0.9rem; }
+
+/* Layout utama: sidebar + konten */
+.app-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sidebar .brand { font-weight: 700; font-size: 1.05rem; padding: 0 10px 14px; color: var(--accent); }
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+.sidebar nav a {
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.93rem;
+}
+.sidebar nav a:hover { background: var(--accent-soft); color: var(--accent); }
+.sidebar .me { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--border); }
+.content { padding: 28px; min-width: 0; }
+
+/* Kartu dan grid */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 18px;
+  min-width: 0;
+}
+.grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.stats { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 18px; }
+.stat .label { color: var(--muted); font-size: 0.82rem; }
+.stat .value { font-size: 1.5rem; font-weight: 700; }
+
+/* Form */
+.form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-items: end; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+input, select, textarea {
+  font: inherit;
+  color: var(--text);
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  width: 100%;
+  min-width: 0;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+textarea { min-height: 70px; resize: vertical; }
+.btn {
+  font: inherit;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  padding: 9px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn.secondary { background: var(--accent-soft); color: var(--accent); }
+.btn.danger { background: var(--danger); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Tabel: dibungkus agar bisa digeser horizontal di layar kecil */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+td form { display: inline; }
+
+/* Status dan notifikasi */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.badge.ok { background: var(--ok-soft); color: var(--ok); }
+.badge.danger { background: var(--danger-soft); color: var(--danger); }
+.notice { padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 0.92rem; }
+.notice.ok { background: var(--ok-soft); color: var(--ok); }
+.notice.error { background: var(--danger-soft); color: var(--danger); }
+
+/* Chat */
+.chat { display: flex; flex-direction: column; gap: 10px; height: 60vh; min-height: 320px; }
+.chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+.bubble { max-width: 82%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+.bubble.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.bubble.bot { align-self: flex-start; background: #eef1f7; border-bottom-left-radius: 4px; }
+.chat-form { display: flex; gap: 8px; }
+
+/* Stopwatch */
+.stopwatch { font-variant-numeric: tabular-nums; font-size: 1.6rem; font-weight: 700; }
+
+/* Layar kecil: sidebar menjadi bar atas yang bisa digulir */
+@media (max-width: 800px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); padding: 12px; }
+  .sidebar .brand { padding: 0 4px 8px; }
+  .sidebar nav { flex-direction: row; overflow-x: auto; gap: 4px; }
+  .sidebar nav a { white-space: nowrap; }
+  .sidebar .me { display: none; }
+  .content { padding: 16px; }
+  .chat { height: 65vh; }
+  .btn { width: 100%; }
+  .row-actions .btn { width: auto; }
+  .chat-form .btn { width: auto; }
+}

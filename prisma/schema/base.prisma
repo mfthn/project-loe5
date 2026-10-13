@@ -1,0 +1,131 @@
+// File dasar: generator, datasource, enum, dan model inti.
+// Constraint dan trigger yang tidak bisa dinyatakan Prisma ada di prisma/manual/01_constraints_triggers.sql
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  TIM_SAMPLE
+  GUDANG
+  KEPALA_PRODUKSI
+  PENJAHIT
+  QC_INSPECTOR
+  FINANCE_PAYROLL
+  KLIEN_MAKLON
+}
+
+enum Scheme {
+  CMT
+  SEMI_CMT
+  FULL_PACKAGE
+}
+
+enum OrderStatus {
+  OPEN
+  IN_PRODUCTION
+  QC
+  DONE
+  CANCELLED
+}
+
+model Client {
+  id         String   @id @default(cuid())
+  code       String   @unique @db.VarChar(20)
+  name       String   @db.VarChar(150)
+  isInternal Boolean  @default(false) @map("is_internal")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  users      User[]
+  orders     ProductionOrder[]
+  samples    Sample[]
+  stockItems StockItem[]
+  rateCards  RateCard[]
+
+  @@map("clients")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String   @db.VarChar(120)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(100)
+  role         Role
+  clientId     String?  @map("client_id")
+  client       Client?  @relation(fields: [clientId], references: [id])
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ordersCreated           ProductionOrder[]
+  samplesCreated          Sample[]
+  sampleVersionsCreated   SampleVersion[]     @relation("VersionCreator")
+  sampleVersionsApproved  SampleVersion[]     @relation("VersionApprover")
+  timeStudies             TimeStudy[]
+  materialUses            SampleMaterialUse[]
+  stockItemsCreated       StockItem[]
+  stockMovementsCreated   StockMovement[]
+  allocations             LineAllocation[]    @relation("TailorAllocations")
+  allocationsMade         LineAllocation[]    @relation("AllocationBy")
+  rateCardsCreated        RateCard[]
+  outputs                 OutputRecord[]      @relation("TailorOutputs")
+  outputsRecorded         OutputRecord[]      @relation("OutputRecorder")
+  outputsVerified         OutputRecord[]      @relation("OutputVerifier")
+  qcRecords               QcRecord[]
+  bonusRecipient          BonusRecipient?
+  payrollSettingsUpdated  PayrollSetting[]
+  payrollPeriodsFinalized PayrollPeriod[]
+  payrollItems            PayrollItem[]
+  payrollBonusItems       PayrollBonusItem[]
+  auditLogs               AuditLog[]
+  aiQueryLogs             AiQueryLog[]
+
+  @@map("users")
+}
+
+model ProductionOrder {
+  id              String         @id @default(cuid())
+  code            String         @unique @db.VarChar(30)
+  clientId        String         @map("client_id")
+  client          Client         @relation(fields: [clientId], references: [id])
+  sampleVersionId String?        @map("sample_version_id")
+  sampleVersion   SampleVersion? @relation(fields: [sampleVersionId], references: [id])
+  scheme          Scheme
+  targetQty       Int            @map("target_qty")
+  specJson        Json           @map("spec_json")
+  status          OrderStatus    @default(OPEN)
+  createdById     String         @map("created_by")
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  stockItems     StockItem[]
+  stockMovements StockMovement[]
+  outputs        OutputRecord[]
+  qcRecords      QcRecord[]
+
+  @@index([clientId, status])
+  @@map("production_orders")
+}
+
+// Jejak aktivitas penting, termasuk percobaan yang diblokir. Append-only.
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  userId     String?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String   @db.VarChar(60)
+  entityType String   @map("entity_type") @db.VarChar(40)
+  entityId   String?  @map("entity_id")
+  detail     Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}

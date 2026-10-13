@@ -1,0 +1,17 @@
+# PostgreSQL untuk pengembangan. Dijalankan dengan Podman: `podman compose up -d`
+services:
+  db:
+    image: docker.io/library/postgres:16
+    container_name: project_loe5_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: loe
+      POSTGRES_PASSWORD: loe_dev
+      POSTGRES_DB: project_loe5
+    ports:
+      - "5433:5432"
+    volumes:
+      - loe_pgdata:/var/lib/postgresql/data
+
+volumes:
+  loe_pgdata:
