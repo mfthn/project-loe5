@@ -27,8 +27,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return (await res.json()) as T;
 }
 
-// Health check dibaca langsung, karena status 503 tetap membawa isi yang berguna.
-export async function fetchHealth(): Promise<{ httpStatus: number; body: import("@/types/api").HealthResponse }> {
-  const res = await fetch(`${API_BASE_URL}/health`, { cache: "no-store" });
-  return { httpStatus: res.status, body: (await res.json()) as import("@/types/api").HealthResponse };
+export async function fetchAiStatus(): Promise<{ httpStatus: number; ok: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/ai/status`, { cache: "no-store" });
+    return { httpStatus: res.status, ok: res.ok };
+  } catch {
+    return { httpStatus: 0, ok: false };
+  }
 }

@@ -6,9 +6,12 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.core.database import Base
-
-# Import model setiap modul di sini agar metadata lengkap saat autogenerate.
-# Contoh: from app.modules.gudang import models  # noqa: F401
+from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.sample import models as sample_models  # noqa: F401
+from app.modules.gudang import models as gudang_models  # noqa: F401
+from app.modules.produksi import models as produksi_models  # noqa: F401
+from app.modules.qc import models as qc_models  # noqa: F401
+from app.modules.payroll import models as payroll_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

@@ -1,153 +1,171 @@
-# project-loe5
+# project-loe5 (Lukla Operations Engine)
 
-Platform operasional pabrik garmen Ciwidey.
+Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturing & Snøhund Brand Management*) yang melayani brand internal dan klien maklon B2B secara paralel dengan kapasitas dinamis hingga ±70 mesin jahit aktif.
 
-Arsitektur:
+---
 
-- **frontend/**: Next.js 15 (App Router, TypeScript). Tampilan dan pemanggilan API.
-- **backend/**: FastAPI (Python 3.12). Seluruh aturan bisnis, akses database, autentikasi, dan integrasi Amazon Bedrock.
-- **Database**: PostgreSQL 16, dijalankan dengan Podman lewat `compose.yaml`.
+## Arsitektur Sistem
 
-Frontend tidak mengakses database secara langsung. Semua data lewat API di `http://localhost:8000/api/v1`.
+- **frontend/**: Next.js 15 (App Router, React 19, TypeScript). Antarmuka web responsif berbasis peran (Dashboard Eksekutif, Terminal Touchscreen Lantai Produksi, dan Portal Klien B2B).
+- **backend/**: FastAPI (Python 3.12/3.14). Seluruh logika bisnis manufaktur, modul gudang anti-kontaminasi, sample tracker, terminal output 30 menit, QC defect, payroll engine, dan integrasi AI Amazon Bedrock.
+- **Database**: PostgreSQL 16 (port lokal `5433` via Podman/Docker `compose.yaml`).
+- **AI & Storage**: AWS Bedrock (Titan Text Embeddings v2 & Nova Lite Inference Profile) + AWS S3 untuk dokumen SOP dan aset.
+
+> **Catatan Arsitektur:** Frontend tidak mengakses database secara langsung. Seluruh operasi bisnis dan data dilayani lewat REST API di `http://localhost:8000/api/v1`.
+
+---
+
+## Status Progres Proyek (Hackathon Tracker)
+
+- [x] **Fase 1: Fondasi Skema Database, Alembic, & Autentikasi RBAC (SELESAI)**
+  - Pembuatan 14 tabel ORM SQLAlchemy sesuai dokumen SRS v2.0 dan BRD v1.0.
+  - Migrasi skema awal Alembic (`create_initial_schema`) diterapkan ke PostgreSQL.
+  - Autentikasi JWT (HttpOnly Cookie & Bearer Header) dengan hashing `bcrypt`.
+  - Matriks RBAC untuk 8 Peran Pengguna dengan penegakan izin di sisi server (`require_roles`).
+  - Script seeding data demo ([scripts/seed.py](file:///home/fitzeon/Documents/S1-Informatika/Pelatihan/MAIN-Academy/Hechaton/project-loe5-rag/backend/scripts/seed.py)): 3 Klien dan 12 Akun Pengguna siap pakai.
+  - Pipeline RAG Bedrock operasional membaca SOP dari AWS S3.
+  - Pengujian: **24/24 unit test lulus** di `pytest`, linter `ruff` bersih.
+- [ ] **Fase 2: Modul Gudang Multi-Klien & Proteksi Anti-Kontaminasi Silang (Skenario 1 - P0)**
+- [ ] **Fase 3: Sample & Time Study Tracker + Stopwatch Digital (Skenario 4 - P0)**
+- [ ] **Fase 4: Produksi & Terminal Input 30 Menit Lantai Pabrik (P0)**
+- [ ] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0)**
+- [ ] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0)**
+- [ ] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1)**
+
+---
 
 ## Prasyarat
 
-| Perangkat | Versi | Fedora | Windows |
+| Perangkat | Versi | Fedora / Linux | Windows |
 |---|---|---|---|
-| Podman | terbaru | `sudo dnf install podman podman-compose` | Podman Desktop |
-| Python | 3.12 | `sudo dnf install python3.12` | python.org (centang "Add to PATH") |
-| Node.js | 20 atau lebih baru | `sudo dnf install nodejs npm` | nodejs.org (versi LTS) |
-| Git | terbaru | `sudo dnf install git` | git-scm.com |
+| Podman / Docker | Terbaru | `sudo dnf install podman podman-compose` | Podman Desktop / Docker Desktop |
+| Python | 3.12 / 3.14 | `sudo dnf install python3.12` | python.org |
+| Node.js | 20 atau lebih baru | `sudo dnf install nodejs npm` | nodejs.org (LTS) |
+| Git | Terbaru | `sudo dnf install git` | git-scm.com |
 
-## Setup pertama kali
+---
 
-### 1. Database
+## Setup & Menjalankan Proyek
 
-Dari folder root:
+### 1. Database PostgreSQL
+
+Dari root folder proyek, jalankan:
 
 ```bash
 podman compose up -d
-podman ps                      # container project_loe5_db harus berstatus Up
+podman ps                      # Pastikan container project_loe5_db berstatus Up
 ```
+*(Gunakan `docker compose up -d` jika menggunakan Docker)*.
 
-Jika `podman compose` tidak tersedia, gunakan `podman-compose up -d`.
+### 2. Backend (FastAPI)
 
-### 2. Backend
-
-Masuk ke folder backend, buat virtual environment, lalu pasang dependensi.
-
-Fedora:
+Masuk ke folder backend, aktifkan virtual environment, dan pasang dependensi:
 
 ```bash
 cd backend
 python3.12 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate       # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
-Backend menggunakan `DATABASE_URL` dari `backend/.env`. Nilai default mengarah ke PostgreSQL lokal pada port `5433`, sesuai pemetaan port di `compose.yaml`.
-
-Windows (PowerShell):
-
-```powershell
-cd backend
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
-copy .env.example .env
+Pastikan variabel `DATABASE_URL` dan `AUTH_SECRET` di `backend/.env` telah terisi:
+```env
+DATABASE_URL=postgresql+psycopg://loe:loe_dev@localhost:5433/project_loe5
+AUTH_SECRET=lukla_operations_engine_super_secret_auth_key_2026_dev_secure
 ```
 
-Isi `AUTH_SECRET` di `backend/.env` dengan string acak minimal 32 karakter.
+Terapkan migrasi skema database dan jalankan seed data demo:
 
-Jalankan pengujian untuk memastikan backend sehat:
+```bash
+alembic upgrade head
+python scripts/seed.py
+```
+
+Jalankan pengujian untuk memastikan backend 100% sehat:
 
 ```bash
 pytest
 ```
 
-Semua tes harus lolos sebelum melanjutkan.
-
-Jalankan server:
+Jalankan server API backend:
 
 ```bash
 uvicorn app.main:app --reload
 ```
+Dokumentasi Swagger API interaktif tersedia di: **http://localhost:8000/docs**
 
-Buka http://localhost:8000/docs untuk dokumentasi API interaktif.
+### 3. Frontend (Next.js)
 
-### 3. Frontend
-
-Buka terminal baru di folder root.
+Buka terminal baru di folder frontend:
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local     # Windows: copy .env.example .env.local
+cp .env.example .env.local
 npm run dev
 ```
 
-Buka http://localhost:3000. Halaman harus menampilkan status **Backend: Terhubung** dan **Database: Terhubung**.
+Buka **http://localhost:3000** di browser.
 
-## Verifikasi koneksi
+---
 
-Tiga langkah berikut membuktikan bahwa frontend, backend, dan database terhubung.
+## Akun Demo Pengujian (Seed Users)
 
-1. `http://localhost:8000/api/v1/health` mengembalikan `{"status":"ok","database":"ok"}`.
-2. `http://localhost:3000` menampilkan dua badge hijau pada bagian Status koneksi.
-3. Hentikan container database (`podman compose stop db`), lalu muat ulang halaman. Badge database harus berubah menjadi merah, dan halaman tetap terbuka.
+Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasional:
 
-## Perintah harian
+| Peran (Role) | Username | Password | Deskripsi / Kewenangan |
+|---|---|---|---|
+| **OWNER** | `owner` | `owner123` | Akses eksekutif, analitik pabrik, AI tracker |
+| **TIM_SAMPLE** | `adis_sample` | `sample123` | Stopwatch time study, revisi sample, approval |
+| **GUDANG** | `gudang_budi` | `gudang123` | Penerimaan bahan, pengeluaran ke cutting, anti-kontaminasi |
+| **MANDOR** | `mandor_agus` | `mandor123` | Mandor Line 1, alokasi penjahit, verifikasi output 30 menit |
+| **MANDOR** | `mandor_joko` | `mandor123` | Mandor Line 2, alokasi penjahit, penerima pool bonus QC |
+| **MANDOR** | `ka_ops` | `kaops123` | Kepala Operasional, penerima pool bonus QC |
+| **PENJAHIT** | `penjahit_siti` | `jahit123` | Operator jahit Line 1 (upah borongan) |
+| **PENJAHIT** | `penjahit_rini` | `jahit123` | Operator jahit Line 2 (upah borongan) |
+| **QC_INSPECTOR** | `qc_dewi` | `qc123` | Pemeriksaan produk (Lolos, Repair, Defect) |
+| **FINANCE_PAYROLL**| `finance_rina`| `finance123`| Perhitungan upah borongan Sabtu, bonus QC, uang makan % |
+| **KLIEN_MAKLON** | `klien_a` | `klien123` | Portal B2B PT Tekstil Maju (hanya data miliknya) |
+| **KLIEN_MAKLON** | `klien_b` | `klien123` | Portal B2B CV Busana Prima (hanya data miliknya) |
+
+---
+
+## Daftar Endpoint API Aktif
+
+### Autentikasi (`/api/v1/auth`)
+- `POST /api/v1/auth/login` — Login pengguna, menghasilkan JWT & HttpOnly cookie.
+- `POST /api/v1/auth/logout` — Logout dan membersihkan cookie sesi.
+- `GET /api/v1/auth/me` — Mengambil data profil dan peran pengguna yang sedang login.
+
+### Modul AI RAG (`/api/v1/ai`)
+- `POST /api/v1/ai/ask` — Tanya-jawab RAG seputar SOP operasional manufaktur via Bedrock.
+- `POST /api/v1/ai/reindex` — Membangun ulang indeks chunk & embedding dari S3.
+- `GET /api/v1/ai/status` — Memeriksa status kesiapan indeks RAG.
+
+---
+
+## 4 Skenario Pengujian Operasional Kunci (Kriteria Hackathon)
+
+1. **Proteksi Kontaminasi Silang Stok (FR-6.2):** Sistem memblokir otomatis transaksi pengeluaran bahan jika `item.client_id != order.client_id` dengan error HTTP 400 eksplisit sebelum stok berkurang.
+2. **Payroll Headcount Dinamis (FR-10.1 & FR-10.2):** Menambah penjahit baru di tengah minggu, mencatat output 30 menit, dan menghasilkan perhitungan upah borongan Sabtu + uang makan 10–15% secara otomatis tanpa batasan slot.
+3. **Pembagian Pool Bonus QC 3-Arah (FR-10.3):** Akumulasi produk lolos QC dikalikan rate bonus per pcs, lalu dibagi rata kepada 2 Mandor dan 1 Kepala Operasional.
+4. **Alur Revisi Sample ke Order Massal (FR-3.1 & FR-4.1):** Pembuatan Sample v1 dengan time study, revisi menjadi v2, persetujuan versi, dan konversi otomatis menjadi Order Produksi Massal (CMT / Semi-CMT / Full Package).
+
+---
+
+## Perintah Harian Pengembang
 
 | Tujuan | Perintah | Folder |
 |---|---|---|
 | Menyalakan database | `podman compose up -d` | root |
 | Menghentikan database | `podman compose stop db` | root |
-| Menjalankan API | `uvicorn app.main:app --reload` | backend |
-| Pengujian backend | `pytest` | backend |
-| Pemeriksaan gaya kode | `ruff check .` | backend |
-| Membuat migrasi | `alembic revision --autogenerate -m "pesan"` | backend |
-| Menerapkan migrasi | `alembic upgrade head` | backend |
-| Menjalankan frontend | `npm run dev` | frontend |
-| Pemeriksaan tipe | `npm run typecheck` | frontend |
-| Build produksi | `npm run build` | frontend |
-
-## Struktur proyek
-
-```
-project-loe5/
-├── compose.yaml                 PostgreSQL untuk Podman
-├── frontend/                    Next.js (TypeScript)
-│   └── src/
-│       ├── app/                 routing halaman (App Router)
-│       ├── components/          komponen UI bersama
-│       ├── lib/                 klien API dan konfigurasi
-│       └── types/               tipe data dari API
-└── backend/                     FastAPI (Python)
-    ├── app/
-    │   ├── main.py              titik masuk aplikasi
-    │   ├── core/                konfigurasi, database, utilitas inti
-    │   ├── api/v1/              router HTTP per versi API
-    │   └── modules/             logika per fitur (auth, sample, gudang, ...)
-    ├── migrations/              migrasi Alembic
-    └── tests/                   pengujian pytest
-```
-
-## Aturan pembagian kerja
-
-- Setiap anggota mengerjakan folder modul sesuai pembagian di `sop.md`.
-- Pola modul backend: `models.py`, `schemas.py`, `service.py`, `router.py`. Logika bisnis hanya di `service.py`, dan router tidak boleh mengakses database secara langsung.
-- Halaman frontend memanggil API lewat `src/lib/api.ts`. Jangan memanggil `fetch` langsung dari komponen.
-- Setiap perubahan skema wajib disertai migrasi Alembic, bukan perubahan manual di database.
-- Jangan commit file `.env`, `.env.local`, atau `.venv`.
-
-## Masalah umum
-
-| Gejala | Penyebab | Solusi |
-|---|---|---|
-| Badge backend merah | API belum berjalan | Jalankan `uvicorn` di folder backend |
-| Badge database merah | Container belum menyala | `podman compose up -d`, lalu cek `podman ps` |
-| CORS error di browser | Origin frontend tidak terdaftar | Pastikan `CORS_ORIGINS` di `backend/.env` memuat `http://localhost:3000` |
-| `port 5432 already allocated` | PostgreSQL lain berjalan | Hentikan layanan lain di mesin |
-| `ModuleNotFoundError: app` | Perintah dijalankan dari folder yang salah | Pastikan berada di folder `backend` |
-| `AUTH_SECRET` error saat start | `ENVIRONMENT=production` tanpa secret kuat | Isi `AUTH_SECRET` minimal 32 karakter |
+| Menjalankan backend | `uvicorn app.main:app --reload` | `backend/` |
+| Menjalankan unit test | `pytest` | `backend/` |
+| Memeriksa linter | `ruff check .` | `backend/` |
+| Membuat migrasi skema | `alembic revision --autogenerate -m "pesan"` | `backend/` |
+| Menerapkan migrasi | `alembic upgrade head` | `backend/` |
+| Seeding data demo | `python scripts/seed.py` | `backend/` |
+| Menjalankan frontend | `npm run dev` | `frontend/` |
+| Typecheck frontend | `npm run typecheck` | `frontend/` |
+| Build produksi frontend | `npm run build` | `frontend/` |
