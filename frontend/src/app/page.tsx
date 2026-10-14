@@ -1,15 +1,35 @@
-import { ConnectionStatus } from "@/components/ConnectionStatus";
+"use client";
 
-// Halaman awal sebagai bukti bahwa frontend, backend, dan database terhubung.
-// Halaman fitur ditambahkan per modul pada tahap berikutnya.
-export default function HomePage() {
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../lib/auth-context";
+
+export default function RootPage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        router.replace("/dashboard");
+      } else {
+        router.replace("/login");
+      }
+    }
+  }, [user, loading, router]);
+
   return (
-    <main className="page">
-      <h1>project-loe5</h1>
-      <p className="muted" style={{ marginBottom: 18 }}>
-        Fondasi frontend Next.js, backend FastAPI, dan database PostgreSQL.
-      </p>
-      <ConnectionStatus />
-    </main>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--bg-primary)",
+        color: "var(--text-secondary)",
+      }}
+    >
+      Memuat Lukla Operations Engine...
+    </div>
   );
 }

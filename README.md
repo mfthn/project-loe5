@@ -76,6 +76,17 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - System prompt unik per persona — bahasa dan nada disesuaikan.
   - Pipeline RAG yang sama dipakai keduanya — tidak ada duplikasi infrastruktur.
   - Pengujian: **6 test baru lulus** (total 114/114 seluruh suite).
+- [x] **Frontend Web App UI/UX: Antarmuka Terpadu Next.js 15 & Design System Industri (SELESAI)**
+  - **Login & Demo RBAC**: Quick Login Selector untuk 8 peran pengguna tanpa input manual.
+  - **Dashboard Eksekutif**: Live KPI pesanan aktif, output menunggu verifikasi, stok gudang, dan status AI Bedrock.
+  - **Gudang Multi-Klien**: Penerimaan (receive), pengeluaran (issue), dan simulasi visual proteksi anti-kontaminasi bahan.
+  - **Sample & Stopwatch**: Katalog prototipe, approval versi, dan stopwatch digital time study detik per komponen.
+  - **Lantai Produksi 30 Menit**: Visual pipeline status, terminal touchscreen penjahit interval 30 menit, dan verifikasi 1-klik mandor.
+  - **Quality Control**: Pencatatan inspeksi cacat garmen dan live kalkulator Pool Bonus QC Mandor.
+  - **Payroll Engine**: Preview kalkulasi Sabtu (borongan + uang makan 10-15% + bonus QC) dan tombol Kunci Audit Permanen.
+  - **AI Dual-Assistant**: Switcher persona Owner Tracker vs Konsultan Maklon dengan sitasi dokumen SOP Bedrock.
+  - **Portal Klien B2B**: Isolasi data pesanan dan transparansi sisa bahan baku milik klien mitra.
+  - Build produksi: **13/13 static routes Next.js 15 lulus (`npm run build`)**.
 
 ---
 

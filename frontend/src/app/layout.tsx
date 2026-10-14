@@ -1,16 +1,22 @@
 import type { ReactNode } from "react";
 import "./globals.css";
+import { AuthProvider } from "../lib/auth-context";
 
 export const metadata = {
-  title: "project-loe5",
-  description: "Platform operasional pabrik garmen",
+  title: "Lukla Operations Engine (project-loe5)",
+  description:
+    "Platform Operasional Terpadu Konveksi Garmen Ciwidey: Gudang Multi-Klien, Sample Stopwatch, Terminal 30m, QC Defect, Payroll Engine Sabtu, dan AI Dual-Assistant.",
 };
 
-// Layout root: hanya menyiapkan HTML, bahasa Indonesia, dan viewport responsif.
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </head>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
