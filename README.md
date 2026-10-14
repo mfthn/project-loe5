@@ -58,7 +58,17 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - **Skenario 3**: Pool Bonus QC = `qty_lolos × rate`, dibagi RATA kepada semua MANDOR + Kepala Ops (kalkulasi on-demand).
   - Migrasi Alembic: tabel qc_inspections.
   - Pengujian: **16/16 unit test baru lulus** (total 90/90 seluruh suite).
-- [ ] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0)**
+- [x] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0) (SELESAI)**
+  - Preview kalkulasi payroll (on-demand, tanpa menyimpan) sebelum konfirmasi.
+  - **FR-10.1**: Headcount dinamis — penjahit baru otomatis masuk selama ada output terverifikasi.
+  - **FR-10.2**: Upah borongan = `qty_completed × sewing_rate` per komponen per penjahit.
+  - Uang makan = `meal_allowance_percentage%` × total upah borongan (10–15%).
+  - Bonus QC = `qty_lolos × rate ÷ jumlah MANDOR` terintegrasi ke slip payroll.
+  - **FR-10 Audit Lock**: Kunci payroll PERMANEN — tidak bisa dibuka oleh siapa pun termasuk OWNER.
+  - Guard: periode tumpang tindih ditolak (HTTP 409).
+  - Guard: tidak ada output terverifikasi dalam periode ditolak (HTTP 422).
+  - Migrasi Alembic: tabel payroll_runs, payroll_details.
+  - Pengujian: **18/18 unit test baru lulus** (total 108/108 seluruh suite).
 - [ ] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1)**
 
 ---
@@ -206,6 +216,13 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `GET /api/v1/qc/inspections/{inspection_id}` — Detail satu catatan inspeksi QC.
 - `GET /api/v1/qc/summary/{order_id}` — Ringkasan QC: total, lolos, repair, defect, % pass rate.
 - `POST /api/v1/qc/bonus/{order_id}` — **Skenario 3**: Hitung & bagi pool bonus QC 3-arah (Mandor + Kepala Ops).
+
+### Modul Payroll Engine (`/api/v1/payroll`)
+- `GET /api/v1/payroll/runs` — Daftar semua siklus penggajian.
+- `POST /api/v1/payroll/preview` — Preview kalkulasi slip upah sebelum dikonfirmasi.
+- `POST /api/v1/payroll/runs` — Buat siklus penggajian & simpan slip upah semua penjahit.
+- `GET /api/v1/payroll/runs/{run_id}` — Detail siklus penggajian + semua slip individu.
+- `POST /api/v1/payroll/runs/{run_id}/lock` — **FR-10 Audit Lock**: Kunci payroll permanen.
 
 ---
 
