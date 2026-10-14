@@ -1,0 +1,11 @@
+# Dependensi produksi backend (FastAPI)
+fastapi==0.143.0
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.13
+alembic==1.14.0
+pydantic
+pydantic-settings
+PyJWT==2.15.1
+bcrypt==4.2.1
+boto3==1.35.76

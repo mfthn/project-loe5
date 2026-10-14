@@ -1,148 +1,153 @@
 # project-loe5
 
-Platform operasional pabrik garmen Ciwidey: stok multi-klien dengan anti-kontaminasi silang, alokasi line produksi, output 30 menit, QC, payroll, portal klien, dan dua asisten AI (Amazon Bedrock).
+Platform operasional pabrik garmen Ciwidey.
 
-Stack: Next.js 15 (App Router, TypeScript), Node.js, PostgreSQL 16, Prisma ORM, Amazon Bedrock (Converse API).
+Arsitektur:
 
-## Cara kerja singkat
-- `src/app`: halaman dan server actions. Tipis, hanya menerima form lalu memanggil modul.
-- `src/modules/<modul>/service.ts`: seluruh aturan bisnis (blokade stok, kunci verifikasi, perhitungan payroll). Satu folder per anggota tim.
-- `src/lib`: auth (JWT di cookie httpOnly), RBAC 8 peran, klien Bedrock, dan helper.
-- `prisma/schema`: satu file per modul agar merge tidak bentrok.
-- Login memakai email dan password. Akses menu dan halaman dikunci per peran, dan Portal Klien dibatasi ke client_id milik akun.
+- **frontend/**: Next.js 15 (App Router, TypeScript). Tampilan dan pemanggilan API.
+- **backend/**: FastAPI (Python 3.12). Seluruh aturan bisnis, akses database, autentikasi, dan integrasi Amazon Bedrock.
+- **Database**: PostgreSQL 16, dijalankan dengan Podman lewat `compose.yaml`.
 
-## Menjalankan di komputer lokal
+Frontend tidak mengakses database secara langsung. Semua data lewat API di `http://localhost:8000/api/v1`.
 
-### Prasyarat
+## Prasyarat
 
-- Git.
-- Node.js 20 atau lebih baru (disarankan versi LTS).
-- Salah satu runtime container: Docker Desktop (disarankan untuk Windows) atau Podman.
-- Windows: Docker Desktop dengan backend WSL 2 harus sudah dijalankan sebelum memakai `docker compose`.
-- Fedora dengan Podman: pasang Podman dan provider Compose (`sudo dnf install -y podman podman-compose git`); pastikan versi Node.js tetap 20 atau lebih baru.
+| Perangkat | Versi | Fedora | Windows |
+|---|---|---|---|
+| Podman | terbaru | `sudo dnf install podman podman-compose` | Podman Desktop |
+| Python | 3.12 | `sudo dnf install python3.12` | python.org (centang "Add to PATH") |
+| Node.js | 20 atau lebih baru | `sudo dnf install nodejs npm` | nodejs.org (versi LTS) |
+| Git | terbaru | `sudo dnf install git` | git-scm.com |
 
-Pastikan alat yang dibutuhkan tersedia:
+## Setup pertama kali
 
-```bash
-node --version
-npm --version
-git --version
-docker compose version
-```
+### 1. Database
 
-Untuk Fedora/Podman, gunakan `podman --version` dan `podman compose version` sebagai pengganti pemeriksaan Docker.
-
-### 1. Ambil source code dan pasang dependensi
-
-Clone repository, lalu buka terminal di folder `project-loe5`:
-
-```bash
-npm ci
-```
-
-`npm ci` memasang versi dependensi yang tercatat di `package-lock.json`.
-
-### 2. Siapkan environment
-
-Buat `.env` dari template. Di PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Di Fedora, macOS, atau Git Bash:
-
-```bash
-cp .env.example .env
-```
-
-Ganti `AUTH_SECRET` di `.env` dengan nilai acak. Bisa dibuat lintas platform memakai Node.js:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-Salin hasilnya ke `AUTH_SECRET`. `AWS_BEARER_TOKEN_BEDROCK` boleh dikosongkan untuk menjalankan fitur selain AI; isi dengan API key Bedrock hanya jika ingin mencoba asisten AI. Jangan commit `.env` atau membagikan isinya.
-
-### 3. Nyalakan PostgreSQL
-
-Port PostgreSQL host untuk aplikasi ini adalah `5433` agar tidak bentrok dengan instalasi PostgreSQL lokal. URL koneksi di `.env.example` sudah disesuaikan.
-
-Di Windows dengan Docker Desktop:
-
-```powershell
-docker compose up -d
-docker compose ps
-```
-
-Di Fedora dengan Podman:
+Dari folder root:
 
 ```bash
 podman compose up -d
-podman ps
+podman ps                      # container project_loe5_db harus berstatus Up
 ```
 
-Jika perintah `podman compose` tidak tersedia, pasang `podman-compose` lalu gunakan `podman-compose up -d`. Script `npm run db:up` dan `npm run db:down` di `package.json` menggunakan Podman; pengguna Docker Desktop dapat memakai `docker compose up -d` dan `docker compose down` secara langsung.
+Jika `podman compose` tidak tersedia, gunakan `podman-compose up -d`.
 
-### 4. Siapkan schema dan data uji
+### 2. Backend
 
-Migration awal sudah disimpan di repository. Jalankan:
+Masuk ke folder backend, buat virtual environment, lalu pasang dependensi.
+
+Fedora:
 
 ```bash
-npx prisma migrate dev
-npx prisma generate
-npm run db:seed
+cd backend
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env
 ```
 
-Seed membuat akun uji yang tercantum di bawah. Langkah ini tidak menghapus database; hindari `npm run db:reset` jika ingin mempertahankan data lokal.
+Backend menggunakan `DATABASE_URL` dari `backend/.env`. Nilai default mengarah ke PostgreSQL lokal pada port `5433`, sesuai pemetaan port di `compose.yaml`.
 
-### 5. Jalankan aplikasi
+Windows (PowerShell):
+
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+copy .env.example .env
+```
+
+Isi `AUTH_SECRET` di `backend/.env` dengan string acak minimal 32 karakter.
+
+Jalankan pengujian untuk memastikan backend sehat:
 
 ```bash
+pytest
+```
+
+Semua tes harus lolos sebelum melanjutkan.
+
+Jalankan server:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Buka http://localhost:8000/docs untuk dokumentasi API interaktif.
+
+### 3. Frontend
+
+Buka terminal baru di folder root.
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local     # Windows: copy .env.example .env.local
 npm run dev
 ```
 
-Buka http://localhost:3000.
+Buka http://localhost:3000. Halaman harus menampilkan status **Backend: Terhubung** dan **Database: Terhubung**.
 
-Untuk menghentikan PostgreSQL, jalankan `docker compose down` (Docker Desktop) atau `podman compose down` (Podman). Data database disimpan pada volume container dan tetap ada setelah container dihentikan.
+## Verifikasi koneksi
 
-## Akun uji
-Semua akun memakai password `password123`.
+Tiga langkah berikut membuktikan bahwa frontend, backend, dan database terhubung.
 
-| Email | Peran | Yang bisa dilihat |
+1. `http://localhost:8000/api/v1/health` mengembalikan `{"status":"ok","database":"ok"}`.
+2. `http://localhost:3000` menampilkan dua badge hijau pada bagian Status koneksi.
+3. Hentikan container database (`podman compose stop db`), lalu muat ulang halaman. Badge database harus berubah menjadi merah, dan halaman tetap terbuka.
+
+## Perintah harian
+
+| Tujuan | Perintah | Folder |
 |---|---|---|
-| owner@loe.test | Owner | Semua modul termasuk AI Business Tracker |
-| sample@loe.test | Tim Sample | Sample dan time study |
-| gudang@loe.test | Gudang | Gudang multi-klien |
-| mandor1@loe.test | Kepala Produksi | Produksi, alokasi, verifikasi |
-| penjahit1@loe.test | Penjahit | Riwayat output sendiri, ubah yang belum diverifikasi |
-| qc@loe.test | QC Inspector | QC dan gudang (baca) |
-| finance@loe.test | Finance & Payroll | Payroll |
-| klien@loe.test | Klien Maklon A | Portal klien, hanya data Klien A |
+| Menyalakan database | `podman compose up -d` | root |
+| Menghentikan database | `podman compose stop db` | root |
+| Menjalankan API | `uvicorn app.main:app --reload` | backend |
+| Pengujian backend | `pytest` | backend |
+| Pemeriksaan gaya kode | `ruff check .` | backend |
+| Membuat migrasi | `alembic revision --autogenerate -m "pesan"` | backend |
+| Menerapkan migrasi | `alembic upgrade head` | backend |
+| Menjalankan frontend | `npm run dev` | frontend |
+| Pemeriksaan tipe | `npm run typecheck` | frontend |
+| Build produksi | `npm run build` | frontend |
 
-Asisten calon klien bisa diakses tanpa login di http://localhost:3000/calon-klien
+## Struktur proyek
 
-## Skenario uji (sesuai BRD)
-1. Anti-kontaminasi: login sebagai gudang, terima bahan untuk Klien Maklon A dan pesanan milik klien tersebut, lalu coba keluarkan bahan itu untuk pesanan milik Snøhund. Sistem harus menolak dan menampilkan peringatan. Percobaan tercatat di bagian "Percobaan pengeluaran yang diblokir".
-2. Sample ke order: login sebagai sample, buat revisi (v2 otomatis terhubung ke v1), setujui, lalu konversi dengan mencentang konfirmasi.
-3. Produksi: login sebagai mandor1, alokasikan penjahit ke Line A, catat output, lalu verifikasi. Login sebagai penjahit1 dan coba ubah catatan yang sudah diverifikasi. Hasilnya harus ditolak.
-4. QC: catat hasil LOLOS, REPAIR, dan DEFECT. Repair atau defect tanpa kategori harus ditolak.
-5. Payroll: login sebagai finance, pilih periode yang mencakup output terverifikasi, lalu finalisasi. Periode yang sama tidak bisa difinalisasi dua kali.
-6. Portal klien: login sebagai klien@loe.test dan pastikan hanya data Klien A yang tampil.
-7. AI Owner: login sebagai owner dan tanyakan misalnya "berapa output pcs hari ini?". Jawaban harus sesuai data di database.
+```
+project-loe5/
+├── compose.yaml                 PostgreSQL untuk Podman
+├── frontend/                    Next.js (TypeScript)
+│   └── src/
+│       ├── app/                 routing halaman (App Router)
+│       ├── components/          komponen UI bersama
+│       ├── lib/                 klien API dan konfigurasi
+│       └── types/               tipe data dari API
+└── backend/                     FastAPI (Python)
+    ├── app/
+    │   ├── main.py              titik masuk aplikasi
+    │   ├── core/                konfigurasi, database, utilitas inti
+    │   ├── api/v1/              router HTTP per versi API
+    │   └── modules/             logika per fitur (auth, sample, gudang, ...)
+    ├── migrations/              migrasi Alembic
+    └── tests/                   pengujian pytest
+```
 
-## Catatan Bedrock
-- API key Bedrock dibaca otomatis oleh AWS SDK dari variabel `AWS_BEARER_TOKEN_BEDROCK`.
-- Model harus diaktifkan dulu di konsol AWS Bedrock (menu Model access) pada region yang sama dengan `AWS_REGION`.
-- Jika tidak ada API key, asisten menampilkan pesan bahwa layanan AI belum dikonfigurasi, dan aplikasi tetap berjalan.
+## Aturan pembagian kerja
 
-## Batasan MVP
-- Login belum memakai rate limit. Asisten calon klien publik sebaiknya diberi pembatasan sebelum rilis.
-- Tarif disederhanakan menjadi satu tarif per komponen per klien. Tarif per artikel dan riwayat perubahan tarif masuk backlog.
-- Overhead per unit (FR-10.4), scrap, dan notifikasi termasuk out-of-scope sesuai BRD.
-- Migrasi awal tersedia di `prisma/schema/migrations`. Perubahan schema berikutnya perlu dibuat sebagai migration dan disertakan bersama perubahan kode terkait.
+- Setiap anggota mengerjakan folder modul sesuai pembagian di `sop.md`.
+- Pola modul backend: `models.py`, `schemas.py`, `service.py`, `router.py`. Logika bisnis hanya di `service.py`, dan router tidak boleh mengakses database secara langsung.
+- Halaman frontend memanggil API lewat `src/lib/api.ts`. Jangan memanggil `fetch` langsung dari komponen.
+- Setiap perubahan skema wajib disertai migrasi Alembic, bukan perubahan manual di database.
+- Jangan commit file `.env`, `.env.local`, atau `.venv`.
 
-## Perintah berguna
-- `npm run db:studio` membuka Prisma Studio untuk melihat data.
-- `npm run db:reset` mengosongkan database lalu menjalankan ulang migrasi dan seed; seluruh data lokal akan terhapus.
-- `npm run db:down` mematikan container PostgreSQL (khusus Podman; pengguna Docker dapat menjalankan `docker compose down`).
+## Masalah umum
+
+| Gejala | Penyebab | Solusi |
+|---|---|---|
+| Badge backend merah | API belum berjalan | Jalankan `uvicorn` di folder backend |
+| Badge database merah | Container belum menyala | `podman compose up -d`, lalu cek `podman ps` |
+| CORS error di browser | Origin frontend tidak terdaftar | Pastikan `CORS_ORIGINS` di `backend/.env` memuat `http://localhost:3000` |
+| `port 5432 already allocated` | PostgreSQL lain berjalan | Hentikan layanan lain di mesin |
+| `ModuleNotFoundError: app` | Perintah dijalankan dari folder yang salah | Pastikan berada di folder `backend` |
+| `AUTH_SECRET` error saat start | `ENVIRONMENT=production` tanpa secret kuat | Isi `AUTH_SECRET` minimal 32 karakter |

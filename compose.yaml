@@ -1,4 +1,5 @@
-# PostgreSQL untuk pengembangan. Dijalankan dengan Podman: `podman compose up -d`
+# PostgreSQL untuk pengembangan lokal.
+# Jalankan dengan Podman: `podman compose up -d` (atau `podman-compose up -d`).
 services:
   db:
     image: docker.io/library/postgres:16
@@ -12,6 +13,11 @@ services:
       - "5433:5432"
     volumes:
       - loe_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loe -d project_loe5"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   loe_pgdata:
