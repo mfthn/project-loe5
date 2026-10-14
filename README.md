@@ -50,7 +50,14 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - Isolasi multi-tenant KLIEN_MAKLON pada endpoint GET /produksi/orders.
   - Migrasi Alembic: tabel orders, order_components, rate_cards, production_outputs.
   - Pengujian: **22/22 unit test baru lulus** (total 74/74 seluruh suite).
-- [ ] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0)**
+- [x] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0) (SELESAI)**
+  - Pencatatan inspeksi QC per batch pcs: LOLOS / REPAIR / DEFECT.
+  - Otomatis majukan status order MENUNGGU_QC → QC saat inspeksi pertama.
+  - Guard: inspeksi hanya bisa dilakukan saat status MENUNGGU_QC atau QC.
+  - Ringkasan QC per order: total, lolos, repair, defect, dan persentase.
+  - **Skenario 3**: Pool Bonus QC = `qty_lolos × rate`, dibagi RATA kepada semua MANDOR + Kepala Ops (kalkulasi on-demand).
+  - Migrasi Alembic: tabel qc_inspections.
+  - Pengujian: **16/16 unit test baru lulus** (total 90/90 seluruh suite).
 - [ ] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0)**
 - [ ] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1)**
 
@@ -192,6 +199,13 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `GET /api/v1/produksi/outputs` — Log output 30 menit (filter per order/line/status verifikasi).
 - `POST /api/v1/produksi/outputs` — Penjahit mencatat output per 30 menit dari terminal.
 - `PATCH /api/v1/produksi/outputs/{output_id}/verify` — Mandor memverifikasi log output.
+
+### Modul Quality Control (`/api/v1/qc`)
+- `GET /api/v1/qc/inspections` — Daftar inspeksi QC (filter per order / status).
+- `POST /api/v1/qc/inspections` — QC Inspector mencatat hasil pemeriksaan (LOLOS/REPAIR/DEFECT).
+- `GET /api/v1/qc/inspections/{inspection_id}` — Detail satu catatan inspeksi QC.
+- `GET /api/v1/qc/summary/{order_id}` — Ringkasan QC: total, lolos, repair, defect, % pass rate.
+- `POST /api/v1/qc/bonus/{order_id}` — **Skenario 3**: Hitung & bagi pool bonus QC 3-arah (Mandor + Kepala Ops).
 
 ---
 
