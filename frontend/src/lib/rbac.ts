@@ -7,6 +7,7 @@ export type AppModule =
   | "produksi"
   | "qc"
   | "payroll"
+  | "rekap-gaji"
   | "portal-klien"
   | "ai-assistant";
 
@@ -22,12 +23,12 @@ export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
     "portal-klien",
     "ai-assistant",
   ],
-  TIM_SAMPLE: ["dashboard", "sample", "ai-assistant"],
-  GUDANG: ["dashboard", "gudang", "ai-assistant"],
-  MANDOR: ["dashboard", "produksi", "qc", "ai-assistant"],
-  PENJAHIT: ["dashboard", "produksi"],
+  TIM_SAMPLE: ["dashboard", "sample"],
+  GUDANG: ["dashboard", "gudang"],
+  MANDOR: ["dashboard", "produksi", "qc"],
+  PENJAHIT: ["dashboard"],
   QC_INSPECTOR: ["dashboard", "qc", "gudang"],
-  FINANCE_PAYROLL: ["dashboard", "payroll", "ai-assistant"],
+  FINANCE_PAYROLL: ["dashboard", "payroll"],
   KLIEN_MAKLON: ["dashboard", "portal-klien", "ai-assistant"],
 };
 
@@ -83,6 +84,13 @@ export const MODULE_REGISTRY: Record<AppModule, ModuleMetadata> = {
     icon: "💰",
     badge: "Audit Lock",
     description: "Kalkulasi upah borongan mingguan, uang makan 10-15%, dan penguncian audit permanen.",
+  },
+  "rekap-gaji": {
+    id: "rekap-gaji",
+    label: "Rekap Gaji Mingguan",
+    href: "/rekap-gaji",
+    icon: "💵",
+    description: "Slip gaji resmi mingguan, status pembayaran, dan catatan progres pribadi.",
   },
   "portal-klien": {
     id: "portal-klien",

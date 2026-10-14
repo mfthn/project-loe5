@@ -5,22 +5,43 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { payrollApi } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
 import type { PayrollPreview, PayrollRun } from "../../types/api";
 
+function formatLocalDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isMondayToSaturday(start: string, end: string): boolean {
+  if (!start || !end) return false;
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  const dayDifference = (endDate.getTime() - startDate.getTime()) / 86400000;
+  return startDate.getDay() === 1 && endDate.getDay() === 6 && dayDifference === 5;
+}
+
 export default function PayrollPage() {
+  const { user } = useAuth();
+  const isFinance = user?.role === "FINANCE_PAYROLL";
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [preview, setPreview] = useState<PayrollPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "danger" | "warning" | "info"; message: string } | null>(null);
 
-  // Period inputs (default 7 days ago to today)
-  const today = new Date().toISOString().split("T")[0];
-  const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const [periodStart, setPeriodStart] = useState(lastWeek);
-  const [periodEnd, setPeriodEnd] = useState(today);
+  const defaultMonday = new Date();
+  defaultMonday.setDate(defaultMonday.getDate() - ((defaultMonday.getDay() + 6) % 7));
+  const defaultSaturday = new Date(defaultMonday);
+  defaultSaturday.setDate(defaultSaturday.getDate() + 5);
+  const [periodStart, setPeriodStart] = useState(formatLocalDate(defaultMonday));
+  const [periodEnd, setPeriodEnd] = useState(formatLocalDate(defaultSaturday));
   const [mealPercentage, setMealPercentage] = useState(10);
   const [qcBonusRate, setQcBonusRate] = useState(150);
+  const [availableFunds, setAvailableFunds] = useState("");
+  const [pendingReviewRunId, setPendingReviewRunId] = useState<string | null>(null);
 
   // Modal confirm lock
   const [confirmLockModal, setConfirmLockModal] = useState(false);
@@ -38,11 +59,34 @@ export default function PayrollPage() {
     }
   };
 
+  const handleRetryFinanceReview = async () => {
+    if (!selectedRun) return;
+    try {
+      setLoading(true);
+      const reviewedRun = await payrollApi.reviewFunding(selectedRun.id, {
+        available_funds: Number(availableFunds),
+      });
+      setSelectedRun(reviewedRun);
+      setNotice(reviewedRun.is_locked
+        ? { type: "success", message: "Dana mencukupi; Finance telah mengunci payroll." }
+        : { type: "warning", message: "Dana belum mencukupi. Notifikasi dikirimkan kepada Mandor." });
+      await loadRuns();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal memeriksa kecukupan dana." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadRuns();
   }, []);
 
   const handlePreview = async () => {
+    if (!isMondayToSaturday(periodStart, periodEnd)) {
+      setNotice({ type: "warning", message: "Pilih satu pekan kerja penuh: mulai Senin dan berakhir Sabtu." });
+      return;
+    }
     try {
       setLoading(true);
       setNotice(null);
@@ -53,9 +97,10 @@ export default function PayrollPage() {
         qc_bonus_rate_per_pcs: Number(qcBonusRate),
       });
       setPreview(data);
+      const totalPayroll = data.slips.reduce((total, slip) => total + Number(slip.net_salary), 0);
       setNotice({
         type: "info",
-        message: `Kalkulasi on-demand selesai: ${data.total_operators} operator terhitung dengan total estimasi Rp ${data.total_payroll.toLocaleString("id-ID")}.`,
+        message: `Kalkulasi on-demand selesai: ${data.total_penjahit} penjahit terhitung dengan total estimasi Rp ${totalPayroll.toLocaleString("id-ID")}.`,
       });
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal mengkalkulasi preview payroll." });
@@ -65,23 +110,55 @@ export default function PayrollPage() {
   };
 
   const handleConfirmLock = async () => {
+    if (!isMondayToSaturday(periodStart, periodEnd)) {
+      setNotice({ type: "warning", message: "Pilih satu pekan kerja penuh: mulai Senin dan berakhir Sabtu." });
+      return;
+    }
     try {
       setLoading(true);
-      const newRun = await payrollApi.createRun({
-        period_start: periodStart,
-        period_end: periodEnd,
-        meal_allowance_percentage: Number(mealPercentage),
-        qc_bonus_rate_per_pcs: Number(qcBonusRate),
+      const runId = pendingReviewRunId ?? (await payrollApi.createRun({
+          period_start: periodStart,
+          period_end: periodEnd,
+          meal_allowance_percentage: Number(mealPercentage),
+          qc_bonus_rate_per_pcs: Number(qcBonusRate),
+        })).id;
+      setPendingReviewRunId(runId);
+      const reviewedRun = await payrollApi.reviewFunding(runId, {
+        available_funds: Number(availableFunds),
       });
-      setNotice({
-        type: "success",
-        message: `🔒 AUDIT LOCK AKTIF! Payroll periode ${periodStart} s/d ${periodEnd} sebesar Rp ${newRun.total_amount.toLocaleString("id-ID")} telah dikunci permanen.`,
-      });
+      setPendingReviewRunId(null);
+      setSelectedRun(reviewedRun);
+      setNotice(reviewedRun.is_locked
+        ? {
+            type: "success",
+            message: `Dana mencukupi. Payroll periode ${periodStart} s/d ${periodEnd} telah dikunci oleh Finance.`,
+          }
+        : {
+            type: "warning",
+            message: "Dana belum mencukupi. Payroll belum dikunci dan notifikasi telah dikirim kepada Mandor.",
+          });
       setConfirmLockModal(false);
       setPreview(null);
-      loadRuns();
+      await loadRuns();
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal mengunci payroll." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkPaid = async (runId: string, detailId: string) => {
+    try {
+      setLoading(true);
+      const payment = await payrollApi.markDetailPaid(runId, detailId);
+      const updatedRun = await payrollApi.getRunDetail(runId);
+      setSelectedRun(updatedRun);
+      setNotice({
+        type: "success",
+        message: `Pembayaran ${updatedRun.details?.find((detail) => detail.id === detailId)?.user.name ?? "slip"} dicatat pada ${new Date(payment.paid_at).toLocaleString("id-ID")}.`,
+      });
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal mencatat pembayaran." });
     } finally {
       setLoading(false);
     }
@@ -119,7 +196,7 @@ export default function PayrollPage() {
               Mesin Penggajian Sabtu & Headcount Dinamis
             </h2>
             <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-              Begitu tombol <strong>Kunci Payroll</strong> ditekan, seluruh slip gaji dibekukan permanen. Tidak ada yang bisa membuka kembali, termasuk peran <strong>OWNER</strong>.
+              Hanya Finance yang dapat mengonfirmasi kecukupan dana. Payroll terkunci final hanya setelah saldo yang dikonfirmasi mencukupi total gaji.
             </div>
           </div>
 
@@ -129,8 +206,7 @@ export default function PayrollPage() {
         </div>
       </div>
 
-      {/* Configuration & Calculator Control Bar */}
-      <div className="card" style={{ marginBottom: 28 }}>
+      {isFinance && <div className="card" style={{ marginBottom: 28 }}>
         <h3 style={{ fontSize: "1.05rem", marginBottom: 16 }}>Parameter Periode Penggajian</h3>
         <div
           style={{
@@ -145,8 +221,12 @@ export default function PayrollPage() {
             <input
               type="date"
               className="form-input font-mono"
+              max={periodEnd}
               value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
+              onChange={(e) => {
+                setPendingReviewRunId(null);
+                setPeriodStart(e.target.value);
+              }}
             />
           </div>
 
@@ -155,10 +235,17 @@ export default function PayrollPage() {
             <input
               type="date"
               className="form-input font-mono"
+              min={periodStart}
               value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
+              onChange={(e) => {
+                setPendingReviewRunId(null);
+                setPeriodEnd(e.target.value);
+              }}
             />
           </div>
+          <p style={{ gridColumn: "1 / -1", margin: "-6px 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>
+            Periode payroll harus satu pekan kerja penuh, Senin sampai Sabtu.
+          </p>
 
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Uang Makan (%)</label>
@@ -192,7 +279,7 @@ export default function PayrollPage() {
             {loading ? "Menghitung..." : "📊 Preview Kalkulasi"}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Live Preview Result (If calculated) */}
       {preview && (
@@ -211,7 +298,7 @@ export default function PayrollPage() {
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Total Beban Payroll</div>
                 <div className="font-mono" style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-success)" }}>
-                  Rp {preview.total_payroll.toLocaleString("id-ID")}
+                  Rp {preview.slips.reduce((total, slip) => total + Number(slip.net_salary), 0).toLocaleString("id-ID")}
                 </div>
               </div>
 
@@ -219,7 +306,7 @@ export default function PayrollPage() {
                 onClick={() => setConfirmLockModal(true)}
                 className="btn btn-danger btn-lg"
               >
-                🔒 KUNCI & FINALISASI (Audit Lock)
+                Periksa Dana & Finalisasi
               </button>
             </div>
           </div>
@@ -239,10 +326,10 @@ export default function PayrollPage() {
                 </tr>
               </thead>
               <tbody>
-                {preview.details.map((det, idx) => (
-                  <tr key={idx}>
+                {preview.slips.map((det) => (
+                  <tr key={det.user_id}>
                     <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                      {det.user_name}
+                      {det.name}
                     </td>
                     <td>
                       <span className="badge badge-neutral" style={{ fontSize: "0.7rem" }}>
@@ -250,15 +337,15 @@ export default function PayrollPage() {
                       </span>
                     </td>
                     <td className="font-mono" style={{ fontWeight: 700 }}>
-                      {det.total_output_pcs} pcs
+                      {det.total_qty_completed} pcs
                     </td>
-                    <td className="font-mono">Rp {det.piece_rate_pay.toLocaleString("id-ID")}</td>
-                    <td className="font-mono">Rp {det.meal_allowance.toLocaleString("id-ID")}</td>
+                    <td className="font-mono">Rp {Number(det.total_sewing_fee).toLocaleString("id-ID")}</td>
+                    <td className="font-mono">Rp {Number(det.meal_allowance_amount).toLocaleString("id-ID")}</td>
                     <td className="font-mono" style={{ color: "var(--color-success)" }}>
-                      Rp {det.qc_bonus.toLocaleString("id-ID")}
+                      Rp {Number(det.qc_bonus_share).toLocaleString("id-ID")}
                     </td>
                     <td className="font-mono" style={{ fontWeight: 800, color: "var(--accent-primary)", fontSize: "1rem" }}>
-                      Rp {det.total_pay.toLocaleString("id-ID")}
+                      Rp {Number(det.net_salary).toLocaleString("id-ID")}
                     </td>
                   </tr>
                 ))}
@@ -270,22 +357,21 @@ export default function PayrollPage() {
 
       {/* History of Locked Payroll Runs */}
       <div>
-        <h3 style={{ marginBottom: 14 }}>Riwayat Periode Penggajian yang Terkunci (Locked Runs)</h3>
+        <h3 style={{ marginBottom: 14 }}>Riwayat Periode Payroll</h3>
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
                 <th>Periode Kerja</th>
-                <th>Total Nominal</th>
                 <th>Status Audit</th>
-                <th>Waktu Penguncian</th>
+                <th>Waktu Dibuat</th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {runs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+                  <td colSpan={4} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
                     Belum ada payroll run yang difinalisasi.
                   </td>
                 </tr>
@@ -295,14 +381,13 @@ export default function PayrollPage() {
                     <td className="font-mono" style={{ fontWeight: 600 }}>
                       {r.period_start} s/d {r.period_end}
                     </td>
-                    <td className="font-mono" style={{ fontWeight: 700, color: "var(--color-success)", fontSize: "1rem" }}>
-                      Rp {r.total_amount.toLocaleString("id-ID")}
-                    </td>
                     <td>
-                      <span className="badge badge-danger">🔒 KUNCI AUDIT AKTIF</span>
+                      <span className={`badge ${r.is_locked ? "badge-danger" : "badge-warning"}`}>
+                        {r.is_locked ? "🔒 FINAL" : r.funding_status === "INSUFFICIENT" ? "Dana kurang" : "Menunggu Finance"}
+                      </span>
                     </td>
                     <td className="font-mono" style={{ fontSize: "0.8rem" }}>
-                      {new Date(r.locked_at || r.created_at).toLocaleString("id-ID")}
+                      {new Date(r.created_at).toLocaleString("id-ID")}
                     </td>
                     <td>
                       <button
@@ -329,13 +414,18 @@ export default function PayrollPage() {
         <Modal
           isOpen={!!selectedRun}
           onClose={() => setSelectedRun(null)}
-          title={`🔒 Arsip Terkunci: Periode ${selectedRun.period_start} s/d ${selectedRun.period_end}`}
-          maxWidth="720px"
+          title={`${selectedRun.is_locked ? "Payroll Final" : "Review Finance"}: Periode ${selectedRun.period_start} s/d ${selectedRun.period_end}`}
+          maxWidth="1080px"
         >
           <div style={{ marginBottom: 14, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-            Total Pembayaran: <strong style={{ color: "var(--color-success)" }}>Rp {selectedRun.total_amount.toLocaleString("id-ID")}</strong>
+            Total Pembayaran: <strong style={{ color: "var(--color-success)" }}>Rp {selectedRun.details?.reduce((total, detail) => total + Number(detail.net_salary), 0).toLocaleString("id-ID")}</strong>
             <br />
-            Status: <span className="badge badge-danger" style={{ marginTop: 4 }}>Permanently Locked</span>
+            Status: <span className={`badge ${selectedRun.is_locked ? "badge-success" : selectedRun.funding_status === "INSUFFICIENT" ? "badge-warning" : "badge-info"}`} style={{ marginTop: 4 }}>
+              {selectedRun.is_locked ? "Final dan terkunci" : selectedRun.funding_status === "INSUFFICIENT" ? "Dana belum cukup" : "Menunggu pemeriksaan Finance"}
+            </span>
+            {selectedRun.available_funds !== null && (
+              <div>Dana tercatat: Rp {Number(selectedRun.available_funds).toLocaleString("id-ID")}</div>
+            )}
           </div>
 
           <div className="table-wrap">
@@ -344,30 +434,80 @@ export default function PayrollPage() {
                 <tr>
                   <th>Nama</th>
                   <th>Peran</th>
-                  <th>Output</th>
                   <th>Upah Borongan</th>
                   <th>Uang Makan</th>
                   <th>Bonus QC</th>
                   <th>Total</th>
+                  <th>Status pembayaran</th>
+                  <th>Tanggal pembayaran</th>
                 </tr>
               </thead>
               <tbody>
                 {selectedRun.details?.map((d, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 600 }}>{d.user_name}</td>
-                    <td><span className="badge badge-neutral">{d.role}</span></td>
-                    <td className="font-mono">{d.total_output_pcs} pcs</td>
-                    <td className="font-mono">Rp {d.piece_rate_pay.toLocaleString("id-ID")}</td>
-                    <td className="font-mono">Rp {d.meal_allowance.toLocaleString("id-ID")}</td>
-                    <td className="font-mono">Rp {d.qc_bonus.toLocaleString("id-ID")}</td>
+                    <td style={{ fontWeight: 600 }}>{d.user.name}</td>
+                    <td><span className="badge badge-neutral">{d.user.role}</span></td>
+                    <td className="font-mono">Rp {Number(d.total_sewing_fee).toLocaleString("id-ID")}</td>
+                    <td className="font-mono">Rp {Number(d.meal_allowance_amount).toLocaleString("id-ID")}</td>
+                    <td className="font-mono">Rp {Number(d.qc_bonus_share).toLocaleString("id-ID")}</td>
                     <td className="font-mono" style={{ fontWeight: 700, color: "var(--color-success)" }}>
-                      Rp {d.total_pay.toLocaleString("id-ID")}
+                      Rp {Number(d.net_salary).toLocaleString("id-ID")}
+                    </td>
+                    <td>
+                      {d.payment ? (
+                        <span className="badge badge-success">Sudah dibayar</span>
+                      ) : (
+                        <span className="badge badge-warning">Terjadwal</span>
+                      )}
+                    </td>
+                    <td>
+                      {d.payment ? (
+                        new Date(d.payment.paid_at).toLocaleString("id-ID")
+                      ) : selectedRun.is_locked && isFinance ? (
+                        <button
+                          onClick={() => handleMarkPaid(selectedRun.id, d.id)}
+                          className="btn btn-success btn-sm"
+                          disabled={loading}
+                        >
+                          Tandai sudah dibayar
+                        </button>
+                      ) : (
+                        selectedRun.is_locked ? "Menunggu Finance mencatat payout" : "Menunggu payroll dikunci Finance"
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {!selectedRun.is_locked && isFinance && (
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--border-subtle)" }}>
+              <label className="form-label" htmlFor="retry-available-funds">
+                Dana tersedia yang dikonfirmasi Finance (Rp)
+              </label>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <input
+                  id="retry-available-funds"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  className="form-input font-mono"
+                  value={availableFunds}
+                  onChange={(event) => setAvailableFunds(event.target.value)}
+                  placeholder="Saldo yang tersedia (boleh data dummy saat uji)"
+                  style={{ flex: "1 1 240px" }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleRetryFinanceReview}
+                  disabled={loading || availableFunds === ""}
+                >
+                  {loading ? "Memeriksa..." : "Periksa Dana & Finalisasi"}
+                </button>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 
@@ -386,11 +526,27 @@ export default function PayrollPage() {
           </div>
 
           <p style={{ fontSize: "0.9rem" }}>
-            Anda akan mengunci total pembayaran sebesar:
+            Total payroll yang akan diperiksa:
             <br />
             <strong className="font-mono" style={{ fontSize: "1.4rem", color: "var(--color-success)" }}>
-              Rp {preview?.total_payroll.toLocaleString("id-ID")}
+              Rp {preview?.slips.reduce((total, slip) => total + Number(slip.net_salary), 0).toLocaleString("id-ID")}
             </strong>
+          </p>
+          <label className="form-label" htmlFor="available-funds">
+            Dana tersedia yang telah dikonfirmasi Finance (Rp)
+          </label>
+          <input
+            id="available-funds"
+            type="number"
+            min="0"
+            step="1000"
+            className="form-input font-mono"
+            value={availableFunds}
+            onChange={(event) => setAvailableFunds(event.target.value)}
+            placeholder="Masukkan saldo dana (untuk data demo, masukkan nilai contoh)"
+          />
+          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 6 }}>
+            Dana kurang akan membatalkan penguncian dan mengirim notifikasi ke Mandor. Gunakan angka dummy hanya untuk pengujian.
           </p>
         </div>
 
@@ -406,9 +562,9 @@ export default function PayrollPage() {
             type="button"
             className="btn btn-danger"
             onClick={handleConfirmLock}
-            disabled={loading}
+            disabled={loading || availableFunds === ""}
           >
-            {loading ? "Mengunci..." : "Ya, Kunci Permanen Sekarang"}
+            {loading ? "Memeriksa..." : "Konfirmasi Dana & Finalisasi"}
           </button>
         </div>
       </Modal>

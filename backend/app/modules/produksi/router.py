@@ -29,17 +29,21 @@ from app.modules.produksi.schemas import (
     ProductionOutputCreate,
     ProductionOutputResponse,
     ProductionOutputVerify,
+    WorkerDashboardResponse,
 )
 from app.modules.produksi.service import (
     create_order,
     create_order_from_sample,
     get_order,
     get_order_output_summary,
+    get_worker_dashboard_summary,
     list_orders,
     list_outputs,
+    list_worker_orders,
     record_output,
     update_order_status,
     verify_output,
+    worker_has_output_for_order,
 )
 
 router = APIRouter(prefix="/produksi", tags=["produksi"])
@@ -81,8 +85,24 @@ def get_orders(
             )
         client_id = current_user.client_id
 
-    orders = list_orders(db, client_id=client_id, status=status_filter)
+    if current_user.role == UserRole.PENJAHIT:
+        orders = list_worker_orders(db, current_user.id, status=status_filter)
+    else:
+        orders = list_orders(db, client_id=client_id, status=status_filter)
     return [OrderDetailResponse.model_validate(o) for o in orders]
+
+
+@router.get(
+    "/my-dashboard",
+    response_model=WorkerDashboardResponse,
+    dependencies=[Depends(require_roles([UserRole.PENJAHIT]))],
+)
+def get_my_worker_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WorkerDashboardResponse:
+    """Ringkasan kerja pribadi Penjahit untuk Dashboard."""
+    return get_worker_dashboard_summary(db, current_user.id)
 
 
 @router.post(
@@ -110,6 +130,10 @@ def get_order_detail(
     db: Session = Depends(get_db),
 ) -> OrderDetailResponse:
     """Detail lengkap sebuah order beserta komponen dan rate card."""
+    if current_user.role == UserRole.PENJAHIT and not worker_has_output_for_order(
+        db, current_user.id, order_id
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order tidak ditemukan.")
     try:
         order = get_order(db, order_id)
     except OrderNotFoundError as e:
@@ -243,6 +267,10 @@ def get_order_summary(
     db: Session = Depends(get_db),
 ) -> OrderOutputSummary:
     """Ringkasan total output vs target pcs untuk satu order produksi."""
+    if current_user.role == UserRole.PENJAHIT and not worker_has_output_for_order(
+        db, current_user.id, order_id
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order tidak ditemukan.")
     try:
         summary = get_order_output_summary(db, order_id)
     except OrderNotFoundError as e:

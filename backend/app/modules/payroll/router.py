@@ -4,7 +4,7 @@ Endpoint tersedia di /api/v1/payroll.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -12,34 +12,45 @@ from app.modules.auth.dependencies import get_current_user, require_roles
 from app.modules.auth.models import User, UserRole
 from app.modules.payroll.errors import (
     NoOutputsForPeriodError,
+    PayrollDetailNotFoundError,
+    PayrollPaymentAlreadyRecordedError,
     PayrollPeriodOverlapError,
+    PayrollRunNotLockedError,
     PayrollRunLockedError,
     PayrollRunNotFoundError,
 )
 from app.modules.payroll.schemas import (
     BatchFinancialCreate,
     BatchFinancialResponse,
-    PayrollLockResponse,
+    PayrollFinanceReview,
+    PayrollMonthlySummaryResponse,
+    PayrollNotificationResponse,
+    PayrollPaymentResponse,
     PayrollPreviewResponse,
     PayrollRunCreate,
     PayrollRunDetailResponse,
     PayrollRunResponse,
+    WorkerPayrollSummaryResponse,
 )
 from app.modules.payroll.service import (
     calculate_and_save_batch_financial,
     create_payroll_run,
     get_batch_financial,
+    get_monthly_summary,
     get_payroll_run,
     list_batch_financials,
+    list_payroll_notifications,
     list_payroll_runs,
-    lock_payroll_run,
+    list_worker_payroll_summaries,
+    mark_payroll_detail_paid,
     preview_payroll,
+    review_payroll_funding,
 )
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
 
-_PAYROLL_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER]
-_VIEW_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER, UserRole.MANDOR]
+_FINANCE_ROLES = [UserRole.FINANCE_PAYROLL]
+_VIEW_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER]
 
 
 def _handle_error(exc: Exception) -> HTTPException:
@@ -47,11 +58,55 @@ def _handle_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, PayrollRunLockedError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, (PayrollRunNotLockedError, PayrollPaymentAlreadyRecordedError)):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, PayrollDetailNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, PayrollPeriodOverlapError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if isinstance(exc, NoOutputsForPeriodError):
         return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get(
+    "/my-summary",
+    response_model=list[WorkerPayrollSummaryResponse],
+    dependencies=[Depends(require_roles([UserRole.PENJAHIT]))],
+)
+def get_my_payroll_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[WorkerPayrollSummaryResponse]:
+    """Rekap payroll resmi dan catatan progres hanya milik Penjahit aktif."""
+    summaries = list_worker_payroll_summaries(db, current_user.id)
+    return [WorkerPayrollSummaryResponse.model_validate(summary) for summary in summaries]
+
+
+@router.get(
+    "/notifications",
+    response_model=list[PayrollNotificationResponse],
+    dependencies=[Depends(require_roles([UserRole.MANDOR]))],
+)
+def get_my_payroll_notifications(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[PayrollNotificationResponse]:
+    notifications = list_payroll_notifications(db, current_user.id)
+    return [PayrollNotificationResponse.model_validate(item) for item in notifications]
+
+
+@router.get(
+    "/monthly-summary",
+    response_model=PayrollMonthlySummaryResponse,
+    dependencies=[Depends(require_roles(_VIEW_ROLES))],
+)
+def get_owner_monthly_summary(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+) -> PayrollMonthlySummaryResponse:
+    return get_monthly_summary(db, year, month)
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +146,7 @@ def get_payroll_run_detail(
 @router.post(
     "/preview",
     response_model=PayrollPreviewResponse,
-    dependencies=[Depends(require_roles(_PAYROLL_ROLES))],
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
 )
 def preview_payroll_calculation(
     payload: PayrollRunCreate,
@@ -111,7 +166,7 @@ def preview_payroll_calculation(
     "/runs",
     response_model=PayrollRunDetailResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles(_PAYROLL_ROLES))],
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
 )
 def create_new_payroll_run(
     payload: PayrollRunCreate,
@@ -132,28 +187,57 @@ def create_new_payroll_run(
 
 
 @router.post(
-    "/runs/{run_id}/lock",
-    response_model=PayrollLockResponse,
-    dependencies=[Depends(require_roles(_PAYROLL_ROLES))],
+    "/runs/{run_id}/finance-review",
+    response_model=PayrollRunDetailResponse,
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
 )
-def lock_payroll(
+def review_payroll(
     run_id: uuid.UUID,
+    payload: PayrollFinanceReview,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> PayrollLockResponse:
-    """FR-10 Audit Lock: Mengunci payroll run secara PERMANEN untuk keperluan audit keuangan.
-
-    ⚠️ Setelah dikunci, data tidak dapat diubah oleh siapa pun — termasuk OWNER.
-    Kunci ini bersifat ireversibel untuk menjaga integritas trail audit.
-    """
+) -> PayrollRunDetailResponse:
+    """Finance mencatat ketersediaan dana; payroll terkunci hanya jika dana mencukupi."""
     try:
-        run = lock_payroll_run(db, run_id)
+        run = review_payroll_funding(
+            db,
+            run_id,
+            payload.available_funds,
+            current_user.id,
+            payload.review_note,
+        )
     except (PayrollRunNotFoundError, PayrollRunLockedError) as e:
         raise _handle_error(e) from e
-    return PayrollLockResponse(
-        run_id=run.id,
-        is_locked=run.is_locked,
-        message=f"Payroll run periode {run.period_start} – {run.period_end} berhasil dikunci. Data tidak dapat diubah.",
-    )
+    return PayrollRunDetailResponse.model_validate(run)
+
+
+@router.post(
+    "/runs/{run_id}/details/{detail_id}/payment",
+    response_model=PayrollPaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
+)
+def confirm_payroll_payment(
+    run_id: uuid.UUID,
+    detail_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PayrollPaymentResponse:
+    """Catat pembayaran aktual untuk satu slip payroll yang sudah terkunci."""
+    try:
+        payment = mark_payroll_detail_paid(
+            db,
+            run_id=run_id,
+            detail_id=detail_id,
+            paid_by_user_id=current_user.id,
+        )
+    except (
+        PayrollDetailNotFoundError,
+        PayrollPaymentAlreadyRecordedError,
+        PayrollRunNotLockedError,
+    ) as exc:
+        raise _handle_error(exc) from exc
+    return PayrollPaymentResponse.model_validate(payment)
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +247,7 @@ def lock_payroll(
 @router.post(
     "/financials",
     response_model=BatchFinancialResponse,
-    dependencies=[Depends(require_roles(_PAYROLL_ROLES))],
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
 )
 def calculate_batch_financial_endpoint(
     payload: BatchFinancialCreate,
@@ -205,4 +289,3 @@ def get_batch_financial_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return BatchFinancialResponse.model_validate(fin)
-

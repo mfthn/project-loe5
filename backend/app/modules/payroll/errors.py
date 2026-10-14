@@ -36,6 +36,22 @@ class PayrollDetailNotFoundError(ValueError):
         self.detail_id = detail_id
 
 
+class PayrollRunNotLockedError(ValueError):
+    """Pembayaran tidak dapat dikonfirmasi sebelum slip payroll terkunci."""
+
+    def __init__(self, run_id: uuid.UUID) -> None:
+        super().__init__(f"Payroll run {run_id} harus dikunci sebelum pembayaran dikonfirmasi.")
+        self.run_id = run_id
+
+
+class PayrollPaymentAlreadyRecordedError(ValueError):
+    """Pembayaran untuk slip ini sudah tercatat dan tidak dapat dicatat ulang."""
+
+    def __init__(self, detail_id: uuid.UUID) -> None:
+        super().__init__(f"Pembayaran untuk slip payroll {detail_id} sudah tercatat.")
+        self.detail_id = detail_id
+
+
 class NoOutputsForPeriodError(ValueError):
     """Tidak ada data output produksi terverifikasi dalam periode ini."""
     def __init__(self, period_start: date, period_end: date) -> None:

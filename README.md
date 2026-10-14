@@ -241,6 +241,8 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `POST /api/v1/payroll/runs` — Buat siklus penggajian & simpan slip upah semua penjahit.
 - `GET /api/v1/payroll/runs/{run_id}` — Detail siklus penggajian + semua slip individu.
 - `POST /api/v1/payroll/runs/{run_id}/lock` — **FR-10 Audit Lock**: Kunci payroll permanen.
+- `POST /api/v1/payroll/runs/{run_id}/details/{detail_id}/payment` — Finance/Owner mencatat pembayaran aktual untuk slip dalam payroll terkunci.
+- `GET /api/v1/payroll/my-summary` — Rekap payroll terkunci milik Penjahit yang login, status/tanggal pembayaran, dan catatan output pribadi.
 
 ---
 

@@ -12,6 +12,9 @@ import type {
   Order,
   OrderComponent,
   OrderSummary,
+  PayrollMonthlySummary,
+  PayrollNotification,
+  PayrollPayment,
   PayrollPreview,
   PayrollRun,
   ProductionOutput,
@@ -22,6 +25,8 @@ import type {
   SampleVersion,
   TokenResponse,
   User,
+  WorkerPayrollSummary,
+  WorkerDashboardSummary,
 } from "../types/api";
 
 export class ApiError extends Error {
@@ -223,6 +228,9 @@ export const sampleApi = {
 
 // ================= Produksi API =================
 export const produksiApi = {
+  getMyDashboard: async (): Promise<WorkerDashboardSummary> => {
+    return apiFetch<WorkerDashboardSummary>("/produksi/my-dashboard");
+  },
   getOrders: async (): Promise<Order[]> => {
     return apiFetch<Order[]>("/produksi/orders");
   },
@@ -363,16 +371,10 @@ export const payrollApi = {
     meal_allowance_percentage?: number;
     qc_bonus_rate_per_pcs?: number;
   }): Promise<PayrollPreview> => {
-    const query = new URLSearchParams();
-    query.set("period_start", params.period_start);
-    query.set("period_end", params.period_end);
-    if (params.meal_allowance_percentage !== undefined) {
-      query.set("meal_allowance_percentage", String(params.meal_allowance_percentage));
-    }
-    if (params.qc_bonus_rate_per_pcs !== undefined) {
-      query.set("qc_bonus_rate_per_pcs", String(params.qc_bonus_rate_per_pcs));
-    }
-    return apiFetch<PayrollPreview>(`/payroll/preview?${query.toString()}`);
+    return apiFetch<PayrollPreview>("/payroll/preview", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
   },
   createRun: async (data: {
     period_start: string;
@@ -391,10 +393,30 @@ export const payrollApi = {
   getRunDetail: async (runId: string): Promise<PayrollRun> => {
     return apiFetch<PayrollRun>(`/payroll/runs/${runId}`);
   },
-  lockRun: async (runId: string): Promise<PayrollRun> => {
-    return apiFetch<PayrollRun>(`/payroll/runs/${runId}/lock`, {
+  reviewFunding: async (
+    runId: string,
+    data: { available_funds: number; review_note?: string },
+  ): Promise<PayrollRun> => {
+    return apiFetch<PayrollRun>(`/payroll/runs/${runId}/finance-review`, {
       method: "POST",
+      body: JSON.stringify(data),
     });
+  },
+  markDetailPaid: async (runId: string, detailId: string): Promise<PayrollPayment> => {
+    return apiFetch<PayrollPayment>(
+      `/payroll/runs/${runId}/details/${detailId}/payment`,
+      { method: "POST" },
+    );
+  },
+  getMySummary: async (): Promise<WorkerPayrollSummary[]> => {
+    return apiFetch<WorkerPayrollSummary[]>("/payroll/my-summary");
+  },
+  getNotifications: async (): Promise<PayrollNotification[]> => {
+    return apiFetch<PayrollNotification[]>("/payroll/notifications");
+  },
+  getMonthlySummary: async (year: number, month: number): Promise<PayrollMonthlySummary> => {
+    const query = new URLSearchParams({ year: String(year), month: String(month) });
+    return apiFetch<PayrollMonthlySummary>(`/payroll/monthly-summary?${query.toString()}`);
   },
   getBatchFinancials: async (): Promise<BatchFinancial[]> => {
     return apiFetch<BatchFinancial[]>("/payroll/financials");
