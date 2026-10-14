@@ -252,15 +252,20 @@ export type DualAskRequest = {
 };
 
 export type SourceDocument = {
-  source_file: string;
+  chunk_index?: number;
+  start?: number;
+  end?: number;
   score?: number;
+  text?: string;
+  source_file?: string;
   snippet?: string;
 };
 
 export type DualAskResponse = {
-  question: string;
+  question?: string;
   answer: string;
   persona: AssistantPersona;
+  persona_label?: string;
   sources: SourceDocument[];
-  answered_at: string;
+  answered_at?: string;
 };

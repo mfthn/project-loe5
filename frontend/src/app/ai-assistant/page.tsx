@@ -4,13 +4,13 @@ import React, { useState } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { aiApi } from "../../lib/api";
-import type { AssistantPersona, DualAskResponse } from "../../types/api";
+import type { AssistantPersona, DualAskResponse, SourceDocument } from "../../types/api";
 
 interface ChatMessage {
   id: string;
   sender: "user" | "ai";
   text: string;
-  sources?: { source_file: string; score?: number }[];
+  sources?: SourceDocument[];
   persona: AssistantPersona;
   timestamp: string;
 }
@@ -161,11 +161,24 @@ export default function AiAssistantPage() {
                 <div className="chat-sources">
                   <div style={{ fontWeight: 600, marginBottom: 2 }}>📚 Rujukan SOP (RAG Bedrock):</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {msg.sources.map((s, idx) => (
-                      <span key={idx} className="badge badge-neutral" style={{ fontSize: "0.68rem" }}>
-                        📄 {s.source_file.split("/").pop()}
-                      </span>
-                    ))}
+                    {msg.sources.map((s, idx) => {
+                      const label = s.source_file
+                        ? s.source_file.split("/").pop()
+                        : s.chunk_index !== undefined
+                        ? `Chunk #${s.chunk_index + 1}`
+                        : `Kutipan #${idx + 1}`;
+                      const scoreText = s.score !== undefined ? ` (${Math.round(s.score * 100)}%)` : "";
+                      return (
+                        <span
+                          key={idx}
+                          className="badge badge-neutral"
+                          style={{ fontSize: "0.68rem" }}
+                          title={s.text || undefined}
+                        >
+                          📄 {label}{scoreText}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
