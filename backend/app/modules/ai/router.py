@@ -23,6 +23,22 @@ def ask(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> AskResp
     return AskResponse(**result)
 
 
+@router.post("/ask-agent", response_model=AskResponse)
+def ask_agent(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> AskResponse:
+    try:
+        result = rag.ask(body.question)
+    except RagError as e:
+        raise _to_http(e) from e
+    return AskResponse(**result)
+@router.get("/ask-agent", response_model=AskResponse)
+def ask_agent_get(question: str, rag: RagService = Depends(get_rag_service)) -> AskResponse:
+    try:
+        result = rag.ask(question)
+    except RagError as e:
+        raise _to_http(e) from e
+    return AskResponse(**result)
+
+
 @router.post("/reindex", response_model=ReindexResponse)
 def reindex(rag: RagService = Depends(get_rag_service)) -> ReindexResponse:
     try:

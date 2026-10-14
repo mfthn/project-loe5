@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
 
     aws_region: str = "us-east-1"
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
     bedrock_model_id: str = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
 
     # RAG (endpoint /api/v1/ai/ask). Dokumen sumber dibaca dari S3.

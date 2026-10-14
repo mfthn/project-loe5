@@ -162,3 +162,23 @@ def test_post_ask_returns_502_when_aws_fails(use_service):
     res = http.post("/api/v1/ai/ask", json={"question": "Berapa lama cuti?"})
 
     assert res.status_code == 502
+
+
+def test_post_ask_agent_returns_answer(use_service):
+    http = use_service(RagService(make_settings(), FakeClients()))
+
+    res = http.post("/api/v1/ai/ask-agent", json={"question": "Berapa lama cuti?"})
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["answer"] == "Jawaban uji."
+    assert body["sources"]
+
+
+def test_post_ask_agent_rejects_blank_question(use_service):
+    http = use_service(RagService(make_settings(), FakeClients()))
+
+    res = http.post("/api/v1/ai/ask-agent", json={"question": "   "})
+
+    assert res.status_code == 422
+

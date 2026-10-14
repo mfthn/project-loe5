@@ -20,9 +20,15 @@ _AWS_HINT = "Periksa kredensial AWS, region, izin IAM, dan akses model di konsol
 class AwsRagClients:
     def __init__(self, settings: Settings) -> None:
         self._s = settings
-        self._s3 = boto3.client("s3", region_name=settings.s3_region)
-        self._embed = boto3.client("bedrock-runtime", region_name=settings.embedding_region)
-        self._llm = boto3.client("bedrock-runtime", region_name=settings.llm_region)
+        # Gunakan kredensial eksplisit dari .env agar tidak bergantung pada aws configure
+        _creds = {
+            "aws_access_key_id": settings.aws_access_key_id or None,
+            "aws_secret_access_key": settings.aws_secret_access_key or None,
+        }
+        self._s3 = boto3.client("s3", region_name=settings.s3_region, **_creds)
+        self._embed = boto3.client("bedrock-runtime", region_name=settings.embedding_region, **_creds)
+        self._llm = boto3.client("bedrock-runtime", region_name=settings.llm_region, **_creds)
+
 
     def read_document(self) -> str:
         try:

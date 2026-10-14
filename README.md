@@ -30,7 +30,14 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - **Skenario 1**: Pengeluaran bahan ke cutting (`POST /api/v1/gudang/issue`) dengan guard otomatis: jika `item.client_id != order.client_id`, sistem memblokir dengan HTTP 400 dan stok tidak berkurang.
   - Isolasi data B2B: Klien maklon hanya dapat melihat stok dan riwayat mutasi miliknya sendiri.
   - Pengujian: **30/30 unit test lulus** di `pytest`, linter `ruff` bersih.
-- [ ] **Fase 3: Sample & Time Study Tracker + Stopwatch Digital (Skenario 4 - P0)**
+- [x] **Fase 3: Sample & Time Study Tracker + Stopwatch Digital (Skenario 4 - P0) (SELESAI)**
+  - CRUD Sample dengan kode unik per klien.
+  - Versi sample otomatis v1 DRAFT saat sample dibuat.
+  - Revisi versi (v2, v3, dst.) dengan nomor otomatis dan status REVISION.
+  - Approval versi (DRAFT/REVISION → APPROVED); versi APPROVED tidak bisa diubah.
+  - Komponen garmen + stopwatch time study (detik): ringkasan total waktu & estimasi bahan.
+  - Isolasi multi-tenant: KLIEN_MAKLON hanya melihat sample miliknya.
+  - Pengujian: **20/20 unit test lulus** (total 52/52 seluruh suite).
 - [ ] **Fase 4: Produksi & Terminal Input 30 Menit Lantai Pabrik (P0)**
 - [ ] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0)**
 - [ ] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0)**
@@ -153,6 +160,16 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `POST /api/v1/ai/ask` — Tanya-jawab RAG seputar SOP operasional manufaktur via Bedrock.
 - `POST /api/v1/ai/reindex` — Membangun ulang indeks chunk & embedding dari S3.
 - `GET /api/v1/ai/status` — Memeriksa status kesiapan indeks RAG.
+
+### Modul Sample \& Time Study Tracker (`/api/v1/sample`)
+- `GET /api/v1/sample/` — Daftar sample beserta semua versi (filter per `client_id` opsional).
+- `POST /api/v1/sample/` — Membuat sample baru; v1 DRAFT otomatis terbuat.
+- `GET /api/v1/sample/{sample_id}` — Detail sample + semua versi.
+- `POST /api/v1/sample/{sample_id}/revisi` — Membuat versi revisi baru (status REVISION).
+- `GET /api/v1/sample/versions/{version_id}` — Detail versi + komponen time study + ringkasan.
+- `POST /api/v1/sample/versions/{version_id}/approve` — Menyetujui versi (→ APPROVED).
+- `POST /api/v1/sample/versions/{version_id}/components` — Menambahkan komponen garmen + stopwatch.
+- `PUT /api/v1/sample/components/{component_id}` — Memperbarui komponen garmen.
 
 ---
 
