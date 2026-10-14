@@ -8,6 +8,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select
 from app.core.database import SessionLocal
 from app.core.security import hash_password
+
+# Registrasi seluruh model ORM agar metadata foreign key terhubung utuh
+from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.gudang import models as gudang_models  # noqa: F401
+from app.modules.payroll import models as payroll_models  # noqa: F401
+from app.modules.produksi import models as produksi_models  # noqa: F401
+from app.modules.qc import models as qc_models  # noqa: F401
+from app.modules.sample import models as sample_models  # noqa: F401
+
 from app.modules.auth.models import Client, User, UserRole
 
 
@@ -79,6 +88,64 @@ def seed_data() -> None:
                 )
                 db.add(user)
                 print(f"  + User '{username}' ({role.value}) berhasil dibuat.")
+
+        db.flush()
+
+        # 3. Seed Bahan Baku Gudang Multi-Tenant
+        from app.modules.gudang.models import InventoryItem, InventoryTransaction, TransactionType
+        from app.modules.produksi.models import MaklonScheme, Order, OrderStatus
+
+        demo_items = [
+            (klien_a.id, "KAIN-COMBED-NAVY-01", "Cotton Combed 30s Navy", 800.0, "METER"),
+            (klien_a.id, "BENANG-POLY-NAVY", "Benang Jahit Poliester Navy", 40.0, "CONE"),
+            (klien_b.id, "KAIN-DRILL-KHAKI-02", "Kain Drill American Khaki", 500.0, "METER"),
+            (klien_b.id, "KANCING-BATOK-20MM", "Kancing Batok Kelapa 20mm", 2000.0, "PCS"),
+            (snohund.id, "KAIN-FLEECE-BLACK-03", "Heavyweight Cotton Fleece 330gsm", 600.0, "METER"),
+        ]
+
+        for cid, code, name, stock, unit in demo_items:
+            existing_item = db.scalar(select(InventoryItem).where(InventoryItem.material_code == code))
+            if not existing_item:
+                item = InventoryItem(
+                    client_id=cid,
+                    material_code=code,
+                    material_name=name,
+                    current_stock=stock,
+                    unit_measure=unit,
+                )
+                db.add(item)
+                db.flush()
+                # Transaksi IN perdana
+                trx = InventoryTransaction(
+                    inventory_item_id=item.id,
+                    client_id=cid,
+                    order_id=None,
+                    transaction_type=TransactionType.IN,
+                    quantity=stock,
+                    notes="Saldo awal penerimaan bahan titipan",
+                )
+                db.add(trx)
+                print(f"  + Material '{code}' ({stock} {unit}) berhasil didaftarkan.")
+
+        # 4. Seed Contoh Order Massal
+        demo_orders = [
+            (klien_a.id, "ORD-MAKLON-A-001", MaklonScheme.CMT, 500, OrderStatus.CUTTING),
+            (klien_b.id, "ORD-MAKLON-B-002", MaklonScheme.SEMI_CMT, 300, OrderStatus.CUTTING),
+            (snohund.id, "ORD-SNOHUND-003", MaklonScheme.FULL_PACKAGE, 200, OrderStatus.SEWING),
+        ]
+
+        for cid, onum, scheme, target, st in demo_orders:
+            existing_ord = db.scalar(select(Order).where(Order.order_number == onum))
+            if not existing_ord:
+                ord_obj = Order(
+                    client_id=cid,
+                    order_number=onum,
+                    scheme=scheme,
+                    target_quantity=target,
+                    status=st,
+                )
+                db.add(ord_obj)
+                print(f"  + Order '{onum}' ({target} pcs) berhasil dibuat.")
 
         db.commit()
         print("Seeding data demo selesai dengan sukses!")

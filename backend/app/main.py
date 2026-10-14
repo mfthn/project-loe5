@@ -8,6 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+# Registrasi seluruh model ORM agar metadata foreign key terhubung utuh
+from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.gudang import models as gudang_models  # noqa: F401
+from app.modules.payroll import models as payroll_models  # noqa: F401
+from app.modules.produksi import models as produksi_models  # noqa: F401
+from app.modules.qc import models as qc_models  # noqa: F401
+from app.modules.sample import models as sample_models  # noqa: F401
 
 
 def create_app() -> FastAPI:

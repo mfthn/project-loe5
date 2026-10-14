@@ -24,8 +24,12 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - Matriks RBAC untuk 8 Peran Pengguna dengan penegakan izin di sisi server (`require_roles`).
   - Script seeding data demo ([scripts/seed.py](file:///home/fitzeon/Documents/S1-Informatika/Pelatihan/MAIN-Academy/Hechaton/project-loe5-rag/backend/scripts/seed.py)): 3 Klien dan 12 Akun Pengguna siap pakai.
   - Pipeline RAG Bedrock operasional membaca SOP dari AWS S3.
-  - Pengujian: **24/24 unit test lulus** di `pytest`, linter `ruff` bersih.
-- [ ] **Fase 2: Modul Gudang Multi-Klien & Proteksi Anti-Kontaminasi Silang (Skenario 1 - P0)**
+- [x] **Fase 2: Modul Gudang Multi-Klien & Proteksi Anti-Kontaminasi Silang (SELESAI - Skenario 1 P0)**
+  - Pendaftaran material dengan Tag ID Klien wajib (`client_id`).
+  - Mutasi penerimaan bahan masuk (`POST /api/v1/gudang/receive`).
+  - **Skenario 1**: Pengeluaran bahan ke cutting (`POST /api/v1/gudang/issue`) dengan guard otomatis: jika `item.client_id != order.client_id`, sistem memblokir dengan HTTP 400 dan stok tidak berkurang.
+  - Isolasi data B2B: Klien maklon hanya dapat melihat stok dan riwayat mutasi miliknya sendiri.
+  - Pengujian: **30/30 unit test lulus** di `pytest`, linter `ruff` bersih.
 - [ ] **Fase 3: Sample & Time Study Tracker + Stopwatch Digital (Skenario 4 - P0)**
 - [ ] **Fase 4: Produksi & Terminal Input 30 Menit Lantai Pabrik (P0)**
 - [ ] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0)**
@@ -137,6 +141,13 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `POST /api/v1/auth/login` — Login pengguna, menghasilkan JWT & HttpOnly cookie.
 - `POST /api/v1/auth/logout` — Logout dan membersihkan cookie sesi.
 - `GET /api/v1/auth/me` — Mengambil data profil dan peran pengguna yang sedang login.
+
+### Modul Gudang & Anti-Kontaminasi (`/api/v1/gudang`)
+- `GET /api/v1/gudang/items` — Mengambil daftar stok bahan baku (otomatis terisolasi per `client_id` untuk Klien Maklon).
+- `POST /api/v1/gudang/items` — Mendaftarkan item material baru dengan Tag ID Klien wajib.
+- `POST /api/v1/gudang/receive` — Mencatat mutasi penerimaan bahan masuk (Transaksi IN).
+- `POST /api/v1/gudang/issue` — Mengeluarkan bahan ke cutting (Transaksi OUT) dengan **guard anti-kontaminasi silang**.
+- `GET /api/v1/gudang/transactions` — Melihat riwayat mutasi stok bahan.
 
 ### Modul AI RAG (`/api/v1/ai`)
 - `POST /api/v1/ai/ask` — Tanya-jawab RAG seputar SOP operasional manufaktur via Bedrock.
