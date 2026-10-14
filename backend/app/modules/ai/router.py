@@ -1,11 +1,25 @@
-"""Endpoint RAG: /api/v1/ai/ask, /api/v1/ai/reindex, dan /api/v1/ai/status."""
+"""Endpoint RAG: /api/v1/ai/ask, /api/v1/ai/assistant, /api/v1/ai/reindex, dan /api/v1/ai/status."""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.modules.ai.errors import RagError, RagUpstreamError
-from app.modules.ai.schemas import AskRequest, AskResponse, RagStatusResponse, ReindexResponse
+from app.modules.ai.schemas import (
+    AskRequest,
+    AskResponse,
+    AssistantPersona,
+    DualAskRequest,
+    DualAskResponse,
+    RagStatusResponse,
+    ReindexResponse,
+)
 from app.modules.ai.service import RagService, get_rag_service
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+# Label human-readable per persona
+_PERSONA_LABELS = {
+    AssistantPersona.OWNER_TRACKER: "Owner Tracker — Asisten Operasional Internal",
+    AssistantPersona.CLIENT_ASSISTANT: "Asisten Calon Klien — B2B Maklon",
+}
 
 
 def _to_http(exc: RagError) -> HTTPException:
@@ -30,6 +44,8 @@ def ask_agent(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> A
     except RagError as e:
         raise _to_http(e) from e
     return AskResponse(**result)
+
+
 @router.get("/ask-agent", response_model=AskResponse)
 def ask_agent_get(question: str, rag: RagService = Depends(get_rag_service)) -> AskResponse:
     try:
@@ -37,6 +53,30 @@ def ask_agent_get(question: str, rag: RagService = Depends(get_rag_service)) -> 
     except RagError as e:
         raise _to_http(e) from e
     return AskResponse(**result)
+
+
+@router.post("/assistant", response_model=DualAskResponse)
+def ask_dual_assistant(
+    body: DualAskRequest,
+    rag: RagService = Depends(get_rag_service),
+) -> DualAskResponse:
+    """AI Dual-Assistant — pilih persona sesuai kebutuhan:
+
+    - **owner_tracker**: Asisten operasional internal untuk Owner / Mandor.
+      Membantu memantau produksi, QC, payroll, dan status pesanan berbasis SOP.
+    - **client_assistant**: Asisten publik B2B untuk calon klien maklon.
+      Menjelaskan alur kerja sama, skema harga, proses sampling, dan standar QC.
+    """
+    try:
+        result = rag.ask_with_persona(body.question, body.persona.value)
+    except RagError as e:
+        raise _to_http(e) from e
+    return DualAskResponse(
+        persona=body.persona,
+        persona_label=_PERSONA_LABELS[body.persona],
+        answer=result["answer"],
+        sources=result["sources"],
+    )
 
 
 @router.post("/reindex", response_model=ReindexResponse)

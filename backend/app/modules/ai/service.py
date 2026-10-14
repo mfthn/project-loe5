@@ -20,6 +20,23 @@ SYSTEM_PROMPT = (
 NO_CONTEXT_ANSWER = "Maaf, informasi untuk pertanyaan ini tidak ditemukan di dokumen."
 EMPTY_MODEL_ANSWER = "Maaf, model tidak memberikan jawaban. Coba ulangi pertanyaan."
 
+# --- Dual-Assistant Persona Prompts ---
+OWNER_TRACKER_PROMPT = (
+    "Kamu adalah Owner Tracker, asisten AI operasional internal pabrik garmen maklon. "
+    "Tugasmu membantu Owner, Mandor, dan tim internal memantau progres produksi, hasil QC, "
+    "ringkasan payroll, dan status pesanan berdasarkan SOP dan data sistem yang diberikan. "
+    "Berikan jawaban ringkas, berbasis data, dan gunakan format terstruktur jika diperlukan. "
+    "Jawab hanya berdasarkan konteks yang diberikan. Jika informasi tidak tersedia, sampaikan secara jujur."
+)
+
+CLIENT_ASSISTANT_PROMPT = (
+    "Kamu adalah Asisten Calon Klien, asisten AI publik untuk layanan maklon garmen. "
+    "Tugasmu membantu calon klien B2B memahami alur kerja sama maklon, skema harga (CMT, Semi-CMT, "
+    "Full Package), proses sampling, standar QC, dan cara memulai kerja sama. "
+    "Gunakan bahasa yang ramah, profesional, dan persuasif. Dorong calon klien untuk menghubungi tim. "
+    "Jawab hanya berdasarkan konteks SOP yang diberikan. Jika tidak ada di konteks, sampaikan secara jujur."
+)
+
 
 @dataclass(frozen=True)
 class Chunk:
@@ -137,6 +154,43 @@ class RagService:
         context = "\n\n".join(f"[Chunk {h.chunk.index}]\n{h.chunk.text}" for h in hits)
         user_text = f"Konteks:\n{context}\n\nPertanyaan: {question}"
         answer = self._clients.converse(SYSTEM_PROMPT, user_text).strip() or EMPTY_MODEL_ANSWER
+
+        return {
+            "answer": answer,
+            "sources": [
+                {
+                    "chunk_index": h.chunk.index,
+                    "start": h.chunk.start,
+                    "end": h.chunk.end,
+                    "score": round(h.score, 4),
+                    "text": h.chunk.text,
+                }
+                for h in hits
+            ],
+        }
+
+    def ask_with_persona(self, question: str, persona: str) -> dict:
+        """FR-AI: Menjawab pertanyaan menggunakan persona AI Dual-Assistant.
+
+        persona = 'owner_tracker'   → system prompt internal operasional.
+        persona = 'client_assistant' → system prompt publik B2B calon klien.
+        """
+        system_prompt = (
+            OWNER_TRACKER_PROMPT if persona == "owner_tracker" else CLIENT_ASSISTANT_PROMPT
+        )
+        hits = self.retrieve(question)
+        if not hits:
+            no_ctx = (
+                "Maaf, saya tidak menemukan informasi yang relevan di dokumen SOP. "
+                "Silakan hubungi tim kami secara langsung untuk pertanyaan lebih lanjut."
+                if persona == "client_assistant"
+                else NO_CONTEXT_ANSWER
+            )
+            return {"answer": no_ctx, "sources": []}
+
+        context = "\n\n".join(f"[Chunk {h.chunk.index}]\n{h.chunk.text}" for h in hits)
+        user_text = f"Konteks:\n{context}\n\nPertanyaan: {question}"
+        answer = self._clients.converse(system_prompt, user_text).strip() or EMPTY_MODEL_ANSWER
 
         return {
             "answer": answer,

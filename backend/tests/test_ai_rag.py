@@ -182,3 +182,96 @@ def test_post_ask_agent_rejects_blank_question(use_service):
 
     assert res.status_code == 422
 
+
+# ===========================================================================
+# Dual-Assistant Tests (Fase 7 — FR-AI)
+# ===========================================================================
+
+def test_dual_assistant_owner_tracker_persona(use_service):
+    """POST /ai/assistant dengan persona owner_tracker harus mengembalikan label yang benar."""
+    http = use_service(RagService(make_settings(), FakeClients()))
+
+    res = http.post(
+        "/api/v1/ai/assistant",
+        json={"question": "Berapa lama cuti?", "persona": "owner_tracker"},
+    )
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["persona"] == "owner_tracker"
+    assert "Owner Tracker" in body["persona_label"]
+    assert body["answer"] == "Jawaban uji."
+    assert body["sources"]
+
+
+def test_dual_assistant_client_assistant_persona(use_service):
+    """POST /ai/assistant dengan persona client_assistant harus mengembalikan label yang benar."""
+    http = use_service(RagService(make_settings(), FakeClients()))
+
+    res = http.post(
+        "/api/v1/ai/assistant",
+        # Gunakan kata dari DOC agar ada hits di FakeClients
+        json={"question": "Bagaimana prosedur cuti?", "persona": "client_assistant"},
+    )
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["persona"] == "client_assistant"
+    assert "Calon Klien" in body["persona_label"]
+    assert body["answer"] == "Jawaban uji."
+
+
+def test_dual_assistant_default_persona_is_owner_tracker(use_service):
+    """Persona default harus owner_tracker jika tidak disertakan."""
+    http = use_service(RagService(make_settings(), FakeClients()))
+
+    res = http.post(
+        "/api/v1/ai/assistant",
+        json={"question": "Berapa gaji penjahit?"},
+    )
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["persona"] == "owner_tracker"
+
+
+def test_dual_assistant_invalid_persona_returns_422(use_service):
+    """Persona yang tidak valid harus ditolak (HTTP 422)."""
+    http = use_service(RagService(make_settings(), FakeClients()))
+
+    res = http.post(
+        "/api/v1/ai/assistant",
+        json={"question": "Test", "persona": "invalid_persona"},
+    )
+
+    assert res.status_code == 422
+
+
+def test_dual_assistant_no_context_client_response(use_service):
+    """ask_with_persona pada dokumen kosong melempar RagUnavailableError (dokumen kosong)."""
+    from app.modules.ai.errors import RagUnavailableError
+    from app.modules.ai.service import RagService as RS
+
+    class EmptyFakeClients(FakeClients):
+        def read_document(self) -> str:
+            return ""  # dokumen kosong
+
+    import pytest
+    svc = RS(make_settings(), EmptyFakeClients())
+    with pytest.raises(RagUnavailableError):
+        svc.ask_with_persona("Berapa biaya CMT?", "client_assistant")
+
+
+def test_dual_assistant_no_context_owner_response(use_service):
+    """ask_with_persona pada dokumen kosong melempar RagUnavailableError."""
+    from app.modules.ai.errors import RagUnavailableError
+    from app.modules.ai.service import RagService as RS
+
+    class EmptyFakeClients(FakeClients):
+        def read_document(self) -> str:
+            return ""
+
+    import pytest
+    svc = RS(make_settings(), EmptyFakeClients())
+    with pytest.raises(RagUnavailableError):
+        svc.ask_with_persona("Status produksi hari ini?", "owner_tracker")

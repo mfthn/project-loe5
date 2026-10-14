@@ -69,7 +69,13 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - Guard: tidak ada output terverifikasi dalam periode ditolak (HTTP 422).
   - Migrasi Alembic: tabel payroll_runs, payroll_details.
   - Pengujian: **18/18 unit test baru lulus** (total 108/108 seluruh suite).
-- [ ] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1)**
+- [x] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1) (SELESAI)**
+  - **Owner Tracker**: asisten internal untuk Owner/Mandor — memantau produksi, QC, payroll, dan pesanan.
+  - **Asisten Calon Klien**: asisten publik B2B — menjelaskan alur maklon, skema harga, sampling, dan QC.
+  - Satu endpoint `/api/v1/ai/assistant` dengan field `persona` (owner_tracker / client_assistant).
+  - System prompt unik per persona — bahasa dan nada disesuaikan.
+  - Pipeline RAG yang sama dipakai keduanya — tidak ada duplikasi infrastruktur.
+  - Pengujian: **6 test baru lulus** (total 114/114 seluruh suite).
 
 ---
 
@@ -188,6 +194,7 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `POST /api/v1/ai/ask` — Tanya-jawab RAG seputar SOP operasional manufaktur via Bedrock.
 - `POST /api/v1/ai/reindex` — Membangun ulang indeks chunk & embedding dari S3.
 - `GET /api/v1/ai/status` — Memeriksa status kesiapan indeks RAG.
+- `POST /api/v1/ai/assistant` — **AI Dual-Assistant**: pilih persona `owner_tracker` atau `client_assistant`.
 
 ### Modul Sample \& Time Study Tracker (`/api/v1/sample`)
 - `GET /api/v1/sample/` — Daftar sample beserta semua versi (filter per `client_id` opsional).
