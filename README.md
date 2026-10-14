@@ -38,7 +38,18 @@ Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturin
   - Komponen garmen + stopwatch time study (detik): ringkasan total waktu & estimasi bahan.
   - Isolasi multi-tenant: KLIEN_MAKLON hanya melihat sample miliknya.
   - Pengujian: **20/20 unit test lulus** (total 52/52 seluruh suite).
-- [ ] **Fase 4: Produksi & Terminal Input 30 Menit Lantai Pabrik (P0)**
+- [x] **Fase 4: Produksi & Terminal Input 30 Menit Lantai Pabrik (P0) (SELESAI)**
+  - CRUD Order Produksi Massal (langsung atau dari versi sample APPROVED — FR-4.1).
+  - Komponen order + Rate Card upah borongan (cutting & sewing per pcs).
+  - Guard: nomor order duplikat ditolak (HTTP 409).
+  - Guard: sample versi non-APPROVED tidak bisa jadi order (HTTP 409).
+  - Transisi status wajib berurutan: SAMPLE→CUTTING→SEWING→MENUNGGU_QC→QC→COMPLETED.
+  - Terminal 30 Menit: Penjahit mencatat `qty_completed` per interval; Mandor memverifikasi.
+  - Guard: output hanya bisa dicatat saat status SEWING.
+  - Ringkasan output vs target (% completion) per order.
+  - Isolasi multi-tenant KLIEN_MAKLON pada endpoint GET /produksi/orders.
+  - Migrasi Alembic: tabel orders, order_components, rate_cards, production_outputs.
+  - Pengujian: **22/22 unit test baru lulus** (total 74/74 seluruh suite).
 - [ ] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0)**
 - [ ] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0)**
 - [ ] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1)**
@@ -170,6 +181,17 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 - `POST /api/v1/sample/versions/{version_id}/approve` — Menyetujui versi (→ APPROVED).
 - `POST /api/v1/sample/versions/{version_id}/components` — Menambahkan komponen garmen + stopwatch.
 - `PUT /api/v1/sample/components/{component_id}` — Memperbarui komponen garmen.
+
+### Modul Produksi & Terminal 30 Menit (`/api/v1/produksi`)
+- `GET /api/v1/produksi/orders` — Daftar order produksi (filter per `client_id` / `status`).
+- `POST /api/v1/produksi/orders` — Membuat order baru + komponen + rate card.
+- `GET /api/v1/produksi/orders/{order_id}` — Detail order + komponen + rate card.
+- `PATCH /api/v1/produksi/orders/{order_id}/status` — Transisi status order.
+- `POST /api/v1/produksi/orders/from-sample/{version_id}` — Konversi sample APPROVED → order massal (FR-4.1).
+- `GET /api/v1/produksi/orders/{order_id}/summary` — Ringkasan output vs target pcs.
+- `GET /api/v1/produksi/outputs` — Log output 30 menit (filter per order/line/status verifikasi).
+- `POST /api/v1/produksi/outputs` — Penjahit mencatat output per 30 menit dari terminal.
+- `PATCH /api/v1/produksi/outputs/{output_id}/verify` — Mandor memverifikasi log output.
 
 ---
 
