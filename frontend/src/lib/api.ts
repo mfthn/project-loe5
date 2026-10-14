@@ -274,14 +274,24 @@ export const produksiApi = {
   },
   recordOutput: async (data: {
     order_id: string;
-    component_id: string;
-    interval_start: string;
-    interval_end: string;
+    order_component_id?: string;
+    component_id?: string;
+    line_number?: number;
+    interval_start?: string;
+    interval_end?: string;
+    time_window?: string;
     qty_completed: number;
   }): Promise<ProductionOutput> => {
+    const payload = {
+      order_id: data.order_id,
+      order_component_id: data.order_component_id || data.component_id,
+      line_number: data.line_number || 1,
+      qty_completed: data.qty_completed,
+      time_window: data.time_window || data.interval_start || new Date().toISOString(),
+    };
     return apiFetch<ProductionOutput>("/produksi/outputs", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
   verifyOutput: async (outputId: string): Promise<ProductionOutput> => {

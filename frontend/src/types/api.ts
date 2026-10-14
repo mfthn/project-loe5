@@ -166,10 +166,13 @@ export type OrderSummary = {
   order_id: string;
   order_number: string;
   target_quantity: number;
-  total_output_verified: number;
-  total_output_unverified: number;
-  percentage_completed: number;
-  status: OrderStatus;
+  total_completed?: number;
+  verified_completed?: number;
+  completion_pct?: number;
+  total_output_verified?: number;
+  total_output_unverified?: number;
+  percentage_completed?: number;
+  status?: OrderStatus;
 };
 
 // ================= Quality Control =================

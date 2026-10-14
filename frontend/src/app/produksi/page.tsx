@@ -306,15 +306,17 @@ export default function ProduksiPage() {
                 {summary && (
                   <div style={{ marginTop: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: 6 }}>
-                      <span>Progres Verifikasi: {summary.total_output_verified} / {summary.target_quantity} pcs</span>
+                      <span>
+                        Progres Verifikasi: {summary.verified_completed ?? summary.total_output_verified ?? 0} / {summary.target_quantity ?? selectedOrder.target_quantity} pcs
+                      </span>
                       <span className="font-mono" style={{ fontWeight: 700, color: "var(--color-info)" }}>
-                        {summary.percentage_completed.toFixed(1)}%
+                        {Number(summary.completion_pct ?? summary.percentage_completed ?? 0).toFixed(1)}%
                       </span>
                     </div>
                     <div style={{ width: "100%", height: 8, background: "var(--bg-secondary)", borderRadius: 4, overflow: "hidden" }}>
                       <div
                         style={{
-                          width: `${Math.min(100, summary.percentage_completed)}%`,
+                          width: `${Math.min(100, Number(summary.completion_pct ?? summary.percentage_completed ?? 0))}%`,
                           height: "100%",
                           background: "linear-gradient(90deg, #3b82f6, #10b981)",
                           borderRadius: 4,
