@@ -31,34 +31,34 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       {/* Brand Logo & Header */}
       <div
         style={{
-          padding: "24px 20px 20px",
+          padding: "24px 22px 20px",
           borderBottom: "1px solid var(--border-subtle)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
-        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div
             style={{
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+              background: "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "1.2rem",
-              boxShadow: "0 4px 12px rgba(59, 130, 246, 0.4)",
+              fontSize: "1.25rem",
+              boxShadow: "var(--shadow-coral)",
             }}
           >
             🏔️
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#ffffff", letterSpacing: "-0.02em" }}>
-              LUKLA <span style={{ color: "var(--accent-primary)" }}>OPS</span>
+            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--jadoo-navy)", letterSpacing: "-0.02em" }}>
+              Lukla <span style={{ color: "var(--jadoo-coral)" }}>Ops</span>
             </div>
-            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            <div style={{ fontSize: "0.7rem", color: "var(--jadoo-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>
               Garment Engine v2.0
             </div>
           </div>
@@ -67,7 +67,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           <button
             onClick={onClose}
             className="btn btn-ghost btn-sm"
-            style={{ display: "none" }} // Show on mobile if needed
+            style={{ display: "none" }}
           >
             ×
           </button>
@@ -75,21 +75,21 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       </div>
 
       {/* Navigation Modules */}
-      <div style={{ flex: 1, padding: "16px 12px", overflowY: "auto" }}>
+      <div style={{ flex: 1, padding: "18px 14px", overflowY: "auto" }}>
         <div
           style={{
             fontSize: "0.72rem",
-            fontWeight: 700,
+            fontWeight: 800,
             textTransform: "uppercase",
-            color: "var(--text-muted)",
+            color: "var(--jadoo-muted)",
             letterSpacing: "0.08em",
-            padding: "8px 12px 10px",
+            padding: "8px 12px 12px",
           }}
         >
-          Modul Operasional
+          Modul Operasional Pabrik
         </div>
 
-        <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {modules.map((mod) => {
             const isActive = pathname === mod.href || pathname.startsWith(`${mod.href}/`);
             return (
@@ -101,27 +101,30 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "10px 14px",
+                  padding: "11px 14px",
                   borderRadius: "var(--radius-md)",
-                  fontSize: "0.88rem",
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? "#ffffff" : "var(--text-secondary)",
-                  background: isActive ? "var(--accent-primary)" : "transparent",
+                  fontSize: "0.9rem",
+                  fontWeight: isActive ? 700 : 600,
+                  color: isActive ? "#ffffff" : "var(--jadoo-navy)",
+                  background: isActive
+                    ? "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)"
+                    : "transparent",
+                  boxShadow: isActive ? "var(--shadow-coral)" : "none",
                   transition: "all var(--transition-fast)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: "1.1rem" }}>{mod.icon}</span>
+                  <span style={{ fontSize: "1.15rem" }}>{mod.icon}</span>
                   <span>{mod.label}</span>
                 </div>
                 {mod.badge && (
                   <span
                     style={{
                       fontSize: "0.68rem",
-                      padding: "2px 6px",
+                      padding: "2px 8px",
                       borderRadius: "var(--radius-full)",
-                      background: isActive ? "rgba(255, 255, 255, 0.2)" : "rgba(59, 130, 246, 0.15)",
-                      color: isActive ? "#ffffff" : "var(--accent-primary)",
+                      background: isActive ? "rgba(255, 255, 255, 0.25)" : "var(--jadoo-chip)",
+                      color: isActive ? "#ffffff" : "var(--jadoo-purple)",
                       fontWeight: 700,
                     }}
                   >
@@ -139,22 +142,22 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         style={{
           padding: 16,
           borderTop: "1px solid var(--border-subtle)",
-          background: "rgba(11, 15, 25, 0.4)",
+          background: "var(--bg-subtle)",
         }}
       >
         {/* Quick Role Switcher for Hackathon Demo */}
         <div style={{ marginBottom: 12 }}>
           <label
             style={{
-              fontSize: "0.68rem",
-              fontWeight: 700,
+              fontSize: "0.7rem",
+              fontWeight: 800,
               textTransform: "uppercase",
-              color: "var(--text-muted)",
+              color: "var(--jadoo-muted)",
               display: "block",
               marginBottom: 4,
             }}
           >
-            Demo Simulasi Peran (RBAC):
+            Demo Peran (RBAC 8 Role):
           </label>
           <select
             className="form-select"
@@ -162,9 +165,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             onChange={handleRoleChange}
             disabled={switching}
             style={{
-              padding: "6px 8px",
-              fontSize: "0.78rem",
-              background: "var(--bg-surface-elevated)",
+              padding: "7px 10px",
+              fontSize: "0.8rem",
+              background: "#ffffff",
               borderColor: "var(--border-default)",
             }}
           >
@@ -182,18 +185,19 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "8px 10px",
-            background: "var(--bg-surface)",
+            padding: "10px 12px",
+            background: "#ffffff",
             borderRadius: "var(--radius-md)",
             border: "1px solid var(--border-subtle)",
+            boxShadow: "var(--shadow-subtle)",
           }}
         >
           <div style={{ overflow: "hidden", paddingRight: 8 }}>
-            <div style={{ fontWeight: 600, fontSize: "0.84rem", color: "var(--text-primary)", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--jadoo-navy)", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
               {user?.name || "Belum Login"}
             </div>
-            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-              <span className={`badge ${user?.role === "OWNER" ? "badge-purple" : "badge-neutral"}`} style={{ fontSize: "0.65rem", padding: "1px 6px" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--jadoo-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+              <span className="badge badge-coral" style={{ fontSize: "0.65rem", padding: "1px 6px" }}>
                 {user?.role || "GUEST"}
               </span>
             </div>

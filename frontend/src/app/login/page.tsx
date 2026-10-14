@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, DEMO_ACCOUNTS } from "../../lib/auth-context";
 import { Notice } from "../../components/Notice";
@@ -48,37 +49,46 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse at top center, #172554 0%, #0b0f19 70%)",
+        background: "radial-gradient(ellipse at top center, #fff1da 0%, #fbfbfd 70%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "40px 20px",
+        padding: "48px 24px",
       }}
     >
-      <div style={{ maxWidth: 960, width: "100%" }}>
+      <div style={{ maxWidth: 1000, width: "100%" }}>
         {/* Brand Header */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 58,
-              height: 58,
-              borderRadius: "var(--radius-lg)",
-              background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
-              fontSize: "1.8rem",
-              boxShadow: "0 8px 24px rgba(59, 130, 246, 0.4)",
-              marginBottom: 16,
-            }}
-          >
-            🏔️
-          </div>
-          <h1 style={{ fontSize: "2.1rem", marginBottom: 8, letterSpacing: "-0.03em" }}>
-            Lukla Operations Engine
-          </h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
-            Platform Operasional Terpadu Konveksi Ciwidey & Maklon B2B (project-loe5)
+          <Link href="/" style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 60,
+                height: 60,
+                borderRadius: "var(--radius-lg)",
+                background: "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)",
+                fontSize: "1.8rem",
+                boxShadow: "var(--shadow-coral)",
+                marginBottom: 16,
+              }}
+            >
+              🏔️
+            </div>
+            <h1
+              className="heading-editorial"
+              style={{
+                fontSize: "2.4rem",
+                marginBottom: 8,
+                color: "var(--jadoo-ink)",
+              }}
+            >
+              Lukla <span style={{ color: "var(--jadoo-coral)" }}>Operations Engine</span>
+            </h1>
+          </Link>
+          <p style={{ color: "var(--jadoo-text)", fontSize: "1rem" }}>
+            Portal Operasional Konveksi Ciwidey & Maklon B2B (project-loe5)
           </p>
         </div>
 
@@ -88,15 +98,15 @@ export default function LoginPage() {
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(320px, 380px) 1fr",
-            gap: 28,
+            gap: 32,
             alignItems: "start",
           }}
         >
           {/* Manual Login Form */}
           <div className="card-elevated">
-            <h2 style={{ fontSize: "1.2rem", marginBottom: 4 }}>Masuk Sistem</h2>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: 20 }}>
-              Gunakan akun operasional untuk mengakses modul sesuai peran.
+            <h2 style={{ fontSize: "1.3rem", marginBottom: 6, color: "var(--jadoo-navy)" }}>Masuk Sistem</h2>
+            <p style={{ fontSize: "0.88rem", color: "var(--jadoo-muted)", marginBottom: 24 }}>
+              Gunakan kredensial terdaftar untuk mengakses hak otorisasi modul.
             </p>
 
             <form onSubmit={handleSubmit}>
@@ -131,18 +141,27 @@ export default function LoginPage() {
                 style={{ width: "100%", marginTop: 8 }}
                 disabled={loading}
               >
-                {loading ? "Memproses Masuk..." : "Masuk ke Dashboard →"}
+                {loading ? "Memproses..." : "Masuk ke Dashboard →"}
               </button>
             </form>
+
+            <div style={{ marginTop: 24, textAlign: "center" }}>
+              <Link href="/" style={{ fontSize: "0.88rem", color: "var(--jadoo-coral)", fontWeight: 600 }}>
+                ← Kembali ke Halaman Utama (Landing Page)
+              </Link>
+            </div>
           </div>
 
           {/* Quick Demo Role Switcher */}
-          <div className="card-glass">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div className="card" style={{ background: "#ffffff" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div>
-                <h3 style={{ fontSize: "1.1rem" }}>⚡ Quick Login Demo (8 Peran RBAC)</h3>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Klik salah satu akun di bawah untuk langsung mencoba tampilan spesifik perannya:
+                <span className="badge badge-coral" style={{ marginBottom: 6 }}>
+                  ⚡ Quick Login Evaluasi Hackathon
+                </span>
+                <h3 style={{ fontSize: "1.2rem", color: "var(--jadoo-navy)" }}>Pilih Akun Demo (8 Peran RBAC)</h3>
+                <div style={{ fontSize: "0.82rem", color: "var(--jadoo-muted)" }}>
+                  Klik salah satu tombol peran untuk langsung menguji fungsionalitas dan pembatasan modul:
                 </div>
               </div>
             </div>
@@ -158,27 +177,26 @@ export default function LoginPage() {
                 <div
                   key={acc.username}
                   style={{
-                    background: "var(--bg-surface)",
+                    background: "var(--bg-subtle)",
                     border: "1px solid var(--border-subtle)",
                     borderRadius: "var(--radius-md)",
-                    padding: "12px 14px",
+                    padding: "14px 16px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    gap: 10,
-                    transition: "border-color var(--transition-fast)",
+                    gap: 12,
                   }}
                 >
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-primary)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--jadoo-navy)" }}>
                         {acc.name}
                       </span>
-                      <span className={`badge ${acc.role === "OWNER" ? "badge-purple" : "badge-neutral"}`} style={{ fontSize: "0.68rem" }}>
+                      <span className="badge badge-purple" style={{ fontSize: "0.68rem" }}>
                         {acc.role}
                       </span>
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                    <div style={{ fontSize: "0.78rem", color: "var(--jadoo-text)", lineHeight: 1.45 }}>
                       {acc.description}
                     </div>
                   </div>
@@ -186,7 +204,7 @@ export default function LoginPage() {
                   <button
                     onClick={() => handleQuick(acc.username)}
                     className="btn btn-secondary btn-sm"
-                    style={{ width: "100%", justifyContent: "center" }}
+                    style={{ width: "100%", justifyContent: "center", fontWeight: 700 }}
                     disabled={loading}
                   >
                     Masuk Sebagai {acc.role} →

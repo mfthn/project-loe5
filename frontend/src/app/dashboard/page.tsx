@@ -97,18 +97,18 @@ export default function DashboardPage() {
         className="card-elevated"
         style={{
           marginBottom: 32,
-          background: "linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%)",
-          border: "1px solid var(--border-default)",
+          background: "linear-gradient(135deg, var(--jadoo-cream) 0%, #ffffff 100%)",
+          border: "1px solid #ffdcb0",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
           <div>
-            <span className="badge badge-purple" style={{ marginBottom: 6 }}>
+            <span className="badge badge-coral" style={{ marginBottom: 6 }}>
               Hackathon Skenario Terintegrasi
             </span>
-            <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Alur Bisnis & Validasi Kritis Operasional</h2>
+            <h2 style={{ fontSize: "1.35rem", margin: 0, color: "var(--jadoo-ink)" }}>Alur Bisnis & Validasi Kritis Operasional</h2>
           </div>
-          <span className="badge badge-info font-mono">Backend: 114/114 Tests Pass</span>
+          <span className="badge badge-purple font-mono">Backend: 114/114 Tests Pass</span>
         </div>
 
         <div
@@ -119,38 +119,38 @@ export default function DashboardPage() {
             marginTop: 16,
           }}
         >
-          <div style={{ background: "var(--bg-surface)", padding: 14, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--accent-primary)", marginBottom: 4 }}>
+          <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-subtle)" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--jadoo-coral)", marginBottom: 4 }}>
               1. Gudang Anti-Kontaminasi
             </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "0.82rem", color: "var(--jadoo-text)" }}>
               Sistem menolak otomatis bila kain milik Klien A dikeluarkan untuk pesanan Klien B.
             </div>
           </div>
 
-          <div style={{ background: "var(--bg-surface)", padding: 14, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--color-success)", marginBottom: 4 }}>
+          <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-subtle)" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--color-success)", marginBottom: 4 }}>
               2. Terminal 30m & Stopwatch
             </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "0.82rem", color: "var(--jadoo-text)" }}>
               Input borongan penjahit touchscreen per 30 menit & stopwatch digital time study sampel.
             </div>
           </div>
 
-          <div style={{ background: "var(--bg-surface)", padding: 14, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--color-warning)", marginBottom: 4 }}>
+          <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-subtle)" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--color-warning)", marginBottom: 4 }}>
               3. Pool Bonus QC Mandor
             </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "0.82rem", color: "var(--jadoo-text)" }}>
               Bonus dibagi rata ke seluruh mandor berdasarkan pcs yang LOLOS inspeksi QC.
             </div>
           </div>
 
-          <div style={{ background: "var(--bg-surface)", padding: 14, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--color-purple)", marginBottom: 4 }}>
+          <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-subtle)" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--jadoo-purple)", marginBottom: 4 }}>
               4. Payroll & Audit Lock
             </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "0.82rem", color: "var(--jadoo-text)" }}>
               Payroll Sabtu dikunci permanen: tidak dapat diubah oleh siapa pun termasuk Owner.
             </div>
           </div>
