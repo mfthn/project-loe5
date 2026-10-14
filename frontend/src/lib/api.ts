@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "./config";
 import type {
+  BatchFinancial,
+  BatchFinancialCreate,
   BonusPoolPreview,
   Client,
   DualAskRequest,
@@ -309,13 +311,25 @@ export const qcApi = {
   recordInspection: async (data: {
     order_id: string;
     qty_inspected: number;
-    result: "LOLOS" | "REPAIR" | "DEFECT";
+    result?: "LOLOS" | "REPAIR" | "DEFECT";
+    status?: "LOLOS" | "REPAIR" | "DEFECT";
     defect_type?: string;
+    defect_category?: string;
     defect_notes?: string;
+    notes?: string;
+    repair_count?: number;
   }): Promise<QCInspection> => {
+    const payload = {
+      order_id: data.order_id,
+      qty_inspected: data.qty_inspected,
+      status: data.status || data.result || "LOLOS",
+      defect_category: data.defect_category || data.defect_type,
+      notes: data.notes || data.defect_notes,
+      repair_count: data.repair_count || 1,
+    };
     return apiFetch<QCInspection>("/qc/inspections", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
   getInspections: async (orderId: string): Promise<QCInspection[]> => {
@@ -336,9 +350,12 @@ export const qcApi = {
     const qs = query.toString() ? `?${query.toString()}` : "";
     return apiFetch<BonusPoolPreview>(`/qc/bonus-pool/preview${qs}`);
   },
+  getEscalations: async (): Promise<QCInspection[]> => {
+    return apiFetch<QCInspection[]>("/qc/escalations");
+  },
 };
 
-// ================= Payroll API =================
+// ================= Payroll & Financials API =================
 export const payrollApi = {
   getPreview: async (params: {
     period_start: string;
@@ -373,6 +390,23 @@ export const payrollApi = {
   },
   getRunDetail: async (runId: string): Promise<PayrollRun> => {
     return apiFetch<PayrollRun>(`/payroll/runs/${runId}`);
+  },
+  lockRun: async (runId: string): Promise<PayrollRun> => {
+    return apiFetch<PayrollRun>(`/payroll/runs/${runId}/lock`, {
+      method: "POST",
+    });
+  },
+  getBatchFinancials: async (): Promise<BatchFinancial[]> => {
+    return apiFetch<BatchFinancial[]>("/payroll/financials");
+  },
+  getBatchFinancial: async (orderId: string): Promise<BatchFinancial> => {
+    return apiFetch<BatchFinancial>(`/payroll/financials/${orderId}`);
+  },
+  calculateBatchFinancial: async (data: BatchFinancialCreate): Promise<BatchFinancial> => {
+    return apiFetch<BatchFinancial>("/payroll/financials", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 };
 

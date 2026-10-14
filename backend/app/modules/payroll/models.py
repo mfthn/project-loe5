@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -74,3 +74,53 @@ class PayrollDetail(Base):
 
     # Relasi
     payroll_run: Mapped[PayrollRun] = relationship("PayrollRun", back_populates="details")
+
+
+class BatchFinancial(Base):
+    """Ringkasan finansial laba/rugi batch produksi (HPP, Biaya Material, Overhead, Upah, Net Profit).
+
+    Sesuai Activity Diagram Alur Final:
+    - Hitung Material Cost & Overhead
+    - Hitung Total HPP Batch
+    - Hitung Net Profit Owner
+    - Akses Dashboard Laba/Rugi (Net Profit Batch) bagi Owner
+    """
+    __tablename__ = "batch_financials"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    contract_revenue: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00"), nullable=False
+    )
+    material_cost: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00"), nullable=False
+    )
+    overhead_cost: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00"), nullable=False
+    )
+    labor_cost: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00"), nullable=False
+    )
+    total_hpp: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00"), nullable=False
+    )
+    net_profit: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(50), default="DRAFT", nullable=False
+    )  # DRAFT | LOCKED
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

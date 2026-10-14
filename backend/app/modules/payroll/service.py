@@ -28,8 +28,9 @@ from app.modules.payroll.errors import (
     PayrollRunLockedError,
     PayrollRunNotFoundError,
 )
-from app.modules.payroll.models import PayrollDetail, PayrollRun
+from app.modules.payroll.models import BatchFinancial, PayrollDetail, PayrollRun
 from app.modules.payroll.schemas import (
+    BatchFinancialCreate,
     PayrollPreviewResponse,
     PayrollRunCreate,
     SlipPreview,
@@ -268,3 +269,73 @@ def lock_payroll_run(db: Session, run_id: uuid.UUID) -> PayrollRun:
     db.commit()
     db.refresh(run)
     return run
+
+
+# ---------------------------------------------------------------------------
+# Batch Financials (HPP & Laba Rugi Batch - Activity Diagram)
+# ---------------------------------------------------------------------------
+
+def calculate_and_save_batch_financial(
+    db: Session,
+    payload: BatchFinancialCreate,
+) -> BatchFinancial:
+    """Hitung Material Cost, Overhead, Labor Cost, Total HPP, dan Net Profit Owner sesuai Activity Diagram."""
+    # Ambil total labor cost dari output terverifikasi order ini
+    outputs = db.scalars(
+        select(ProductionOutput)
+        .where(
+            ProductionOutput.order_id == payload.order_id,
+            ProductionOutput.is_verified.is_(True),
+        )
+    ).all()
+
+    total_labor = Decimal("0.00")
+    for out in outputs:
+        rate_card = db.scalar(
+            select(RateCard).where(RateCard.order_component_id == out.order_component_id)
+        )
+        rate = rate_card.sewing_rate_per_pcs if rate_card else Decimal("0.00")
+        total_labor += _round2(Decimal(out.qty_completed) * rate)
+
+    total_hpp = _round2(payload.material_cost + payload.overhead_cost + total_labor)
+    net_profit = _round2(payload.contract_revenue - total_hpp)
+
+    existing = db.scalar(
+        select(BatchFinancial).where(BatchFinancial.order_id == payload.order_id)
+    )
+    if existing:
+        existing.contract_revenue = payload.contract_revenue
+        existing.material_cost = payload.material_cost
+        existing.overhead_cost = payload.overhead_cost
+        existing.labor_cost = total_labor
+        existing.total_hpp = total_hpp
+        existing.net_profit = net_profit
+        fin = existing
+    else:
+        fin = BatchFinancial(
+            order_id=payload.order_id,
+            contract_revenue=payload.contract_revenue,
+            material_cost=payload.material_cost,
+            overhead_cost=payload.overhead_cost,
+            labor_cost=total_labor,
+            total_hpp=total_hpp,
+            net_profit=net_profit,
+            status="DRAFT",
+        )
+        db.add(fin)
+
+    db.commit()
+    db.refresh(fin)
+    return fin
+
+
+def list_batch_financials(db: Session) -> list[BatchFinancial]:
+    return list(db.scalars(select(BatchFinancial).order_by(BatchFinancial.created_at.desc())).all())
+
+
+def get_batch_financial(db: Session, order_id: uuid.UUID) -> BatchFinancial:
+    fin = db.scalar(select(BatchFinancial).where(BatchFinancial.order_id == order_id))
+    if not fin:
+        raise ValueError(f"Finansial batch untuk order {order_id} belum dihitung.")
+    return fin
+

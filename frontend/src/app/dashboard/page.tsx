@@ -5,7 +5,8 @@ import Link from "next/link";
 import { AppLayout } from "../../components/AppLayout";
 import { useAuth } from "../../lib/auth-context";
 import { getAllowedModules } from "../../lib/rbac";
-import { produksiApi, qcApi, gudangApi } from "../../lib/api";
+import { produksiApi, qcApi, gudangApi, payrollApi } from "../../lib/api";
+import type { BatchFinancial } from "../../types/api";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -16,21 +17,24 @@ export default function DashboardPage() {
     inventoryItemsCount: 0,
     qcPassRate: 98.4,
   });
+  const [financials, setFinancials] = useState<BatchFinancial[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const [orders, outputs, items] = await Promise.allSettled([
+        const [orders, outputs, items, finResult] = await Promise.allSettled([
           produksiApi.getOrders(),
           produksiApi.getOutputs({ is_verified: false }),
           gudangApi.getItems(),
+          payrollApi.getBatchFinancials(),
         ]);
 
         const orderList = orders.status === "fulfilled" ? orders.value : [];
         const unverified = outputs.status === "fulfilled" ? outputs.value.length : 0;
         const inventory = items.status === "fulfilled" ? items.value.length : 0;
+        const finList = finResult.status === "fulfilled" ? finResult.value : [];
 
         setStats({
           totalOrders: orderList.length,
@@ -39,6 +43,7 @@ export default function DashboardPage() {
           inventoryItemsCount: inventory,
           qcPassRate: 98.2,
         });
+        setFinancials(finList);
       } catch (err) {
         console.error("Gagal mengambil statistik dashboard:", err);
       } finally {
@@ -91,6 +96,105 @@ export default function DashboardPage() {
           <div className="stat-meta">Akumulasi ke Pool Bonus Mandor</div>
         </div>
       </div>
+
+      {/* Owner & Finance: Net Profit Batch & HPP Dashboard (Activity Diagram) */}
+      {(user?.role === "OWNER" || user?.role === "FINANCE_PAYROLL") && (
+        <div
+          className="card-elevated"
+          style={{
+            marginBottom: 32,
+            background: "#ffffff",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <span className="badge badge-purple" style={{ marginBottom: 6 }}>
+                Finansial & Net Profit Engine
+              </span>
+              <h3 style={{ fontSize: "1.25rem", margin: 0, color: "var(--jadoo-ink)" }}>
+                Analisis Laba/Rugi & Total HPP Batch
+              </h3>
+            </div>
+            <Link href="/payroll" className="btn btn-secondary btn-sm">
+              Kelola Penggajian & Payout →
+            </Link>
+          </div>
+
+          {financials.length === 0 ? (
+            <div style={{ padding: "24px", textAlign: "center", background: "var(--bg-secondary)", borderRadius: "var(--radius-md)" }}>
+              <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                Belum ada kalkulasi batch finansial tersimpan. Kalkulasi otomatis dibuat saat draft payroll diproses atau melalui modul Payroll.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+              {financials.map((fin) => {
+                const marginPct = fin.contract_revenue > 0 ? ((fin.net_profit / fin.contract_revenue) * 100).toFixed(1) : "0.0";
+                return (
+                  <div
+                    key={fin.id}
+                    style={{
+                      padding: 16,
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border-subtle)",
+                      background: "linear-gradient(180deg, #fafafa 0%, #ffffff 100%)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <span className="font-mono" style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                        PO #{fin.order_id.slice(0, 8)}
+                      </span>
+                      <span className={`badge ${fin.status === "LOCKED" ? "badge-success" : "badge-warning"}`}>
+                        {fin.status}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: "0.82rem", marginBottom: 12 }}>
+                      <div>
+                        <span style={{ color: "var(--text-secondary)" }}>Pendapatan Kontrak:</span>
+                        <div style={{ fontWeight: 600 }}>Rp {Number(fin.contract_revenue).toLocaleString("id-ID")}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--text-secondary)" }}>Total HPP Batch:</span>
+                        <div style={{ fontWeight: 600, color: "var(--color-warning)" }}>
+                          Rp {Number(fin.total_hpp).toLocaleString("id-ID")}
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--text-secondary)" }}>Material & Overhead:</span>
+                        <div>Rp {(Number(fin.material_cost) + Number(fin.overhead_cost)).toLocaleString("id-ID")}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--text-secondary)" }}>Upah & Pool QC:</span>
+                        <div>Rp {Number(fin.labor_cost).toLocaleString("id-ID")}</div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        background: "var(--jadoo-cream)",
+                        borderRadius: "var(--radius-sm)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--jadoo-ink)" }}>
+                        Net Profit Owner:
+                      </span>
+                      <span style={{ fontSize: "1rem", fontWeight: 800, color: "var(--color-success)" }}>
+                        Rp {Number(fin.net_profit).toLocaleString("id-ID")} ({marginPct}%)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Skenario Hackathon Quick Guide Banner */}
       <div

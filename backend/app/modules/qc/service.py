@@ -87,12 +87,17 @@ def record_inspection(
     if order.status == OrderStatus.MENUNGGU_QC:
         order.status = OrderStatus.QC
 
+    # Cek apakah sudah 3 kali perbaikan (Activity Diagram: Sudah 3 Kali Perbaikan? -> Lapor Tim Sampel)
+    escalate = payload.repair_count >= 3 and payload.status in (QCStatus.REPAIR, QCStatus.DEFECT)
+
     inspection = QCInspection(
         order_id=payload.order_id,
         production_output_id=payload.production_output_id,
         inspector_user_id=inspector_user_id,
         status=payload.status,
         qty_inspected=payload.qty_inspected,
+        repair_count=payload.repair_count,
+        escalated_to_sample=escalate,
         defect_category=payload.defect_category,
         notes=payload.notes,
     )
@@ -100,6 +105,16 @@ def record_inspection(
     db.commit()
     db.refresh(inspection)
     return inspection
+
+
+def list_escalations_to_sample(db: Session) -> list[QCInspection]:
+    """Mengambil daftar inspeksi cacat yang sudah 3x perbaikan dan perlu dianalisa oleh Tim Sampel."""
+    stmt = (
+        select(QCInspection)
+        .where(QCInspection.escalated_to_sample.is_(True))
+        .order_by(QCInspection.inspected_at.desc())
+    )
+    return list(db.scalars(stmt).all())
 
 
 # ---------------------------------------------------------------------------

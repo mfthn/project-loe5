@@ -20,6 +20,7 @@ class QCInspectionCreate(BaseModel):
     )
     status: QCStatus = Field(..., description="Hasil inspeksi: LOLOS, REPAIR, atau DEFECT")
     qty_inspected: int = Field(..., gt=0, description="Jumlah pcs yang diinspeksi (harus > 0)")
+    repair_count: int = Field(default=0, ge=0, description="Jumlah kali barang ini telah diperbaiki")
     defect_category: str | None = Field(
         None, max_length=255,
         description="Kategori defect jika status DEFECT/REPAIR, misal: Jahitan Loncat, Kancing Lepas"
@@ -34,6 +35,8 @@ class QCInspectionResponse(BaseModel):
     inspector_user_id: uuid.UUID
     status: QCStatus
     qty_inspected: int
+    repair_count: int
+    escalated_to_sample: bool
     defect_category: str | None
     notes: str | None
     inspected_at: datetime

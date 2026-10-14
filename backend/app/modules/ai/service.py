@@ -175,18 +175,33 @@ class RagService:
         persona = 'owner_tracker'   → system prompt internal operasional.
         persona = 'client_assistant' → system prompt publik B2B calon klien.
         """
+        # Guard data internal untuk client_assistant (Activity Diagram: Data Internal? -> Tolak)
+        if persona == "client_assistant":
+            internal_keywords = ["gaji", "slip gaji", "upah borongan internal", "rahasia perusahaan", "klien lain"]
+            if any(k in question.lower() for k in internal_keywords):
+                return {
+                    "answer": "Saya tidak bisa mengakses informasi rahasia internal tersebut sesuai kebijakan keamanan data pabrik.",
+                    "sources": [],
+                    "whatsapp_handoff_url": "https://wa.me/62811000001?text=Halo%20Tim%20Sample%20Lukla",
+                }
+
         system_prompt = (
             OWNER_TRACKER_PROMPT if persona == "owner_tracker" else CLIENT_ASSISTANT_PROMPT
         )
         hits = self.retrieve(question)
+        handoff_url = (
+            "https://wa.me/62811000001?text=Halo%20Tim%20Sample%20Lukla,%20saya%20ingin%20konsultasi%20pemesanan%20maklon"
+            if persona == "client_assistant"
+            else None
+        )
         if not hits:
             no_ctx = (
                 "Maaf, saya tidak menemukan informasi yang relevan di dokumen SOP. "
-                "Silakan hubungi tim kami secara langsung untuk pertanyaan lebih lanjut."
+                "Silakan hubungi tim sample kami secara langsung via WhatsApp untuk pertanyaan lebih lanjut."
                 if persona == "client_assistant"
                 else NO_CONTEXT_ANSWER
             )
-            return {"answer": no_ctx, "sources": []}
+            return {"answer": no_ctx, "sources": [], "whatsapp_handoff_url": handoff_url}
 
         context = "\n\n".join(f"[Chunk {h.chunk.index}]\n{h.chunk.text}" for h in hits)
         user_text = f"Konteks:\n{context}\n\nPertanyaan: {question}"
@@ -194,6 +209,7 @@ class RagService:
 
         return {
             "answer": answer,
+            "whatsapp_handoff_url": handoff_url,
             "sources": [
                 {
                     "chunk_index": h.chunk.index,

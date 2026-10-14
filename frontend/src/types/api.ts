@@ -181,12 +181,18 @@ export type QCResult = "LOLOS" | "REPAIR" | "DEFECT";
 export type QCInspection = {
   id: string;
   order_id: string;
+  production_output_id?: string | null;
   inspector_user_id: string;
   inspected_at: string;
   qty_inspected: number;
-  result: QCResult;
-  defect_type: string | null;
-  defect_notes: string | null;
+  result?: QCResult;
+  status?: QCResult;
+  defect_type?: string | null;
+  defect_category?: string | null;
+  defect_notes?: string | null;
+  notes?: string | null;
+  repair_count?: number;
+  escalated_to_sample?: boolean;
   inspector?: User;
 };
 
@@ -207,7 +213,28 @@ export type BonusPoolPreview = {
   bonus_per_mandor: number;
 };
 
-// ================= Payroll =================
+// ================= Payroll & Financials =================
+export type BatchFinancial = {
+  id: string;
+  order_id: string;
+  contract_revenue: number;
+  material_cost: number;
+  overhead_cost: number;
+  labor_cost: number;
+  total_hpp: number;
+  net_profit: number;
+  status: "DRAFT" | "LOCKED";
+  created_at: string;
+  updated_at: string;
+};
+
+export type BatchFinancialCreate = {
+  order_id: string;
+  contract_revenue?: number;
+  overhead_percentage?: number;
+  status?: "DRAFT" | "LOCKED";
+};
+
 export type PayrollDetail = {
   id?: string;
   payroll_run_id?: string;
@@ -268,4 +295,5 @@ export type DualAskResponse = {
   persona_label?: string;
   sources: SourceDocument[];
   answered_at?: string;
+  whatsapp_handoff_url?: string | null;
 };

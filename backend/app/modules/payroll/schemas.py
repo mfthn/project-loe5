@@ -104,3 +104,30 @@ class PayrollLockResponse(BaseModel):
     run_id: uuid.UUID
     is_locked: bool
     message: str
+
+
+# ---------------------------------------------------------------------------
+# BatchFinancials (HPP & Laba/Rugi Batch Produksi - Activity Diagram)
+# ---------------------------------------------------------------------------
+
+class BatchFinancialCreate(BaseModel):
+    order_id: uuid.UUID
+    contract_revenue: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0"))
+    material_cost: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0"))
+    overhead_cost: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0"))
+
+
+class BatchFinancialResponse(BaseModel):
+    id: uuid.UUID
+    order_id: uuid.UUID
+    contract_revenue: Decimal
+    material_cost: Decimal
+    overhead_cost: Decimal
+    labor_cost: Decimal
+    total_hpp: Decimal
+    net_profit: Decimal
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

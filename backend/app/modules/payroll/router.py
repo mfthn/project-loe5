@@ -17,6 +17,8 @@ from app.modules.payroll.errors import (
     PayrollRunNotFoundError,
 )
 from app.modules.payroll.schemas import (
+    BatchFinancialCreate,
+    BatchFinancialResponse,
     PayrollLockResponse,
     PayrollPreviewResponse,
     PayrollRunCreate,
@@ -24,8 +26,11 @@ from app.modules.payroll.schemas import (
     PayrollRunResponse,
 )
 from app.modules.payroll.service import (
+    calculate_and_save_batch_financial,
     create_payroll_run,
+    get_batch_financial,
     get_payroll_run,
+    list_batch_financials,
     list_payroll_runs,
     lock_payroll_run,
     preview_payroll,
@@ -149,3 +154,55 @@ def lock_payroll(
         is_locked=run.is_locked,
         message=f"Payroll run periode {run.period_start} – {run.period_end} berhasil dikunci. Data tidak dapat diubah.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch Financials endpoints (Activity Diagram: HPP & Net Profit Batch)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/financials",
+    response_model=BatchFinancialResponse,
+    dependencies=[Depends(require_roles(_PAYROLL_ROLES))],
+)
+def calculate_batch_financial_endpoint(
+    payload: BatchFinancialCreate,
+    db: Session = Depends(get_db),
+) -> BatchFinancialResponse:
+    """Menghitung dan memperbarui rincian HPP, Material Cost, Overhead, dan Net Profit Owner."""
+    try:
+        fin = calculate_and_save_batch_financial(db, payload)
+    except Exception as exc:
+        raise _handle_error(exc) from exc
+    return BatchFinancialResponse.model_validate(fin)
+
+
+@router.get(
+    "/financials",
+    response_model=list[BatchFinancialResponse],
+    dependencies=[Depends(require_roles(_VIEW_ROLES))],
+)
+def get_all_batch_financials_endpoint(
+    db: Session = Depends(get_db),
+) -> list[BatchFinancialResponse]:
+    """Daftar ringkasan finansial seluruh batch produksi."""
+    fins = list_batch_financials(db)
+    return [BatchFinancialResponse.model_validate(f) for f in fins]
+
+
+@router.get(
+    "/financials/{order_id}",
+    response_model=BatchFinancialResponse,
+    dependencies=[Depends(require_roles(_VIEW_ROLES))],
+)
+def get_batch_financial_endpoint(
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> BatchFinancialResponse:
+    """Detail analisis laba/rugi batch untuk order tertentu."""
+    try:
+        fin = get_batch_financial(db, order_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return BatchFinancialResponse.model_validate(fin)
+

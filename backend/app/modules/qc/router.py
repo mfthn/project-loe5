@@ -30,6 +30,7 @@ from app.modules.qc.service import (
     calculate_qc_bonus_pool,
     get_inspection,
     get_qc_summary,
+    list_escalations_to_sample,
     list_inspections,
     record_inspection,
 )
@@ -73,6 +74,16 @@ def get_inspections(
         db, order_id=order_id, inspector_user_id=inspector_id, status=status_filter
     )
     return [QCInspectionResponse.model_validate(i) for i in inspections]
+
+
+@router.get("/escalations", response_model=list[QCInspectionResponse])
+def get_defect_escalations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[QCInspectionResponse]:
+    """Mengambil daftar laporan barang cacat yang sudah 3x perbaikan (eskalasi ke Tim Sampel)."""
+    escalations = list_escalations_to_sample(db)
+    return [QCInspectionResponse.model_validate(e) for e in escalations]
 
 
 @router.post(

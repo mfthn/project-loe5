@@ -13,6 +13,7 @@ interface ChatMessage {
   sources?: SourceDocument[];
   persona: AssistantPersona;
   timestamp: string;
+  whatsapp_handoff_url?: string | null;
 }
 
 const OWNER_PROMPTS = [
@@ -24,9 +25,9 @@ const OWNER_PROMPTS = [
 
 const CLIENT_PROMPTS = [
   "Apa perbedaan skema maklon CMT, Semi-CMT, dan Full Package?",
+  "Saya ingin negosiasi pesanan jaket 500 pcs dengan Tim Sampel",
   "Berapa estimasi waktu pengerjaan sample dan minimal order (MOQ)?",
-  "Bagaimana jaminan kontrol kualitas (QC) di pabrik Lukla?",
-  "Bahan baku apa saja yang perlu disediakan oleh klien pada skema CMT?",
+  "Bisa lihat rincian gaji internal karyawan atau keuntungan pabrik?",
 ];
 
 export default function AiAssistantPage() {
@@ -73,6 +74,7 @@ export default function AiAssistantPage() {
         sources: res.sources,
         persona: res.persona,
         timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        whatsapp_handoff_url: res.whatsapp_handoff_url,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -180,6 +182,34 @@ export default function AiAssistantPage() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* WhatsApp Handoff to Tim Sampel (Activity Diagram Alur Final) */}
+              {msg.whatsapp_handoff_url && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
+                  <a
+                    href={msg.whatsapp_handoff_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-sm"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      textDecoration: "none",
+                      backgroundColor: "#25D366",
+                      borderColor: "#25D366",
+                      color: "#ffffff",
+                      fontWeight: 700,
+                      borderRadius: "var(--radius-md)",
+                      padding: "8px 16px",
+                      boxShadow: "0 2px 8px rgba(37, 211, 102, 0.35)",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>💬</span>
+                    <span>Lanjut Diskusi / Negosiasi via WhatsApp Tim Sampel →</span>
+                  </a>
                 </div>
               )}
             </div>

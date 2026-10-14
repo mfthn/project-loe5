@@ -284,3 +284,33 @@ class TestPayrollEndpoints:
             },
         )
         assert resp.status_code == 422
+
+    @patch("app.modules.payroll.router.calculate_and_save_batch_financial")
+    def test_post_batch_financials_returns_200(self, mock_calc: MagicMock) -> None:
+        mock_fin = MagicMock()
+        mock_fin.id = uuid.uuid4()
+        mock_fin.order_id = uuid.uuid4()
+        mock_fin.contract_revenue = Decimal("150000000.00")
+        mock_fin.material_cost = Decimal("60000000.00")
+        mock_fin.overhead_cost = Decimal("15000000.00")
+        mock_fin.labor_cost = Decimal("30000000.00")
+        mock_fin.total_hpp = Decimal("105000000.00")
+        mock_fin.net_profit = Decimal("45000000.00")
+        mock_fin.status = "DRAFT"
+        mock_fin.created_at = _NOW
+        mock_fin.updated_at = _NOW
+        mock_calc.return_value = mock_fin
+
+        resp = self._client().post(
+            "/api/v1/payroll/financials",
+            json={
+                "order_id": str(mock_fin.order_id),
+                "contract_revenue": "150000000.00",
+                "overhead_percentage": "10.00",
+                "status": "DRAFT",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_hpp"] == "105000000.00"
+        assert data["net_profit"] == "45000000.00"

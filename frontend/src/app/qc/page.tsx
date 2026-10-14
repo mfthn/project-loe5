@@ -22,6 +22,7 @@ export default function QCPage() {
   const [result, setResult] = useState<"LOLOS" | "REPAIR" | "DEFECT">("LOLOS");
   const [defectType, setDefectType] = useState("Jahitan Loncat / Lepas");
   const [defectNotes, setDefectNotes] = useState("");
+  const [repairCount, setRepairCount] = useState(1);
 
   const loadData = async () => {
     try {
@@ -70,12 +71,17 @@ export default function QCPage() {
         result,
         defect_type: result !== "LOLOS" ? defectType : undefined,
         defect_notes: defectNotes || undefined,
+        repair_count: result !== "LOLOS" ? Number(repairCount) : 1,
       });
+      const isEscalated = result !== "LOLOS" && Number(repairCount) >= 3;
       setNotice({
-        type: "success",
-        message: `Inspeksi ${qtyInspected} pcs [${result}] berhasil dicatat! Pool bonus diperbarui.`,
+        type: isEscalated ? "warning" : "success",
+        message: isEscalated
+          ? `Inspeksi ${qtyInspected} pcs [${result}] (Perbaikan ke-${repairCount}) berhasil dicatat. ⚠️ Otomatis dieskalasi ke Tim Sampel!`
+          : `Inspeksi ${qtyInspected} pcs [${result}] berhasil dicatat! Pool bonus diperbarui.`,
       });
       setInspectModalOpen(false);
+      setRepairCount(1);
       handleSelectOrder(selectedOrderId);
       // Refresh pool bonus preview
       const updatedPool = await qcApi.getBonusPoolPreview();
@@ -258,33 +264,51 @@ export default function QCPage() {
                           </td>
                         </tr>
                       ) : (
-                        inspections.map((insp) => (
-                          <tr key={insp.id}>
-                            <td className="font-mono" style={{ fontSize: "0.8rem" }}>
-                              {new Date(insp.inspected_at).toLocaleString("id-ID")}
-                            </td>
-                            <td className="font-mono" style={{ fontWeight: 700, fontSize: "1rem" }}>
-                              {insp.qty_inspected} pcs
-                            </td>
-                            <td>
-                              <span
-                                className={`badge ${
-                                  insp.result === "LOLOS"
-                                    ? "badge-success"
-                                    : insp.result === "REPAIR"
-                                    ? "badge-warning"
-                                    : "badge-danger"
-                                }`}
-                              >
-                                {insp.result}
-                              </span>
-                            </td>
-                            <td style={{ color: insp.defect_type ? "var(--color-danger)" : "var(--text-muted)" }}>
-                              {insp.defect_type || "-"}
-                            </td>
-                            <td style={{ fontSize: "0.82rem" }}>{insp.defect_notes || "-"}</td>
-                          </tr>
-                        ))
+                        inspections.map((insp) => {
+                          const statusResult = insp.status || insp.result;
+                          const defectCat = insp.defect_category || insp.defect_type;
+                          const notes = insp.notes || insp.defect_notes;
+                          const isEscalated = (insp.repair_count && insp.repair_count >= 3) || insp.escalated_to_sample;
+                          return (
+                            <tr key={insp.id}>
+                              <td className="font-mono" style={{ fontSize: "0.8rem" }}>
+                                {new Date(insp.inspected_at).toLocaleString("id-ID")}
+                              </td>
+                              <td className="font-mono" style={{ fontWeight: 700, fontSize: "1rem" }}>
+                                {insp.qty_inspected} pcs
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span
+                                    className={`badge ${
+                                      statusResult === "LOLOS"
+                                        ? "badge-success"
+                                        : statusResult === "REPAIR"
+                                        ? "badge-warning"
+                                        : "badge-danger"
+                                    }`}
+                                  >
+                                    {statusResult}
+                                  </span>
+                                  {statusResult !== "LOLOS" && insp.repair_count && (
+                                    <span className="badge badge-secondary" style={{ fontSize: "0.7rem" }}>
+                                      Perbaikan ke-{insp.repair_count}
+                                    </span>
+                                  )}
+                                  {isEscalated && (
+                                    <span className="badge badge-coral" style={{ fontSize: "0.7rem", fontWeight: 700 }}>
+                                      ⚠️ Eskalasi Tim Sampel
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ color: defectCat ? "var(--color-danger)" : "var(--text-muted)" }}>
+                                {defectCat || "-"}
+                              </td>
+                              <td style={{ fontSize: "0.82rem" }}>{notes || "-"}</td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -347,6 +371,36 @@ export default function QCPage() {
 
           {result !== "LOLOS" && (
             <>
+              <div className="form-group">
+                <label className="form-label">Siklus Perbaikan ke-</label>
+                <select
+                  className="form-select"
+                  value={repairCount}
+                  onChange={(e) => setRepairCount(Number(e.target.value))}
+                >
+                  <option value={1}>Perbaikan ke-1 (Re-sew standard)</option>
+                  <option value={2}>Perbaikan ke-2 (Re-check operator)</option>
+                  <option value={3}>Perbaikan ke-3 (Batas Toleransi - Eskalasi Tim Sampel)</option>
+                  <option value={4}>Perbaikan ke-4+ (Kritis)</option>
+                </select>
+                {repairCount >= 3 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: "8px 12px",
+                      background: "rgba(223, 105, 81, 0.12)",
+                      border: "1px solid var(--jadoo-coral)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.8rem",
+                      color: "var(--jadoo-coral)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    ⚠️ Sesuai Activity Diagram Alur Final: Karena sudah mencapai 3x perbaikan, laporan barang cacat ini akan otomatis dikirim ke Tim Sampel untuk peninjauan time study &amp; bill of material (BOM).
+                  </div>
+                )}
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Kategori Cacat (Defect)</label>
                 <select

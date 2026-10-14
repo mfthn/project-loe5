@@ -40,11 +40,12 @@ class AskResponse(BaseModel):
 
 
 class DualAskResponse(BaseModel):
-    """Response AI Dual-Assistant dengan metadata persona."""
+    """Response AI Dual-Assistant dengan metadata persona & link handoff WhatsApp."""
     persona: AssistantPersona
     persona_label: str
     answer: str
     sources: list[SourceOut]
+    whatsapp_handoff_url: str | None = None
 
 
 class ReindexResponse(BaseModel):

@@ -4,12 +4,13 @@ import React, { useEffect, useState, useRef } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
-import { sampleApi } from "../../lib/api";
-import type { Sample, SampleVersion, GarmentComponent } from "../../types/api";
+import { sampleApi, qcApi } from "../../lib/api";
+import type { Sample, SampleVersion, GarmentComponent, QCInspection } from "../../types/api";
 
 export default function SamplePage() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
+  const [escalations, setEscalations] = useState<QCInspection[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<{ type: "success" | "danger" | "warning"; message: string } | null>(null);
 
@@ -37,8 +38,12 @@ export default function SamplePage() {
   const loadSamples = async () => {
     try {
       setLoading(true);
-      const list = await sampleApi.getSamples();
+      const [list, escList] = await Promise.all([
+        sampleApi.getSamples(),
+        qcApi.getEscalations().catch(() => []),
+      ]);
       setSamples(list);
+      setEscalations(escList);
       if (list.length > 0) {
         // Load detail of first sample
         const detail = await sampleApi.getSampleDetail(list[0].id);
@@ -177,6 +182,77 @@ export default function SamplePage() {
         <span className="badge badge-info">
           ⏱️ Skenario 4: Stopwatch Pengukuran Detik Riil
         </span>
+      </div>
+
+      {/* Activity Diagram: Analisa Laporan Cacat dari Kepala Produksi (Eskalasi 3x Repair) */}
+      <div
+        className="card-elevated"
+        style={{
+          marginBottom: 24,
+          background: escalations.length > 0 ? "linear-gradient(135deg, rgba(223, 105, 81, 0.08) 0%, #ffffff 100%)" : "#ffffff",
+          border: `1px solid ${escalations.length > 0 ? "var(--jadoo-coral)" : "var(--border-subtle)"}`,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="badge badge-coral">Alur Final: Escalation Loop</span>
+            <h3 style={{ margin: 0, fontSize: "1.1rem", color: "var(--jadoo-ink)" }}>
+              Analisa Laporan Cacat dari Kepala Produksi (3x Repair)
+            </h3>
+          </div>
+          <span className="font-mono" style={{ fontSize: "0.85rem", fontWeight: 700, color: escalations.length > 0 ? "var(--color-danger)" : "var(--color-success)" }}>
+            {escalations.length} Laporan Butuh Analisa
+          </span>
+        </div>
+
+        {escalations.length === 0 ? (
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+            ✅ Tidak ada eskalasi perbaikan berulang dari Kepala Produksi. Lini menjahit berjalan sesuai time study dan toleransi BOM.
+          </p>
+        ) : (
+          <div className="table-container" style={{ marginTop: 8 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Order Ref</th>
+                  <th>Qty Cacat</th>
+                  <th>Kategori Defect</th>
+                  <th>Catatan Kepala Produksi</th>
+                  <th>Tindakan Tim Sampel</th>
+                </tr>
+              </thead>
+              <tbody>
+                {escalations.map((esc) => (
+                  <tr key={esc.id}>
+                    <td className="font-mono" style={{ fontSize: "0.8rem" }}>
+                      {new Date(esc.inspected_at).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="font-mono" style={{ fontWeight: 600 }}>
+                      PO #{esc.order_id.slice(0, 8)}
+                    </td>
+                    <td className="font-mono" style={{ fontWeight: 700, color: "var(--color-danger)" }}>
+                      {esc.qty_inspected} pcs
+                    </td>
+                    <td>
+                      <span className="badge badge-warning">
+                        {esc.defect_category || esc.defect_type || "Cacat Produksi"}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: "0.82rem" }}>
+                      {esc.notes || esc.defect_notes || "Melebihi batas 3x repair di lini."}
+                    </td>
+                    <td>
+                      <span className="badge badge-purple" style={{ fontSize: "0.75rem" }}>
+                        Kaji Ulang Detik Sewing &amp; Pola
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div

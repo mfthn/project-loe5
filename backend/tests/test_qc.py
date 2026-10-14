@@ -338,3 +338,26 @@ class TestQCEndpoints:
             json={"bonus_rate_per_pcs": "500.00"},
         )
         assert resp.status_code == 422
+
+    @patch("app.modules.qc.router.list_escalations_to_sample")
+    def test_get_escalations_returns_200(self, mock_list: MagicMock) -> None:
+        mock_insp = MagicMock()
+        mock_insp.id = uuid.uuid4()
+        mock_insp.order_id = _ORDER_ID
+        mock_insp.production_output_id = None
+        mock_insp.status = QCStatus.REPAIR
+        mock_insp.qty_inspected = 5
+        mock_insp.defect_category = "SEWING"
+        mock_insp.notes = "Jahitan melenceng 3x"
+        mock_insp.repair_count = 3
+        mock_insp.escalated_to_sample = True
+        mock_insp.inspector_user_id = _USER_ID
+        mock_insp.inspected_at = _NOW
+        mock_list.return_value = [mock_insp]
+
+        resp = self._client().get("/api/v1/qc/escalations")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["repair_count"] == 3
+        assert data[0]["escalated_to_sample"] is True
