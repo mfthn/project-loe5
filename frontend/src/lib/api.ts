@@ -4,12 +4,18 @@ import type {
   BatchFinancialCreate,
   BonusPoolPreview,
   Client,
+  CuttingResult,
   DualAskRequest,
   DualAskResponse,
   GarmentComponent,
+  HPPRealized,
   InventoryItem,
   InventoryTransaction,
+  Invoice,
+  MaterialHandover,
+  MaterialRequest,
   Order,
+  PurchaseOrder,
   OrderComponent,
   OrderSummary,
   PayrollMonthlySummary,
@@ -68,12 +74,33 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+      credentials: "include",
+    });
+  } catch (netErr: any) {
+    // Coba fallback cerdas: jika target awal localhost, coba 127.0.0.1 (dan sebaliknya)
+    const fallbackBase = API_BASE_URL.includes("localhost")
+      ? API_BASE_URL.replace("localhost", "127.0.0.1")
+      : API_BASE_URL.replace("127.0.0.1", "localhost");
+    try {
+      res = await fetch(`${fallbackBase}${path}`, {
+        ...init,
+        headers,
+        cache: "no-store",
+        credentials: "include",
+      });
+    } catch {
+      throw new ApiError(
+        0,
+        `Tidak dapat terhubung ke server backend (${API_BASE_URL}). Pastikan server backend sudah aktif (uvicorn app.main:app --reload).`
+      );
+    }
+  }
 
   if (!res.ok) {
     let errorMsg = `Permintaan gagal dengan status ${res.status}.`;
@@ -152,6 +179,8 @@ export const gudangApi = {
   receiveMaterial: async (data: {
     inventory_item_id: string;
     quantity: number;
+    order_id?: string;
+    po_id?: string;
     notes?: string;
   }): Promise<InventoryTransaction> => {
     return apiFetch<InventoryTransaction>("/gudang/receive", {
@@ -181,6 +210,79 @@ export const gudangApi = {
     if (params?.limit) query.set("limit", params.limit.toString());
     const qs = query.toString() ? `?${query.toString()}` : "";
     return apiFetch<InventoryTransaction[]>(`/gudang/transactions${qs}`);
+  },
+  setLocation: async (itemId: string, storage_location: string): Promise<InventoryItem> => {
+    return apiFetch<InventoryItem>(`/gudang/items/${itemId}/location`, {
+      method: "PATCH",
+      body: JSON.stringify({ storage_location }),
+    });
+  },
+  adjustStock: async (data: {
+    inventory_item_id: string;
+    delta: number;
+    notes: string;
+  }): Promise<InventoryTransaction> => {
+    return apiFetch<InventoryTransaction>("/gudang/adjust", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  createRequest: async (data: {
+    order_id: string;
+    inventory_item_id: string;
+    qty_requested: number;
+    notes?: string;
+  }): Promise<MaterialRequest> => {
+    return apiFetch<MaterialRequest>("/gudang/requests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  getRequests: async (): Promise<MaterialRequest[]> => {
+    return apiFetch<MaterialRequest[]>("/gudang/requests");
+  },
+  reviewRequest: async (requestId: string, approve: boolean, notes?: string): Promise<MaterialRequest> => {
+    return apiFetch<MaterialRequest>(`/gudang/requests/${requestId}/review`, {
+      method: "PATCH",
+      body: JSON.stringify({ approve, notes }),
+    });
+  },
+  createHandover: async (data: {
+    order_id: string;
+    inventory_item_id: string;
+    quantity: number;
+    material_request_id?: string | null;
+    notes?: string;
+  }): Promise<MaterialHandover> => {
+    return apiFetch<MaterialHandover>("/gudang/handovers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  receiveHandover: async (handoverId: string): Promise<MaterialHandover> => {
+    return apiFetch<MaterialHandover>(`/gudang/handovers/${handoverId}/receive`, {
+      method: "POST",
+    });
+  },
+  getHandovers: async (): Promise<MaterialHandover[]> => {
+    return apiFetch<MaterialHandover[]>("/gudang/handovers");
+  },
+  createCutting: async (data: {
+    order_id: string;
+    inventory_item_id?: string | null;
+    qty_lapis: number;
+    qty_potong_hasil: number;
+    waste_qty?: number;
+    waste_category?: string;
+    notes?: string;
+  }): Promise<CuttingResult> => {
+    return apiFetch<CuttingResult>("/gudang/cutting", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  getCutting: async (): Promise<CuttingResult[]> => {
+    return apiFetch<CuttingResult[]>("/gudang/cutting");
   },
 };
 
@@ -212,6 +314,21 @@ export const sampleApi = {
   approveVersion: async (versionId: string): Promise<SampleVersion> => {
     return apiFetch<SampleVersion>(`/sample/versions/${versionId}/approve`, {
       method: "POST",
+    });
+  },
+  approveOwner: async (
+    versionId: string,
+    data: { agreed_price: number; currency?: string; costing_notes?: string },
+  ): Promise<SampleVersion> => {
+    return apiFetch<SampleVersion>(`/sample/versions/${versionId}/approve-owner`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  rejectOwner: async (versionId: string, reason?: string): Promise<SampleVersion> => {
+    return apiFetch<SampleVersion>(`/sample/versions/${versionId}/reject-owner`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     });
   },
   addComponent: async (
@@ -265,6 +382,14 @@ export const produksiApi = {
       body: JSON.stringify({ status }),
     });
   },
+  assembleOrder: async (orderId: string, qty_assembled: number, notes?: string): Promise<{
+    id: string; order_id: string; qty_assembled: number;
+  }> => {
+    return apiFetch(`/produksi/orders/${orderId}/assemble`, {
+      method: "POST",
+      body: JSON.stringify({ qty_assembled, notes }),
+    });
+  },
   addComponent: async (
     orderId: string,
     data: { component_name: string; quantity_target: number },
@@ -276,10 +401,10 @@ export const produksiApi = {
   },
   setRateCard: async (
     componentId: string,
-    data: { sewing_rate: number; cutting_rate?: number; effective_date?: string },
-  ): Promise<RateCard> => {
-    return apiFetch<RateCard>(`/produksi/components/${componentId}/rate-card`, {
-      method: "POST",
+    data: { cutting_rate_per_pcs: number; sewing_rate_per_pcs: number },
+  ): Promise<Order> => {
+    return apiFetch<Order>(`/produksi/components/${componentId}/rate-card`, {
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
@@ -319,6 +444,11 @@ export const produksiApi = {
   },
   getOrderSummary: async (orderId: string): Promise<OrderSummary> => {
     return apiFetch<OrderSummary>(`/produksi/orders/${orderId}/summary`);
+  },
+  getLeaderboard: async (limit = 8): Promise<
+    { user_id: string; name: string; total_qty: number; verified_qty: number }[]
+  > => {
+    return apiFetch(`/produksi/leaderboard?limit=${limit}`);
   },
 };
 
@@ -440,6 +570,70 @@ export const payrollApi = {
   },
 };
 
+// ================= Finance (PO & Invoice) API =================
+export const financeApi = {
+  getPOs: async (): Promise<PurchaseOrder[]> => {
+    return apiFetch<PurchaseOrder[]>("/finance/pos");
+  },
+  createPO: async (data: {
+    po_number: string;
+    order_id: string;
+    supplier_name: string;
+    notes?: string;
+    lines: { inventory_item_id: string; qty_ordered: number; unit_price: number }[];
+  }): Promise<PurchaseOrder> => {
+    return apiFetch<PurchaseOrder>("/finance/pos", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  reviewPO: async (poId: string, approve: boolean, notes?: string): Promise<PurchaseOrder> => {
+    return apiFetch<PurchaseOrder>(`/finance/pos/${poId}/review`, {
+      method: "PATCH",
+      body: JSON.stringify({ approve, notes }),
+    });
+  },
+  getInvoices: async (): Promise<Invoice[]> => {
+    return apiFetch<Invoice[]>("/finance/invoices");
+  },
+  createInvoice: async (data: {
+    invoice_number: string;
+    order_id: string;
+    amount_total?: number;
+    notes?: string;
+  }): Promise<Invoice> => {
+    return apiFetch<Invoice>("/finance/invoices", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  approveInvoice: async (invoiceId: string): Promise<Invoice> => {
+    return apiFetch<Invoice>(`/finance/invoices/${invoiceId}/approve`, {
+      method: "POST",
+    });
+  },
+  recordPayment: async (
+    invoiceId: string,
+    data: { amount: number; notes?: string },
+  ): Promise<Invoice> => {
+    return apiFetch<Invoice>(`/finance/invoices/${invoiceId}/payments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  getRealizedHpp: async (orderId: string): Promise<HPPRealized> => {
+    return apiFetch<HPPRealized>(`/finance/hpp/${orderId}`);
+  },
+  applyHpp: async (
+    orderId: string,
+    data: { contract_revenue?: number; overhead_cost?: number },
+  ): Promise<BatchFinancial> => {
+    return apiFetch<BatchFinancial>(`/finance/hpp/${orderId}/apply`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+};
 // ================= AI Assistant API =================
 export const aiApi = {
   // 1. /ai/rag — Chatbot publik & klien maklon (S3 SOP knowledge base)

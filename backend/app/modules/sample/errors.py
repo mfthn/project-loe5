@@ -35,3 +35,10 @@ class SampleCodeDuplicateError(ValueError):
     def __init__(self, sample_code: str) -> None:
         super().__init__(f"Kode sample '{sample_code}' sudah dipakai. Gunakan kode yang berbeda.")
         self.sample_code = sample_code
+
+
+class SampleOwnerApprovalError(ValueError):
+    """Alur approval owner dilanggar (tahap, harga, atau peran tidak sah)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)

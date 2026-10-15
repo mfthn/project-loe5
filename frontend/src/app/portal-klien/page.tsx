@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
+import { ClientProfileCard } from "../../components/ClientProfileCard";
+import { KontakPemesananCard } from "../../components/KontakPemesananCard";
 import { gudangApi, produksiApi } from "../../lib/api";
 import type { InventoryItem, Order } from "../../types/api";
 
@@ -49,31 +51,46 @@ export default function PortalKlienPage() {
         />
       )}
 
-      {/* Welcome Banner */}
+      {/* Profil Pendaftar & ID Klien (10 Karakter) */}
+      <ClientProfileCard user={user} />
+
+      {/* Hubungi Tim Sample untuk Buat Sample / Tambah Pesanan Baru */}
       <div
-        className="card-elevated"
         style={{
           marginBottom: 28,
-          background: "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)",
-          border: "1px solid var(--accent-primary)",
+          background: "#ffffff",
+          borderRadius: 14,
+          padding: "16px 20px",
+          border: "1px solid #EDE9FE",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 14,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
-          <div>
-            <span className="badge badge-info" style={{ marginBottom: 6 }}>
-              Akun Mitra Terverifikasi
-            </span>
-            <h2 style={{ fontSize: "1.4rem", margin: "4px 0" }}>
-              Selamat Datang, {user?.name || "Mitra Klien"}
-            </h2>
-            <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-              Data pada halaman ini telah diisolasi secara ketat dan aman. Anda hanya dapat melihat material dan pesanan milik perusahaan Anda.
-            </div>
+        <div>
+          <div style={{ fontWeight: 800, color: "#2E1065", fontSize: "0.98rem" }}>
+            Ingin Mengajukan Pembuatan Sampel Baru atau Konsultasi Tas?
           </div>
+          <div style={{ fontSize: "0.82rem", color: "#6D28D9", marginTop: 2 }}>
+            Gunakan ID Klien Anda saat menghubungi Tim Sample agar spesifikasi dan pola terarsip otomatis.
+          </div>
+        </div>
 
-          <Link href="/ai-assistant" className="btn btn-primary">
-            💬 Tanya AI Konsultan Maklon →
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link href="/ai-assistant" className="btn btn-secondary btn-sm" style={{ textDecoration: "none" }}>
+            🤖 Tanya Asisten AI
           </Link>
+          <a
+            href="https://wa.me/6281234567890?text=Halo%20Tim%20Sample%20Lukla%20Manufacturing!%20Saya%20ingin%20mengajukan%20sample%20baru"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary btn-sm"
+            style={{ textDecoration: "none", background: "#25D366", borderColor: "#25D366" }}
+          >
+            💬 Chat Tim Sample WhatsApp
+          </a>
         </div>
       </div>
 

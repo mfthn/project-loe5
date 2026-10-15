@@ -16,7 +16,12 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, title, subtitle, requiredModule }: AppLayoutProps) {
   const { user, loading } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Terbuka default di desktop, tertutup default di mobile
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(
+    () =>
+      typeof window === "undefined" ||
+      window.matchMedia("(min-width: 901px)").matches,
+  );
 
   if (loading) {
     return (
@@ -70,13 +75,26 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
   const hasAccess = requiredModule ? canAccessModule(user.role, requiredModule) : true;
 
   return (
-    <div className="app-container">
-      <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+    <div className={`app-container${sidebarOpen ? "" : " sidebar-collapsed"}`}>
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => {
+          if (window.matchMedia("(max-width: 900px)").matches) setSidebarOpen(false);
+        }}
+      />
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          aria-hidden="true"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <div className="main-content">
         <TopBar
           title={title}
           subtitle={subtitle}
-          onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onMenuClick={() => setSidebarOpen((open) => !open)}
+          menuOpen={sidebarOpen}
         />
         <main className="page-body">
           {!hasAccess ? (

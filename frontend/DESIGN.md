@@ -409,8 +409,15 @@ max-width: 580px, max-height: 90vh
 ## 10. App Shell (Dashboard Layout)
 
 ```
-Sidebar  : 280px fixed left, z-index 40, bg #ffffff, border-right #f1f2f6
+Sidebar  : 280px fixed left, z-index 40,
+           bg gradient ungu tua linear-gradient(180deg, #2E1065 0%, #1E0A45 100%),
+           border-right rgba(196,181,253,0.22)
+           Menu aktif: pill putih (bg #ffffff, teks #2E1065);
+           menu nonaktif: teks lavender #DCD3FA.
+           (Amandemen Okt 2026: sidebar gelap agar batas menu vs isi tegas.)
 Topbar   : 74px sticky, bg rgba(255,255,255,0.9) blur(12px), z-index 30
+           Burger mengatur sidebar: collapse di desktop (>900px),
+           overlay + backdrop (z-index 35) di mobile.
 Page body: padding 36px desktop, 20px tablet/mobile
 
 Mobile (≤900px):

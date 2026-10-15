@@ -1,13 +1,17 @@
 """Logika bisnis Sample & Time Study Tracker (FR-3, FR-4).
 
-Alur Skenario 4 (P0):
+Alur Skenario 4 (P0) + approval owner dua tahap:
   1. Buat Sample baru → versi v1 DRAFT otomatis terbuat.
   2. Catat komponen garmen + hasil stopwatch time study pada versi.
   3. Revisi sample → buat versi baru (v2, v3, dst.) dari versi sebelumnya.
-  4. Approve versi → status APPROVED, versi itu tidak bisa diubah lagi.
-  5. (Fase 4) Versi APPROVED dapat dikonversi menjadi Order Produksi Massal.
+  4. Approve tahap 1 (tim sample): DRAFT/REVISION → APPROVED.
+  5. Approve tahap 2 (owner): APPROVED → OWNER_APPROVED (wajib harga disepakati).
+     Tolak owner: APPROVED → OWNER_REJECTED (dengan alasan, lalu buat revisi baru).
+  6. Hanya versi OWNER_APPROVED yang dapat dikonversi menjadi Order Produksi Massal.
 """
 import uuid
+from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,10 +20,16 @@ from app.modules.sample.errors import (
     SampleAlreadyApprovedError,
     SampleCodeDuplicateError,
     SampleNotFoundError,
+    SampleOwnerApprovalError,
     SampleVersionNotFoundError,
 )
 from app.modules.sample.models import Sample, SampleComponent, SampleStatus, SampleVersion
 from app.modules.sample.schemas import SampleComponentCreate, SampleCreate, SampleVersionCreate
+
+# Status versi yang terkunci (tidak boleh tambah/ubah komponen)
+_LOCKED_STATUSES = frozenset(
+    {SampleStatus.APPROVED, SampleStatus.OWNER_APPROVED, SampleStatus.OWNER_REJECTED}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -108,17 +118,81 @@ def create_revision(db: Session, sample_id: uuid.UUID, payload: SampleVersionCre
     return new_version
 
 
-def approve_version(db: Session, version_id: uuid.UUID) -> SampleVersion:
-    """Menyetujui versi sample (ubah status ke APPROVED).
+def approve_version(
+    db: Session, version_id: uuid.UUID, user_id: uuid.UUID | None = None
+) -> SampleVersion:
+    """Tahap 1: tim sample menyetujui versi (DRAFT/REVISION → APPROVED).
 
-    FR-4.1: Hanya versi DRAFT atau REVISION yang dapat disetujui.
-    Versi yang sudah APPROVED tidak dapat diubah kembali.
+    FR-4.1: Versi yang sudah APPROVED / OWNER_APPROVED / OWNER_REJECTED
+    tidak dapat disetujui ulang.
     """
     version = get_version(db, version_id)
-    if version.status == SampleStatus.APPROVED:
+    if version.status in _LOCKED_STATUSES:
         raise SampleAlreadyApprovedError(version_id)
 
     version.status = SampleStatus.APPROVED
+    version.sample_approved_by = user_id
+    version.sample_approved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(version)
+    return version
+
+
+def approve_owner(
+    db: Session,
+    version_id: uuid.UUID,
+    agreed_price: Decimal,
+    user_id: uuid.UUID | None = None,
+    costing_notes: str | None = None,
+    currency: str = "IDR",
+) -> SampleVersion:
+    """Tahap 2: owner menyetujui produk + harga (APPROVED → OWNER_APPROVED).
+
+    Harga wajib > 0. Hanya versi yang sudah lolos tahap 1 yang bisa diproses.
+    """
+    version = get_version(db, version_id)
+    if version.status != SampleStatus.APPROVED:
+        raise SampleOwnerApprovalError(
+            f"Versi {version_id} berstatus {version.status.value}, "
+            "hanya versi APPROVED (lolos tim sample) yang bisa disetujui owner."
+        )
+    try:
+        price = Decimal(str(agreed_price))
+    except Exception:
+        raise SampleOwnerApprovalError("Harga kesepakatan tidak valid.") from None
+    if price <= 0:
+        raise SampleOwnerApprovalError("Harga kesepakatan wajib lebih besar dari 0.")
+
+    version.status = SampleStatus.OWNER_APPROVED
+    version.agreed_price = price
+    version.currency = (currency or "IDR").strip().upper()[:3]
+    if costing_notes is not None:
+        version.costing_notes = costing_notes
+    version.owner_approved_by = user_id
+    version.owner_approved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(version)
+    return version
+
+
+def reject_owner(
+    db: Session,
+    version_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
+    reason: str | None = None,
+) -> SampleVersion:
+    """Owner menolak versi (APPROVED → OWNER_REJECTED). Buat revisi baru untuk lanjut."""
+    version = get_version(db, version_id)
+    if version.status != SampleStatus.APPROVED:
+        raise SampleOwnerApprovalError(
+            f"Versi {version_id} berstatus {version.status.value}, "
+            "hanya versi APPROVED yang bisa ditolak owner."
+        )
+    version.status = SampleStatus.OWNER_REJECTED
+    if reason:
+        version.costing_notes = reason
+    version.owner_approved_by = user_id
+    version.owner_approved_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(version)
     return version
@@ -142,10 +216,11 @@ def add_component(
 ) -> SampleComponent:
     """Menambahkan komponen garmen beserta hasil stopwatch time study ke versi sample.
 
-    FR-3.1: Versi APPROVED tidak dapat dimodifikasi — lempar SampleAlreadyApprovedError.
+    FR-3.1: Versi terkunci (APPROVED / OWNER_APPROVED / OWNER_REJECTED)
+    tidak dapat dimodifikasi — lempar SampleAlreadyApprovedError.
     """
     version = get_version(db, version_id)
-    if version.status == SampleStatus.APPROVED:
+    if version.status in _LOCKED_STATUSES:
         raise SampleAlreadyApprovedError(version_id)
 
     component = SampleComponent(
@@ -167,14 +242,14 @@ def update_component(
 ) -> SampleComponent:
     """Memperbarui data komponen (nama, estimasi bahan, hasil stopwatch).
 
-    Versi APPROVED tidak dapat dimodifikasi.
+    Versi terkunci (APPROVED / OWNER_APPROVED / OWNER_REJECTED) tidak dapat dimodifikasi.
     """
     comp = db.scalar(select(SampleComponent).where(SampleComponent.id == component_id))
     if comp is None:
         raise ValueError(f"Komponen dengan ID {component_id} tidak ditemukan.")
 
     version = get_version(db, comp.sample_version_id)
-    if version.status == SampleStatus.APPROVED:
+    if version.status in _LOCKED_STATUSES:
         raise SampleAlreadyApprovedError(version.id)
 
     comp.component_name = payload.component_name.strip()

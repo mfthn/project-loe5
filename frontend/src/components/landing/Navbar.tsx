@@ -4,10 +4,12 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { LANDING_CONTENT } from "../../content/landing";
+import { useAuth } from "../../lib/auth-context";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,6 +18,8 @@ export function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const dashboardUrl = user?.role === "KLIEN_MAKLON" ? "/portal-klien" : "/dashboard";
 
   return (
     <header
@@ -105,12 +109,35 @@ export function Navbar() {
           style={{
             display: "none",
             alignItems: "center",
-            gap: 32,
+            gap: 28,
             position: "absolute",
             left: "50%",
             transform: "translateX(-50%)",
           }}
         >
+          {/* Menu Dashboard Aktif Jika Sudah Login */}
+          {user && (
+            <Link
+              href={dashboardUrl}
+              style={{
+                fontSize: "0.92rem",
+                fontWeight: 700,
+                color: "#7C3AED",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 8,
+                background: "rgba(124, 58, 237, 0.08)",
+                border: "1px solid rgba(124, 58, 237, 0.2)",
+              }}
+            >
+              <span>📊</span>
+              <span>Dashboard Saya</span>
+            </Link>
+          )}
+
           {LANDING_CONTENT.nav.links.map((link) => (
             <a
               key={link.label}
@@ -130,57 +157,124 @@ export function Navbar() {
           ))}
         </nav>
 
-        {/* CTA Actions (Sisi Paling Kanan: Icon Login) */}
+        {/* CTA Actions (Sisi Paling Kanan) */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          <Link
-            href="/login"
-            aria-label="Masuk Portal / Login"
-            title="Masuk ke Portal Operasional"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "9px 18px",
-              borderRadius: 9999,
-              background: "#FAF8FF",
-              border: "1.5px solid #C4B5FD",
-              color: "#2E1065",
-              fontWeight: 700,
-              fontSize: "0.88rem",
-              textDecoration: "none",
-              boxShadow: "0 2px 8px rgba(124, 58, 237, 0.08)",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#7C3AED";
-              e.currentTarget.style.background = "#7C3AED";
-              e.currentTarget.style.color = "#ffffff";
-              e.currentTarget.style.transform = "translateY(-1px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "#C4B5FD";
-              e.currentTarget.style.background = "#FAF8FF";
-              e.currentTarget.style.color = "#2E1065";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            {/* SVG Login / Sign-in Icon */}
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {user ? (
+            /* Bila Sudah Login */
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Link
+                href={dashboardUrl}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "7px 16px",
+                  borderRadius: 9999,
+                  background: "linear-gradient(135deg, #7C3AED 0%, #2E1065 100%)",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                  fontSize: "0.86rem",
+                  textDecoration: "none",
+                  boxShadow: "0 4px 14px rgba(124, 58, 237, 0.35)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.25)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.72rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {(user.name || user.username).charAt(0).toUpperCase()}
+                </div>
+                <span>Dashboard ({user.role}) →</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => logout()}
+                title="Keluar dari sesi"
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: 9999,
+                  background: "#FAF8FF",
+                  border: "1px solid #EDE9FE",
+                  color: "#6B7280",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#f87171";
+                  e.currentTarget.style.color = "#ef4444";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#EDE9FE";
+                  e.currentTarget.style.color = "#6B7280";
+                }}
+              >
+                Keluar
+              </button>
+            </div>
+          ) : (
+            /* Bila Belum Login */
+            <Link
+              href="/login"
+              aria-label="Masuk Portal / Login"
+              title="Masuk ke Portal Operasional"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "9px 18px",
+                borderRadius: 9999,
+                background: "#FAF8FF",
+                border: "1.5px solid #C4B5FD",
+                color: "#2E1065",
+                fontWeight: 700,
+                fontSize: "0.88rem",
+                textDecoration: "none",
+                boxShadow: "0 2px 8px rgba(124, 58, 237, 0.08)",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#7C3AED";
+                e.currentTarget.style.background = "#7C3AED";
+                e.currentTarget.style.color = "#ffffff";
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#C4B5FD";
+                e.currentTarget.style.background = "#FAF8FF";
+                e.currentTarget.style.color = "#2E1065";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
             >
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-              <polyline points="10 17 15 12 10 7" />
-              <line x1="15" y1="12" x2="3" y2="12" />
-            </svg>
-            <span className="login-btn-text">Masuk</span>
-          </Link>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              <span className="login-btn-text">Masuk</span>
+            </Link>
+          )}
 
           {/* Mobile Hamburger Button */}
           <button
@@ -215,6 +309,26 @@ export function Navbar() {
             gap: 16,
           }}
         >
+          {user && (
+            <Link
+              href={dashboardUrl}
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: "#7C3AED",
+                textDecoration: "none",
+                padding: "8px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span>📊</span>
+              <span>Ke Dashboard ({user.role})</span>
+            </Link>
+          )}
+
           {LANDING_CONTENT.nav.links.map((link) => (
             <a
               key={link.label}
@@ -232,13 +346,24 @@ export function Navbar() {
             </a>
           ))}
           <div style={{ paddingTop: 12, borderTop: "1px solid #EDE9FE", display: "flex", gap: 10 }}>
-            <Link
-              href="/login"
-              className="btn btn-secondary"
-              style={{ flex: 1, textAlign: "center", borderRadius: 9999 }}
-            >
-              Masuk
-            </Link>
+            {user ? (
+              <button
+                type="button"
+                onClick={() => { setMobileMenuOpen(false); logout(); }}
+                className="btn btn-secondary"
+                style={{ flex: 1, textAlign: "center", borderRadius: 9999 }}
+              >
+                Keluar ({user.username})
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="btn btn-secondary"
+                style={{ flex: 1, textAlign: "center", borderRadius: 9999 }}
+              >
+                Masuk
+              </Link>
+            )}
             <Link
               href="/ai-assistant"
               className="btn"
@@ -252,3 +377,4 @@ export function Navbar() {
     </header>
   );
 }
+

@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import ACCESS_TOKEN_EXPIRE_HOURS, create_access_token
 from app.modules.auth.dependencies import get_current_user
-from app.modules.auth.models import User
+from app.modules.auth.models import Client, User
 from app.modules.auth.schemas import (
+    ClientProfileResponse,
     LoginRequest,
     RegisterClientRequest,
     RegisterClientResponse,
@@ -16,6 +17,25 @@ from app.modules.auth.schemas import (
 from app.modules.auth.service import authenticate_user, register_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def build_user_response(user: User, db: Session) -> UserResponse:
+    """Helper untuk memetakan User ORM ke UserResponse lengkap dengan profil Client & Client Code 10 digit."""
+    res = UserResponse.model_validate(user)
+    if user.client_id:
+        c_code = f"LOE-{str(user.client_id).replace('-', '')[:6].upper()}"
+        res.client_code = c_code
+        client = db.get(Client, user.client_id)
+        if client:
+            res.client = ClientProfileResponse(
+                id=client.id,
+                company_name=client.company_name,
+                contact_person=client.contact_person,
+                phone_number=client.phone_number,
+                client_code=c_code,
+                created_at=client.created_at,
+            )
+    return res
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -52,7 +72,7 @@ def login(
     return TokenResponse(
         access_token=token,
         token_type="bearer",
-        user=UserResponse.model_validate(user),
+        user=build_user_response(user, db),
     )
 
 
@@ -77,13 +97,15 @@ def register(
             detail=str(exc),
         ) from exc
 
+    client_code = f"LOE-{str(client.id).replace('-', '')[:6].upper()}"
     return RegisterClientResponse(
         message=(
-            f"Registrasi berhasil! ID Klien Anda: {client.id}. "
+            f"Registrasi berhasil! ID Klien Anda: {client_code}. "
             "Silakan login dengan username dan password yang telah dibuat."
         ),
         client_id=client.id,
-        user=UserResponse.model_validate(user),
+        client_code=client_code,
+        user=build_user_response(user, db),
     )
 
 
@@ -95,6 +117,9 @@ def logout(response: Response) -> dict[str, str]:
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
+def get_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserResponse:
     """Mengambil data profil dan peran pengguna yang sedang login."""
-    return UserResponse.model_validate(current_user)
+    return build_user_response(current_user, db)

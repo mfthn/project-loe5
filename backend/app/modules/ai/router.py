@@ -26,10 +26,13 @@ from app.modules.ai.schemas import (
     ReindexResponse,
 )
 from app.modules.ai.service import RagService, get_rag_service
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import get_current_user, require_roles
 from app.modules.auth.models import User, UserRole
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+_OWNER_AGENT_ROLES = [UserRole.OWNER, UserRole.MANDOR]
+_OWNER_ONLY_ROLES = [UserRole.OWNER]
 
 # Label human-readable per persona
 _PERSONA_LABELS = {
@@ -79,8 +82,9 @@ def ask_client(
         "Menggabungkan dokumen SOP dari S3 dengan data live dari database sistem "
         "(pesanan aktif, output produksi, payroll, inventaris, QC, sample). "
         "Digunakan untuk monitoring, analisis bisnis, dan pengambilan keputusan operasional. "
-        "**Hanya untuk pengguna dengan role `owner` atau `admin`.**"
+        "**Hanya untuk OWNER dan MANDOR.**"
     ),
+    dependencies=[Depends(require_roles(_OWNER_AGENT_ROLES))],
 )
 def ask_agent(
     body: AskRequest,
@@ -100,6 +104,7 @@ def ask_agent(
     response_model=AskResponse,
     summary="Owner Tracker AI via GET (S3 + live DB)",
     include_in_schema=False,  # Tersembunyi di docs — untuk testing via browser
+    dependencies=[Depends(require_roles(_OWNER_AGENT_ROLES))],
 )
 def ask_agent_get(
     question: str,
@@ -192,7 +197,11 @@ def ask(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> AskResp
 
 # ── 5 & 6. Utilities ──────────────────────────────────────────────────────────
 
-@router.post("/reindex", response_model=ReindexResponse)
+@router.post(
+    "/reindex",
+    response_model=ReindexResponse,
+    dependencies=[Depends(require_roles(_OWNER_ONLY_ROLES))],
+)
 def reindex(rag: RagService = Depends(get_rag_service)) -> ReindexResponse:
     try:
         count = rag.build_index()
@@ -201,7 +210,11 @@ def reindex(rag: RagService = Depends(get_rag_service)) -> ReindexResponse:
     return ReindexResponse(chunks=count)
 
 
-@router.get("/status", response_model=RagStatusResponse)
+@router.get(
+    "/status",
+    response_model=RagStatusResponse,
+    dependencies=[Depends(get_current_user)],
+)
 def rag_status(rag: RagService = Depends(get_rag_service)) -> RagStatusResponse:
     return RagStatusResponse(
         index_ready=rag.is_ready,

@@ -139,8 +139,8 @@ a {
 
 .sidebar {
   width: 280px;
-  background: #ffffff;
-  border-right: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, #2E1065 0%, #1E0A45 100%);
+  border-right: 1px solid rgba(196, 181, 253, 0.22);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -150,6 +150,21 @@ a {
   z-index: 40;
   transition: transform var(--transition-normal);
   box-shadow: 2px 0 16px rgba(24, 30, 75, 0.02);
+}
+
+/* Sidebar collapse (desktop): burger menyembunyikan/menampilkan menu */
+.app-container.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+.app-container.sidebar-collapsed .main-content {
+  margin-left: 0;
+  max-width: 100vw;
+}
+
+/* Backdrop penutup sidebar di mobile */
+.sidebar-backdrop {
+  display: none;
 }
 
 .main-content {
@@ -657,6 +672,13 @@ a {
   }
   .sidebar.open {
     transform: translateX(0);
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 24, 62, 0.45);
+    z-index: 35;
   }
   .main-content {
     margin-left: 0;

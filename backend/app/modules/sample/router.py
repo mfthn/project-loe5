@@ -14,9 +14,12 @@ from app.modules.sample.errors import (
     SampleAlreadyApprovedError,
     SampleCodeDuplicateError,
     SampleNotFoundError,
+    SampleOwnerApprovalError,
     SampleVersionNotFoundError,
 )
 from app.modules.sample.schemas import (
+    OwnerApproveRequest,
+    OwnerRejectRequest,
     SampleComponentCreate,
     SampleComponentResponse,
     SampleCreate,
@@ -27,6 +30,7 @@ from app.modules.sample.schemas import (
 )
 from app.modules.sample.service import (
     add_component,
+    approve_owner,
     approve_version,
     create_revision,
     create_sample,
@@ -34,6 +38,7 @@ from app.modules.sample.service import (
     get_version,
     list_components,
     list_samples,
+    reject_owner,
     update_component,
 )
 
@@ -41,6 +46,7 @@ router = APIRouter(prefix="/sample", tags=["sample"])
 
 _SAMPLE_ROLES = [UserRole.TIM_SAMPLE, UserRole.OWNER, UserRole.MANDOR]
 _APPROVE_ROLES = [UserRole.TIM_SAMPLE, UserRole.OWNER]
+_OWNER_ROLES = [UserRole.OWNER]
 
 
 def _handle_sample_error(exc: Exception) -> HTTPException:
@@ -50,6 +56,8 @@ def _handle_sample_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if isinstance(exc, SampleCodeDuplicateError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, SampleOwnerApprovalError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
@@ -145,16 +153,65 @@ def create_sample_revision(
 )
 def approve_sample_version(
     version_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SampleVersionResponse:
-    """Menyetujui versi sample (DRAFT/REVISION → APPROVED).
+    """Tahap 1: tim sample menyetujui produk (DRAFT/REVISION → APPROVED).
 
-    FR-4.1: Hanya TIM_SAMPLE dan OWNER yang dapat menyetujui versi.
-    Versi yang sudah APPROVED tidak bisa diubah kembali.
+    FR-4.1: Hanya TIM_SAMPLE dan OWNER yang dapat menyetujui tahap ini.
+    Versi terkunci tidak bisa diubah kembali.
     """
     try:
-        version = approve_version(db, version_id)
+        version = approve_version(db, version_id, user_id=current_user.id)
     except (SampleVersionNotFoundError, SampleAlreadyApprovedError) as e:
+        raise _handle_sample_error(e) from e
+    return SampleVersionResponse.model_validate(version)
+
+
+@router.post(
+    "/versions/{version_id}/approve-owner",
+    response_model=SampleVersionResponse,
+    dependencies=[Depends(require_roles(_OWNER_ROLES))],
+)
+def approve_sample_owner(
+    version_id: uuid.UUID,
+    payload: OwnerApproveRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SampleVersionResponse:
+    """Tahap 2: owner menyetujui produk + harga (APPROVED → OWNER_APPROVED).
+
+    Hanya OWNER. Harga wajib > 0. Hasilnya mengunci versi dan
+    membuka konversi menjadi order produksi massal.
+    """
+    try:
+        version = approve_owner(
+            db, version_id,
+            agreed_price=payload.agreed_price,  # type: ignore[arg-type]
+            user_id=current_user.id,
+            costing_notes=payload.costing_notes,
+            currency=payload.currency,
+        )
+    except (SampleVersionNotFoundError, SampleOwnerApprovalError) as e:
+        raise _handle_sample_error(e) from e
+    return SampleVersionResponse.model_validate(version)
+
+
+@router.post(
+    "/versions/{version_id}/reject-owner",
+    response_model=SampleVersionResponse,
+    dependencies=[Depends(require_roles(_OWNER_ROLES))],
+)
+def reject_sample_owner(
+    version_id: uuid.UUID,
+    payload: OwnerRejectRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SampleVersionResponse:
+    """Owner menolak versi (APPROVED → OWNER_REJECTED). Buat revisi baru untuk lanjut."""
+    try:
+        version = reject_owner(db, version_id, user_id=current_user.id, reason=payload.reason)
+    except (SampleVersionNotFoundError, SampleOwnerApprovalError) as e:
         raise _handle_sample_error(e) from e
     return SampleVersionResponse.model_validate(version)
 
@@ -181,6 +238,13 @@ def get_version_detail(
         version_number=version.version_number,
         status=version.status,
         tech_pack_notes=version.tech_pack_notes,
+        agreed_price=version.agreed_price,
+        currency=version.currency,
+        costing_notes=version.costing_notes,
+        sample_approved_by=version.sample_approved_by,
+        sample_approved_at=version.sample_approved_at,
+        owner_approved_by=version.owner_approved_by,
+        owner_approved_at=version.owner_approved_at,
         created_at=version.created_at,
         components=[SampleComponentResponse.model_validate(c) for c in components],
         total_time_seconds=total_time,

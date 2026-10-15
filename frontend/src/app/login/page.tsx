@@ -6,13 +6,25 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
 import { authApi } from "../../lib/api";
+import { formatClientId10 } from "../../lib/config";
 import { AmbientOrb } from "../../components/visuals/AmbientOrb";
 
 type TabMode = "login" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { user, login, loading: authLoading } = useAuth();
+
+  // Jika sudah login, langsung arahkan ke dashboard yang sesuai
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === "KLIEN_MAKLON") {
+        router.replace("/portal-klien");
+      } else {
+        router.replace("/dashboard");
+      }
+    }
+  }, [user, authLoading, router]);
 
   // ── Tab State ──
   const [tab, setTab] = useState<TabMode>("login");
@@ -73,7 +85,8 @@ export default function LoginPage() {
         contact_person: regContactPerson.trim(),
         phone_number: regPhone.trim(),
       });
-      setRegSuccess({ clientId: res.client_id, message: res.message });
+      const formattedId = res.client_code || formatClientId10(res.client_id);
+      setRegSuccess({ clientId: formattedId, message: res.message });
     } catch (err: any) {
       setErrorMsg(err.message || "Registrasi gagal. Periksa data yang dimasukkan.");
     } finally {
@@ -477,18 +490,19 @@ export default function LoginPage() {
                     textAlign: "left",
                   }}
                 >
-                  <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#166534", marginBottom: 8 }}>🔑 ID Klien Anda (simpan baik-baik):</div>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#166534", marginBottom: 8 }}>🔑 ID Klien Anda (10 Karakter):</div>
                   <code
                     style={{
                       display: "block",
-                      fontSize: "0.78rem",
+                      fontSize: "1.1rem",
                       fontFamily: "monospace",
                       color: "#065f46",
                       background: "#DCFCE7",
                       padding: "10px 14px",
                       borderRadius: 8,
                       wordBreak: "break-all",
-                      fontWeight: 700,
+                      fontWeight: 800,
+                      letterSpacing: "0.05em",
                     }}
                   >
                     {regSuccess.clientId}

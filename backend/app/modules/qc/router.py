@@ -6,6 +6,7 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -38,7 +39,9 @@ from app.modules.qc.service import (
 router = APIRouter(prefix="/qc", tags=["qc"])
 
 _INSPECTOR_ROLES = [UserRole.QC_INSPECTOR, UserRole.OWNER]
-_BONUS_ROLES = [UserRole.OWNER, UserRole.FINANCE_PAYROLL, UserRole.MANDOR]
+# Formula bonus milik Owner & Finance — Mandor tidak dapat mengubah formula gaji.
+_BONUS_ROLES = [UserRole.OWNER, UserRole.FINANCE_PAYROLL]
+_ESCALATION_ROLES = [UserRole.OWNER, UserRole.TIM_SAMPLE, UserRole.QC_INSPECTOR, UserRole.MANDOR]
 
 
 def _handle_error(exc: Exception) -> HTTPException:
@@ -64,11 +67,32 @@ def get_inspections(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[QCInspectionResponse]:
-    """Mendapatkan daftar catatan inspeksi QC."""
+    """Mendapatkan daftar catatan inspeksi QC. KLIEN hanya data miliknya."""
     inspector_id: uuid.UUID | None = None
     # QC Inspector hanya bisa melihat inspeksinya sendiri
     if current_user.role == UserRole.QC_INSPECTOR:
         inspector_id = current_user.id
+
+    if current_user.role == UserRole.KLIEN_MAKLON:
+        if not current_user.client_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akun klien tidak terhubung dengan entitas klien yang valid.",
+            )
+        from app.modules.produksi.models import Order as _Order
+
+        own_order_ids = set(
+            db.scalars(
+                select(_Order.id).where(_Order.client_id == current_user.client_id)
+            ).all()
+        )
+        if order_id is not None and order_id not in own_order_ids:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order tidak ditemukan.")
+        inspections = []
+        for oid in ([order_id] if order_id else list(own_order_ids)):
+            inspections.extend(list_inspections(db, order_id=oid, status=status_filter))
+        inspections.sort(key=lambda i: i.inspected_at, reverse=True)
+        return [QCInspectionResponse.model_validate(i) for i in inspections]
 
     inspections = list_inspections(
         db, order_id=order_id, inspector_user_id=inspector_id, status=status_filter
@@ -76,7 +100,11 @@ def get_inspections(
     return [QCInspectionResponse.model_validate(i) for i in inspections]
 
 
-@router.get("/escalations", response_model=list[QCInspectionResponse])
+@router.get(
+    "/escalations",
+    response_model=list[QCInspectionResponse],
+    dependencies=[Depends(require_roles(_ESCALATION_ROLES))],
+)
 def get_defect_escalations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -115,11 +143,17 @@ def get_inspection_detail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> QCInspectionResponse:
-    """Mendapatkan detail satu catatan inspeksi QC."""
+    """Mendapatkan detail satu catatan inspeksi QC. KLIEN hanya data miliknya."""
     try:
         inspection = get_inspection(db, inspection_id)
     except InspectionNotFoundError as e:
         raise _handle_error(e) from e
+    if current_user.role == UserRole.KLIEN_MAKLON:
+        from app.modules.produksi.models import Order as _Order
+
+        order = db.scalar(select(_Order).where(_Order.id == inspection.order_id))
+        if order is None or order.client_id != current_user.client_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspeksi tidak ditemukan.")
     return QCInspectionResponse.model_validate(inspection)
 
 
@@ -134,6 +168,12 @@ def get_order_qc_summary(
     db: Session = Depends(get_db),
 ) -> QCSummaryResponse:
     """Ringkasan QC untuk satu order: total inspeksi, lolos, repair, defect, dan persentase."""
+    if current_user.role == UserRole.KLIEN_MAKLON:
+        from app.modules.produksi.models import Order as _Order
+
+        order = db.scalar(select(_Order).where(_Order.id == order_id))
+        if order is None or order.client_id != current_user.client_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order tidak ditemukan.")
     try:
         return get_qc_summary(db, order_id)
     except ValueError as e:

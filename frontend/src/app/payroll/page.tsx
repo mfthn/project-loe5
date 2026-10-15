@@ -178,6 +178,12 @@ export default function PayrollPage() {
         />
       )}
 
+      <div style={{ marginBottom: 20 }}>
+        <a href="/tagihan" className="btn btn-secondary">
+          📋 Buka PO Bahan & Invoice Klien
+        </a>
+      </div>
+
       {/* Skenario 2 Educational Banner */}
       <div
         className="card-elevated"

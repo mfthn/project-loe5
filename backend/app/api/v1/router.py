@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
+from app.modules.finance.router import router as finance_router
 from app.modules.gudang.router import router as gudang_router
 from app.modules.payroll.router import router as payroll_router
 from app.modules.produksi.router import router as produksi_router
@@ -16,3 +17,4 @@ api_router.include_router(sample_router)
 api_router.include_router(produksi_router)
 api_router.include_router(qc_router)
 api_router.include_router(payroll_router)
+api_router.include_router(finance_router)

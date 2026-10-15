@@ -129,6 +129,27 @@ export default function ProduksiPage() {
     }
   };
 
+  // Rakit produk utuh → MENUNGGU_QC (FR-7.3/7.4)
+  const handleAssemble = async () => {
+    if (!selectedOrder) return;
+    const input = window.prompt("Jumlah produk utuh hasil rakitan (pcs):", "100");
+    if (input === null) return;
+    const qty = Number(input);
+    if (!qty || qty <= 0) {
+      setNotice({ type: "warning", message: "Jumlah rakitan wajib lebih dari 0." });
+      return;
+    }
+    try {
+      await produksiApi.assembleOrder(selectedOrder.id, qty);
+      setNotice({ type: "success", message: `Dirakit ${qty} pcs — order lanjut ke MENUNGGU_QC.` });
+      const updated = await produksiApi.getOrderDetail(selectedOrder.id);
+      setSelectedOrder(updated);
+      loadOrders();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal merakit produk." });
+    }
+  };
+
   return (
     <AppLayout
       title="Lantai Produksi & Terminal Touchscreen 30 Menit"
@@ -257,9 +278,14 @@ export default function ProduksiPage() {
                         </button>
                       )}
                       {selectedOrder.status === "SEWING" && (
-                        <button onClick={() => handleAdvanceStatus("MENUNGGU_QC")} className="btn btn-warning btn-sm">
-                          Ajukan ke QC →
-                        </button>
+                        <>
+                          <button onClick={handleAssemble} className="btn btn-warning btn-sm">
+                            🧩 Rakit & Kirim ke QC
+                          </button>
+                          <button onClick={() => handleAdvanceStatus("MENUNGGU_QC")} className="btn btn-ghost btn-sm">
+                            Lewati rakit →
+                          </button>
+                        </>
                       )}
                     </div>
                   )}

@@ -38,6 +38,7 @@ class QCInspectionResponse(BaseModel):
     repair_count: int
     escalated_to_sample: bool
     defect_category: str | None
+    action_route: str | None = None
     notes: str | None
     inspected_at: datetime
 

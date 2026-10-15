@@ -60,6 +60,42 @@ class RateCardResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RateCardUpdate(BaseModel):
+    """Ubah tarif borongan per komponen (khusus OWNER & MANDOR)."""
+    cutting_rate_per_pcs: Decimal = Field(..., ge=0, description="Tarif cutting per pcs (Rp)")
+    sewing_rate_per_pcs: Decimal = Field(..., ge=0, description="Tarif sewing per pcs (Rp)")
+
+
+class RateCardChangeResponse(BaseModel):
+    id: uuid.UUID
+    order_component_id: uuid.UUID
+    old_cutting_rate: float
+    old_sewing_rate: float
+    new_cutting_rate: float
+    new_sewing_rate: float
+    changed_by_user_id: uuid.UUID | None
+    changed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AssemblyCreate(BaseModel):
+    qty_assembled: int = Field(..., gt=0, description="Jumlah produk utuh hasil rakitan")
+    notes: str | None = None
+
+
+class AssemblyResponse(BaseModel):
+    id: uuid.UUID
+    order_id: uuid.UUID
+    client_id: uuid.UUID
+    qty_assembled: int
+    assembled_by_user_id: uuid.UUID | None
+    notes: str | None
+    assembled_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderComponentResponse(BaseModel):
     id: uuid.UUID
     order_id: uuid.UUID
@@ -157,3 +193,12 @@ class WorkerDashboardResponse(BaseModel):
     qc_defect_qty: int
     unattributed_qc_inspections: int
     orders: list[WorkerDashboardOrderResponse]
+
+
+class LeaderboardEntry(BaseModel):
+    user_id: uuid.UUID
+    name: str
+    total_qty: int
+    verified_qty: int
+
+    model_config = ConfigDict(from_attributes=True)

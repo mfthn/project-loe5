@@ -39,6 +39,12 @@ class Client(Base):
     # Relasi
     users: Mapped[list["User"]] = relationship("User", back_populates="client")
 
+    @property
+    def client_code(self) -> str:
+        """Format ID Klien 10 digit resmi: LOE-id_client (contoh: LOE-A1B2C3)."""
+        clean_hex = str(self.id).replace("-", "")[:6].upper()
+        return f"LOE-{clean_hex}"
+
 
 class User(Base):
     """Pengguna sistem dengan salah satu dari 8 peran operasional."""
@@ -72,3 +78,11 @@ class User(Base):
 
     # Relasi
     client: Mapped[Client | None] = relationship("Client", back_populates="users")
+
+    @property
+    def client_code(self) -> str | None:
+        """Format ID Klien 10 digit resmi jika user terikat ke klien."""
+        if not self.client_id:
+            return None
+        clean_hex = str(self.client_id).replace("-", "")[:6].upper()
+        return f"LOE-{clean_hex}"

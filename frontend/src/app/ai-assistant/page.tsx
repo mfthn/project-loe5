@@ -5,6 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { aiApi } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
+import { KontakPemesananCard } from "../../components/KontakPemesananCard";
 import type { DualAskResponse, SourceDocument } from "../../types/api";
 
 interface ChatMessage {
@@ -15,6 +16,7 @@ interface ChatMessage {
   timestamp: string;
   whatsapp_handoff_url?: string | null;
   mode?: "owner_agent" | "client_rag";
+  showContactCard?: boolean;
 }
 
 const OWNER_PROMPTS = [
@@ -25,11 +27,11 @@ const OWNER_PROMPTS = [
 ];
 
 const CLIENT_PROMPTS = [
-  "Apa saja tahapan order maklon dari sample sampai produksi?",
-  "Apa perbedaan skema maklon CMT, Semi-CMT, dan Full Package?",
-  "Bagaimana alur pembuatan sampel dari v1 hingga konversi pesanan massal?",
-  "Berapa estimasi waktu pengerjaan sample dan minimal order (MOQ)?",
-  "Aksesoris apa saja yang disediakan Lukla pada skema Semi-CMT?",
+  "Berapa minimal pemesanan (MOQ) untuk produksi tas?",
+  "Apa perbedaan skema maklon tas CMT, Semi-CMT, dan Full Package?",
+  "Bagaimana alur pembuatan sample tas hingga konversi ke pesanan massal?",
+  "Material dan aksesoris tas apa saja yang disediakan oleh Lukla?",
+  "Berapa estimasi waktu pengerjaan sample tas v1?",
 ];
 
 export default function AiAssistantPage() {
@@ -58,9 +60,10 @@ export default function AiAssistantPage() {
         {
           id: "welcome-client",
           sender: "ai",
-          text: `Halo! Saya adalah Asisten Konsultasi Maklon Lukla Operations Engine. Silakan tanyakan hal seputar skema kerja sama (CMT/Semi-CMT/Full Package), alur pembuatan sample, prosedur pengiriman bahan, hingga panduan SOP pabrik kami.`,
+          text: `Halo! 👋 Selamat datang di layanan kami.\n\nAda yang ingin kamu tanyakan seputar layanan produksi tas? Aku siap membantu memberikan informasi mengenai layanan, spesifikasi produk, dan proses pemesanan.\n\nJika kamu ingin melakukan pemesanan atau berdiskusi lebih lanjut mengenai kebutuhan produksi, silakan hubungi tim kami melalui kontak berikut.`,
           timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
           mode: "client_rag",
+          showContactCard: true,
         },
       ]);
     }
@@ -97,6 +100,7 @@ export default function AiAssistantPage() {
         timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
         whatsapp_handoff_url: res.whatsapp_handoff_url,
         mode: isOwner ? "owner_agent" : "client_rag",
+        showContactCard: !isOwner,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -213,31 +217,10 @@ export default function AiAssistantPage() {
                 </div>
               )}
 
-              {/* WhatsApp Handoff to Tim Sampel (Activity Diagram Alur Final) */}
-              {msg.whatsapp_handoff_url && (
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
-                  <a
-                    href={msg.whatsapp_handoff_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-sm"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 8,
-                      textDecoration: "none",
-                      backgroundColor: "#25D366",
-                      borderColor: "#25D366",
-                      color: "#ffffff",
-                      fontWeight: 700,
-                      borderRadius: "var(--radius-md)",
-                      padding: "8px 16px",
-                      boxShadow: "0 2px 8px rgba(37, 211, 102, 0.35)",
-                    }}
-                  >
-                    <span style={{ fontSize: "1.1rem" }}>💬</span>
-                    <span>Lanjut Diskusi / Negosiasi via WhatsApp Tim Sampel →</span>
-                  </a>
+              {/* Kontak Pemesanan & Chat Template untuk Tim Sample */}
+              {msg.showContactCard && (
+                <div style={{ marginTop: 12 }}>
+                  <KontakPemesananCard />
                 </div>
               )}
             </div>

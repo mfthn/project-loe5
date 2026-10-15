@@ -90,6 +90,14 @@ def record_inspection(
     # Cek apakah sudah 3 kali perbaikan (Activity Diagram: Sudah 3 Kali Perbaikan? -> Lapor Tim Sampel)
     escalate = payload.repair_count >= 3 and payload.status in (QCStatus.REPAIR, QCStatus.DEFECT)
 
+    # Rute tindakan otomatis sesuai status (SRS UI-05):
+    # LOLOS → gudang barang jadi; REPAIR → kembali ke line; DEFECT → scrap.
+    route_map = {
+        QCStatus.LOLOS: "GUDANG_BARANG_JADI",
+        QCStatus.REPAIR: "LINE_REPAIR",
+        QCStatus.DEFECT: "SCRAP_DISPOSAL",
+    }
+
     inspection = QCInspection(
         order_id=payload.order_id,
         production_output_id=payload.production_output_id,
@@ -99,6 +107,7 @@ def record_inspection(
         repair_count=payload.repair_count,
         escalated_to_sample=escalate,
         defect_category=payload.defect_category,
+        action_route=route_map[payload.status],
         notes=payload.notes,
     )
     db.add(inspection)

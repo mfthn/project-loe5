@@ -10,9 +10,10 @@ interface TopBarProps {
   title: string;
   subtitle?: string;
   onMenuClick?: () => void;
+  menuOpen?: boolean;
 }
 
-export function TopBar({ title, subtitle, onMenuClick }: TopBarProps) {
+export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) {
   const { user } = useAuth();
   const [aiOnline, setAiOnline] = useState<boolean | null>(null);
   const [timeStr, setTimeStr] = useState<string>("");
@@ -49,8 +50,10 @@ export function TopBar({ title, subtitle, onMenuClick }: TopBarProps) {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {onMenuClick && (
           <button
+            type="button"
             onClick={onMenuClick}
-            aria-label="Buka menu navigasi"
+            aria-label={menuOpen ? "Sembunyikan menu navigasi" : "Tampilkan menu navigasi"}
+            aria-expanded={menuOpen}
             style={{
               background: "transparent",
               border: "1px solid #EDE9FE",

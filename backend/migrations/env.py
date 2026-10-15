@@ -12,6 +12,7 @@ from app.modules.gudang import models as gudang_models  # noqa: F401
 from app.modules.produksi import models as produksi_models  # noqa: F401
 from app.modules.qc import models as qc_models  # noqa: F401
 from app.modules.payroll import models as payroll_models  # noqa: F401
+from app.modules.finance import models as finance_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
