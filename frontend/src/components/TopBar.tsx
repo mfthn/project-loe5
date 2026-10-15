@@ -86,8 +86,9 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
           </button>
         )}
 
-        <div>
+        <div className="topbar-heading">
           <h1
+            className="topbar-title"
             style={{
               fontSize: "1.1rem",
               margin: 0,
@@ -101,6 +102,7 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
           </h1>
           {subtitle && (
             <div
+              className="topbar-subtitle"
               style={{
                 fontSize: "0.72rem",
                 color: "#84829a",
@@ -114,7 +116,7 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div className="topbar-actions" style={{ display: "flex", alignItems: "center", gap: 16 }}>
         {/* Live Factory Clock (disembunyikan di mobile) */}
         <div
           className="font-mono topbar-clock"
@@ -171,7 +173,9 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
               display: "inline-block",
             }}
           />
-          {aiOnline ? "AI Aktif" : aiOnline === false ? "AI Offline" : "AI Sync..."}
+          <span className="topbar-ai-text">
+            {aiOnline ? "AI Aktif" : aiOnline === false ? "AI Offline" : "AI Sync..."}
+          </span>
         </div>
 
         {/* User role badge */}
@@ -201,7 +205,7 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
             >
               <Image src="/icon.jpeg" alt="logo" width={20} height={20} style={{ objectFit: "cover" }} />
             </div>
-            <span style={{ color: "#84829a", fontWeight: 500 }}>{user.name}</span>
+            <span className="topbar-user-name" style={{ color: "#84829a", fontWeight: 500 }}>{user.name}</span>
             <span
               style={{
                 background: "#7C3AED",

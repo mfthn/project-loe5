@@ -801,6 +801,33 @@ a {
   .page-body {
     padding: 20px;
   }
+  /* Topbar mobile: jam disembunyikan, judul tidak meluber */
+  .topbar-clock {
+    display: none !important;
+  }
+  .topbar-heading {
+    min-width: 0;
+    flex: 1;
+  }
+  .topbar-actions {
+    gap: 8px !important;
+  }
+}
+
+/* Subtitle topbar: maksimal 1 baris + ellipsis agar header tidak meluber */
+.topbar-heading {
+  min-width: 0;
+}
+.topbar-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-subtitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* =========================================================================
@@ -897,6 +924,21 @@ a {
 }
 
 @media (max-width: 600px) {
+  .topbar {
+    padding: 8px 12px;
+    height: auto;
+    min-height: 60px;
+  }
+  /* Sisakan dot status + badge peran; teks disembunyikan agar muat */
+  .topbar-ai-text {
+    display: none;
+  }
+  .topbar-user-name {
+    display: none;
+  }
+  .page-body {
+    padding: 16px 12px;
+  }
   .stats-grid-container {
     grid-template-columns: 1fr !important;
   }
