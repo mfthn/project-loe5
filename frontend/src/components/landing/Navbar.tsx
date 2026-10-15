@@ -202,25 +202,32 @@ export function Navbar() {
                 onClick={() => logout()}
                 title="Keluar dari sesi"
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
                   padding: "7px 12px",
                   borderRadius: 9999,
-                  background: "#FAF8FF",
-                  border: "1px solid #EDE9FE",
-                  color: "#6B7280",
-                  fontWeight: 600,
+                  background: "#dc2626",
+                  border: "1px solid #dc2626",
+                  color: "#ffffff",
+                  fontWeight: 700,
                   fontSize: "0.8rem",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#f87171";
-                  e.currentTarget.style.color = "#ef4444";
+                  e.currentTarget.style.background = "#b91c1c";
+                  e.currentTarget.style.borderColor = "#b91c1c";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#EDE9FE";
-                  e.currentTarget.style.color = "#6B7280";
+                  e.currentTarget.style.background = "#dc2626";
+                  e.currentTarget.style.borderColor = "#dc2626";
                 }}
               >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
+                  <path d="M12 3v9" />
+                  <path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+                </svg>
                 Keluar
               </button>
             </div>
@@ -350,8 +357,16 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => { setMobileMenuOpen(false); logout(); }}
-                className="btn btn-secondary"
-                style={{ flex: 1, textAlign: "center", borderRadius: 9999 }}
+                className="btn"
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  borderRadius: 9999,
+                  background: "#dc2626",
+                  border: "1px solid #dc2626",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                }}
               >
                 Keluar ({user.username})
               </button>

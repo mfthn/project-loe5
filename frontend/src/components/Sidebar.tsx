@@ -221,25 +221,33 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           <button
             onClick={logout}
             title="Keluar / Logout"
+            aria-label="Keluar / Logout"
             style={{
-              background: "transparent",
-              border: "1px solid rgba(252, 165, 165, 0.5)",
+              background: "#dc2626",
+              border: "1px solid #dc2626",
               borderRadius: 8,
-              padding: "5px 8px",
+              padding: "6px 8px",
               cursor: "pointer",
-              color: "#FCA5A5",
-              fontSize: "0.78rem",
+              color: "#ffffff",
               display: "flex",
               alignItems: "center",
               gap: 4,
-              fontWeight: 700,
               transition: "all 0.15s ease",
               flexShrink: 0,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(252, 165, 165, 0.15)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#b91c1c";
+              e.currentTarget.style.borderColor = "#b91c1c";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#dc2626";
+              e.currentTarget.style.borderColor = "#dc2626";
+            }}
           >
-            🚪
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
+              <path d="M12 3v9" />
+              <path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+            </svg>
           </button>
         </div>
       </div>
