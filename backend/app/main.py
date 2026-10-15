@@ -32,6 +32,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -39,6 +40,12 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router, prefix="/api/v1")
     register_responsive_docs(app, title=f"{settings.app_name} - API Docs")
+
+    @app.get("/health", tags=["system"], summary="Health Check")
+    def health_check() -> dict[str, str]:
+        """Health check endpoint untuk monitoring sistem dan service check."""
+        return {"status": "ok"}
+
     return app
 
 

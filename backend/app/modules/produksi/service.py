@@ -1,7 +1,7 @@
 """Logika bisnis Produksi, Order Massal, dan Terminal Input 30 Menit (FR-7, FR-8, FR-9).
 
 Alur Utama:
-  1. Buat Order baru (langsung atau dari versi sample APPROVED — FR-4.1).
+  1. Buat Order baru (langsung atau dari versi sample OWNER_APPROVED — FR-4.1).
   2. Tambahkan komponen + rate card upah borongan.
   3. Perbarui status order sesuai alur: SAMPLE→CUTTING→SEWING→MENUNGGU_QC→QC→COMPLETED.
   4. Penjahit mencatat output per 30 menit lewat terminal tablet (POST /produksi/outputs).
@@ -160,7 +160,8 @@ def get_order(db: Session, order_id: uuid.UUID) -> Order:
 def create_order(db: Session, payload: OrderCreate) -> Order:
     """Membuat Order Produksi Massal baru beserta komponen dan rate card.
 
-    Jika sample_version_id diberikan, pastikan versinya APPROVED.
+    Jika sample_version_id diberikan, versinya wajib OWNER_APPROVED
+    (lolos tim sample + disetujui owner beserta harga).
     """
     # Cek duplikat nomor order
     if db.scalar(select(Order).where(Order.order_number == payload.order_number.strip().upper())):
@@ -169,7 +170,7 @@ def create_order(db: Session, payload: OrderCreate) -> Order:
     # Validasi sample version jika diberikan
     if payload.sample_version_id:
         sv = db.scalar(select(SampleVersion).where(SampleVersion.id == payload.sample_version_id))
-        if sv and sv.status != SampleStatus.APPROVED:
+        if sv and sv.status != SampleStatus.OWNER_APPROVED:
             raise SampleVersionNotApprovedError(payload.sample_version_id)
 
     order = Order(
@@ -198,7 +199,7 @@ def create_order_from_sample(
     version_id: uuid.UUID,
     payload: OrderFromSampleCreate,
 ) -> Order:
-    """FR-4.1: Konversi versi sample APPROVED menjadi Order Produksi Massal.
+    """FR-4.1: Konversi versi sample OWNER_APPROVED menjadi Order Produksi Massal.
 
     Komponen diambil otomatis dari SampleComponent yang terdaftar di versi tersebut.
     Rate card dapat dioverride lewat payload.
@@ -210,7 +211,7 @@ def create_order_from_sample(
     )
     if sv is None:
         raise ValueError(f"Versi sample {version_id} tidak ditemukan.")
-    if sv.status != SampleStatus.APPROVED:
+    if sv.status != SampleStatus.OWNER_APPROVED:
         raise SampleVersionNotApprovedError(version_id)
 
     # Cek duplikat nomor order
@@ -270,6 +271,130 @@ def update_order_status(db: Session, order_id: uuid.UUID, new_status: OrderStatu
     db.commit()
     db.refresh(order)
     return order
+
+
+def update_rate_card(
+    db: Session,
+    component_id: uuid.UUID,
+    cutting_rate_per_pcs: Decimal,
+    sewing_rate_per_pcs: Decimal,
+    changed_by_id: uuid.UUID | None = None,
+) -> Order:
+    """Ubah rate card upah borongan sebuah komponen (matriks: OWNER & MANDOR).
+
+    Membuat RateCard jika belum ada. Setiap perubahan dicatat ke riwayat (FR-7.2).
+    Mengembalikan order lengkap untuk response.
+    """
+    from app.modules.gudang.models import RateCardChange
+
+    comp = _get_or_raise_component(db, component_id)
+    rate = db.scalar(select(RateCard).where(RateCard.order_component_id == comp.id))
+    if rate is None:
+        rate = RateCard(
+            order_component_id=comp.id,
+            cutting_rate_per_pcs=cutting_rate_per_pcs,
+            sewing_rate_per_pcs=sewing_rate_per_pcs,
+        )
+        db.add(rate)
+        db.flush()
+        db.add(
+            RateCardChange(
+                order_component_id=comp.id,
+                old_cutting_rate=0.0,
+                old_sewing_rate=0.0,
+                new_cutting_rate=float(cutting_rate_per_pcs),
+                new_sewing_rate=float(sewing_rate_per_pcs),
+                changed_by_user_id=changed_by_id,
+            )
+        )
+    else:
+        if (Decimal(str(rate.cutting_rate_per_pcs)) != Decimal(str(cutting_rate_per_pcs))
+                or Decimal(str(rate.sewing_rate_per_pcs)) != Decimal(str(sewing_rate_per_pcs))):
+            db.add(
+                RateCardChange(
+                    order_component_id=comp.id,
+                    old_cutting_rate=float(rate.cutting_rate_per_pcs),
+                    old_sewing_rate=float(rate.sewing_rate_per_pcs),
+                    new_cutting_rate=float(cutting_rate_per_pcs),
+                    new_sewing_rate=float(sewing_rate_per_pcs),
+                    changed_by_user_id=changed_by_id,
+                )
+            )
+        rate.cutting_rate_per_pcs = cutting_rate_per_pcs
+        rate.sewing_rate_per_pcs = sewing_rate_per_pcs
+    db.commit()
+    return get_order(db, comp.order_id)
+
+
+def list_rate_history(db: Session, component_id: uuid.UUID) -> list:
+    """Riwayat perubahan rate card per komponen (FR-7.2)."""
+    from app.modules.gudang.models import RateCardChange
+
+    _get_or_raise_component(db, component_id)
+    stmt = (
+        select(RateCardChange)
+        .where(RateCardChange.order_component_id == component_id)
+        .order_by(RateCardChange.changed_at.desc())
+    )
+    return list(db.scalars(stmt).all())
+
+
+def assemble_order(
+    db: Session,
+    order_id: uuid.UUID,
+    qty_assembled: int,
+    assembler_id: uuid.UUID | None = None,
+    notes: str | None = None,
+):
+    """Rakit komponen menjadi produk utuh → order SEWING → MENUNGGU_QC (FR-7.3/7.4).
+
+    Qty rakit tidak boleh melebihi total output terverifikasi order.
+    """
+    from app.modules.gudang.models import AssemblyBatch
+
+    order = _get_or_raise_order(db, order_id)
+    if order.status != OrderStatus.SEWING:
+        raise OrderStatusTransitionError(
+            order.status.value, "MENUNGGU_QC (rakit hanya dari status SEWING)"
+        )
+    if qty_assembled <= 0:
+        raise InvalidOutputQuantityError(qty_assembled)
+    verified = db.scalar(
+        select(sa_func.coalesce(sa_func.sum(ProductionOutput.qty_completed), 0)).where(
+            ProductionOutput.order_id == order_id, ProductionOutput.is_verified.is_(True)
+        )
+    ) or 0
+    if qty_assembled > int(verified):
+        raise ValueError(
+            f"Qty rakit ({qty_assembled}) melebihi output terverifikasi ({int(verified)})."
+        )
+    batch = AssemblyBatch(
+        order_id=order.id,
+        client_id=order.client_id,
+        qty_assembled=qty_assembled,
+        assembled_by_user_id=assembler_id,
+        notes=notes,
+    )
+    db.add(batch)
+    order.status = OrderStatus.MENUNGGU_QC
+    db.commit()
+    db.refresh(batch)
+    return batch
+
+
+def list_assemblies(
+    db: Session,
+    client_id: uuid.UUID | None = None,
+    order_id: uuid.UUID | None = None,
+) -> list:
+    from app.modules.gudang.models import AssemblyBatch
+
+    stmt = select(AssemblyBatch).order_by(AssemblyBatch.assembled_at.desc())
+    if client_id is not None:
+        stmt = stmt.where(AssemblyBatch.client_id == client_id)
+    if order_id is not None:
+        stmt = stmt.where(AssemblyBatch.order_id == order_id)
+    return list(db.scalars(stmt).all())
 
 
 # ---------------------------------------------------------------------------
@@ -481,3 +606,41 @@ def get_order_output_summary(db: Session, order_id: uuid.UUID) -> dict:
         "verified_completed": int(verified),
         "completion_pct": pct,
     }
+
+
+def get_operator_leaderboard(db: Session, limit: int = 20) -> list[dict]:
+    """Peringkat kinerja penjahit: total & terverifikasi pcs per operator."""
+    from app.modules.auth.models import User
+
+    rows = db.execute(
+        select(
+            ProductionOutput.operator_user_id,
+            sa_func.coalesce(sa_func.sum(ProductionOutput.qty_completed), 0),
+        )
+        .group_by(ProductionOutput.operator_user_id)
+        .order_by(sa_func.sum(ProductionOutput.qty_completed).desc())
+        .limit(limit)
+    ).all()
+    verified_rows = dict(
+        db.execute(
+            select(
+                ProductionOutput.operator_user_id,
+                sa_func.coalesce(sa_func.sum(ProductionOutput.qty_completed), 0),
+            )
+            .where(ProductionOutput.is_verified.is_(True))
+            .group_by(ProductionOutput.operator_user_id)
+        ).all()
+    )
+    board = []
+    for user_id, total in rows:
+        user = db.scalar(select(User).where(User.id == user_id))
+        board.append(
+            {
+                "user_id": user_id,
+                "name": user.name if user else "Operator",
+                "total_qty": int(total or 0),
+                "verified_qty": int(verified_rows.get(user_id, 0)),
+            }
+        )
+    board.sort(key=lambda e: e["verified_qty"], reverse=True)
+    return board

@@ -147,7 +147,7 @@ pytest
 Jalankan server API backend:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 Dokumentasi Swagger API interaktif tersedia di: **http://localhost:8000/docs**
 
@@ -169,36 +169,38 @@ Buka **http://localhost:3000** di browser.
 
 ## Akun Sistem per Role (Internal Pabrik)
 
-> ⚠️ **Penting**: Akun-akun di bawah ini adalah akun resmi sistem. Jangan bagikan ke pihak luar. Akun **KLIEN_MAKLON** dibuat mandiri oleh klien lewat halaman **Daftar Klien** di `/login`.
+> ⚠️ **Penting**: Akun-akun di bawah ini adalah akun resmi sistem internal pabrik. Jangan bagikan kredensial ini ke pihak luar. Akun **KLIEN_MAKLON** dibuat mandiri oleh calon klien/mitra maklon lewat halaman **Daftar Klien** di `/login`.
 
-| Role | Username | Password | Nama | Akses Modul |
+| Role | Username | Password | Nama & Jabatan | Akses Modul |
 |---|---|---|---|---|
-| **OWNER** | `hendra_owner` | `Lukla@Owner2026` | Hendra Lukla (Owner/CEO) | Dashboard, Gudang, Sample, Produksi, QC, Payroll, Portal Klien, AI |
-| **FINANCE_PAYROLL** | `rina_finance` | `Lukla@Finance2026` | Rina Lestari (Finance) | Dashboard, Payroll Engine |
-| **MANDOR** | `agus_mandor` | `Lukla@Mandor2026` | Agus Santoso (Mandor Line 1) | Dashboard, Produksi, QC |
-| **PENJAHIT** | `siti_jahit` | `Lukla@Jahit2026` | Siti Rahayu (Penjahit) | Dashboard (Rekap Gaji) |
-| **GUDANG** | `budi_gudang` | `Lukla@Gudang2026` | Budi Santoso (Gudang) | Dashboard, Gudang |
-| **TIM_SAMPLE** | `adis_sample` | `Lukla@Sample2026` | Adis Purnama (Tim Sample) | Dashboard, Sample & Stopwatch |
-| **QC_INSPECTOR** | `dewi_qc` | `Lukla@QC2026` | Dewi Anggraini (QC) | Dashboard, QC, Gudang |
+| **OWNER** | `hendra_owner` | `Lukla@Owner2026` | Hendra Lukla (Owner/CEO) | Seluruh Modul: Dashboard, Gudang, Sample, Produksi, QC, Payroll, Portal Klien, AI Owner Tracker |
+| **FINANCE_PAYROLL** | `rina_finance` | `Lukla@Finance2026` | Rina Lestari (Finance & Payroll) | Dashboard, Payroll Engine & Rekap Finansial |
+| **MANDOR** | `agus_mandor` | `Lukla@Mandor2026` | Agus Santoso (Mandor Line 1) | Dashboard Mandor, Monitoring Produksi, Validasi Output |
+| **PENJAHIT** | `siti_jahit` | `Lukla@Jahit2026` | Siti Rahayu (Penjahit Line 1) | Dashboard Penjahit & Rekap Upah Borongan |
+| **GUDANG** | `budi_gudang` | `Lukla@Gudang2026` | Budi Santoso (Petugas Gudang) | Dashboard & Modul Gudang Multi-Tenant |
+| **TIM_SAMPLE** | `adis_sample` | `Lukla@Sample2026` | Adis Purnama (Tim Sample) | Dashboard, Modul Sample & Stopwatch Time Study |
+| **QC_INSPECTOR** | `dewi_qc` | `Lukla@QC2026` | Dewi Anggraini (QC Inspector) | Dashboard, Quality Control & Verifikasi Lolos/Defect |
 
-### Akun Klien (Dibuat Mandiri via Halaman Register)
+### Akun Klien Maklon (Registrasi Mandiri)
 
-Klien maklon **mendaftar sendiri** di halaman `/login` → tab **Daftar Klien**. Sistem akan otomatis:
-1. Membuat record `Client` (perusahaan) dengan UUID unik sebagai **Client ID**.
-2. Membuat `User` dengan role `KLIEN_MAKLON` yang terikat ke Client ID tersebut.
-3. Client ID digunakan sebagai PK di seluruh proses: gudang, order produksi, QC, dan portal klien.
+Klien maklon **mendaftar sendiri** di halaman web `/login` → tab **✨ Daftar Klien**. Sistem akan otomatis:
+1. Membuat record `Client` (entitas perusahaan/brand) dengan UUID unik.
+2. Menghasilkan **ID Klien Resmi 10 Karakter** dengan template **`LOE-id_client`** (contoh: `LOE-90C3B8`).
+3. Membuat akun `User` dengan peran `KLIEN_MAKLON` yang langsung terhubung ke entitas Client tersebut.
+4. Menampilkan kartu profil data pendaftar lengkap (Nama Perusahaan, PIC, No. Telepon/WA, Email, dan ID 10 Karakter) di **Dashboard Klien** dan **Portal Klien Maklon**.
+5. ID Klien ini menjadi kunci pemisah isolasi data anti-kontaminasi silang pada stok bahan baku gudang, order produksi, dan alur pembuatan sample.
 
-Akses modul KLIEN_MAKLON: **Dashboard**, **Portal Klien Maklon**, **AI Konsultan Maklon**.
+Akses modul KLIEN_MAKLON: **Dashboard Klien**, **Portal Klien Maklon B2B**, dan **AI Asisten Konsultasi Maklon** (lengkap dengan kartu kontak pemesanan WhatsApp/Telegram Tim Sample).
 
 ---
 
 ## Daftar Endpoint API Aktif
 
 ### Autentikasi (`/api/v1/auth`)
-- `POST /api/v1/auth/login` — Login pengguna, menghasilkan JWT & HttpOnly cookie.
-- `POST /api/v1/auth/register` — **Registrasi mandiri klien maklon baru**: buat Client + User KLIEN_MAKLON sekaligus, mengembalikan `client_id` (UUID).
-- `POST /api/v1/auth/logout` — Logout dan membersihkan cookie sesi.
-- `GET /api/v1/auth/me` — Mengambil data profil dan peran pengguna yang sedang login.
+- `POST /api/v1/auth/login` — Login pengguna (mendukung seluruh role internal dan KLIEN_MAKLON), menghasilkan JWT & HttpOnly cookie.
+- `POST /api/v1/auth/register` — **Registrasi mandiri klien maklon**: membuat entitas Client + User KLIEN_MAKLON sekaligus, mengembalikan data profil pendaftar dan `client_code` (format `LOE-xxxxxx` 10 karakter).
+- `POST /api/v1/auth/logout` — Logout dan membersihkan cookie sesi pengguna.
+- `GET /api/v1/auth/me` — Mengambil data profil, peran, serta profil klien terdaftar pengguna yang sedang login.
 
 ### Modul Gudang & Anti-Kontaminasi (`/api/v1/gudang`)
 - `GET /api/v1/gudang/items` — Mengambil daftar stok bahan baku (otomatis terisolasi per `client_id` untuk Klien Maklon).

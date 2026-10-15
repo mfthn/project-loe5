@@ -507,13 +507,19 @@ def get_monthly_summary(
         start=Decimal("0.00"),
     )
 
+    verified_pcs = int(output_row[1] or 0)
+    overhead_total = _round2(Decimal(financial_totals[2]))
+    overhead_per_unit = (
+        _round2(overhead_total / Decimal(verified_pcs)) if verified_pcs > 0 else Decimal("0.00")
+    )
+
     return PayrollMonthlySummaryResponse(
         year=year,
         month=month,
         orders_created=int(orders_created),
         active_orders_now=int(active_orders),
         verified_output_entries=int(output_row[0] or 0),
-        verified_output_pcs=int(output_row[1] or 0),
+        verified_output_pcs=verified_pcs,
         qc_pass_pcs=qc_totals.get(QCStatus.LOLOS, 0),
         qc_repair_pcs=qc_totals.get(QCStatus.REPAIR, 0),
         qc_defect_pcs=qc_totals.get(QCStatus.DEFECT, 0),
@@ -524,6 +530,7 @@ def get_monthly_summary(
         overhead_cost=_round2(Decimal(financial_totals[2])),
         total_hpp=_round2(Decimal(financial_totals[3])),
         net_profit=_round2(Decimal(financial_totals[4])),
+        overhead_per_unit=overhead_per_unit,
     )
 
 

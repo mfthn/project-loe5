@@ -5,6 +5,7 @@ sehingga logika di sini bisa diuji tanpa koneksi ke AWS.
 """
 import math
 import threading
+import urllib.parse
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -33,22 +34,33 @@ OWNER_TRACKER_PROMPT = (
 )
 
 CLIENT_ASSISTANT_PROMPT = (
-    "Kamu adalah Asisten Calon Klien, asisten AI publik untuk layanan maklon garmen Lukla Manufacturing. "
-    "Tugasmu membantu calon klien B2B memahami alur kerja sama maklon, skema harga (CMT, Semi-CMT, "
-    "Full Package), proses sampling, standar QC, dan cara memulai kerja sama. "
-    "Gunakan bahasa yang ramah, profesional, dan persuasif. Dorong calon klien untuk menghubungi tim. "
-    "Jawab hanya berdasarkan konteks SOP yang diberikan. Jika tidak ada di konteks, sampaikan secara jujur. "
-    "Di akhir setiap jawaban, selalu tambahkan ajakan untuk menghubungi tim kami jika ingin konsultasi lebih lanjut."
+    "Kamu adalah Asisten Calon Klien untuk layanan maklon produksi tas dan garmen Lukla Manufacturing. "
+    "Tugasmu membantu calon klien memahami alur kerja sama maklon, spesifikasi produk tas/garmen, skema kerja sama "
+    "(CMT, Semi-CMT, Full Package), proses sampling v1 hingga massal, standar QC, dan cara memulai pemesanan. "
+    "Gunakan bahasa yang ramah, profesional, dan bersahabat. "
+    "Jawab berdasarkan konteks SOP yang diberikan. Jika tidak ada di konteks, sampaikan secara jujur tanpa mengarang angka harga pasti. "
+    "Jika calon klien ingin melakukan pemesanan, membuat sample, atau berdiskusi lebih lanjut mengenai kebutuhan produksi, "
+    "selalu arahkan mereka untuk menghubungi tim kami melalui kontak pemesanan (WhatsApp/Telegram tim sample)."
 )
 
-# Kontak handoff WhatsApp untuk client assistant
+# Kontak handoff WhatsApp dengan template chat untuk tim sample
+SAMPLE_HANDOFF_TEXT = (
+    "Halo Tim Sample Lukla Manufacturing! Saya ingin berdiskusi mengenai kebutuhan produksi dan pembuatan sampel baru.\n\n"
+    "Detail Pengajuan Sampel:\n"
+    "- Nama / Brand: \n"
+    "- Jenis Produk: Tas / Garmen\n"
+    "- Skema Maklon: [CMT / Semi-CMT / Full Package]\n"
+    "- Estimasi Qty: \n"
+    "- Bahan Baku: [Sendiri / Pabrik]\n"
+    "Mohon info ketersediaan jadwal tim sample. Terima kasih!"
+)
+
 WHATSAPP_HANDOFF_URL = (
-    "https://wa.me/6281234567890?text=Halo%20Tim%20Lukla%20Manufacturing%2C%20"
-    "saya%20ingin%20konsultasi%20layanan%20maklon"
+    "https://wa.me/6281234567890?text=" + urllib.parse.quote(SAMPLE_HANDOFF_TEXT)
 )
 WHATSAPP_HANDOFF_MSG = (
-    "\n\n---\n📞 **Tertarik bekerja sama?** Hubungi tim kami langsung via "
-    f"[WhatsApp](https://wa.me/6281234567890) untuk konsultasi dan penawaran harga."
+    "\n\n---\n📞 **Ingin memesan atau membuat sampel?** "
+    "Silakan hubungi tim kami via kontak pemesanan atau langsung chat [WhatsApp Tim Sample](https://wa.me/6281234567890)."
 )
 
 

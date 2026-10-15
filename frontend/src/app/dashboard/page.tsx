@@ -5,15 +5,34 @@ import Link from "next/link";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
+import { ClientProfileCard } from "../../components/ClientProfileCard";
 import { produksiApi, gudangApi, payrollApi } from "../../lib/api";
 import type {
   BatchFinancial,
+  OrderSummary,
   PayrollMonthlySummary,
   PayrollNotification,
+  ProductionOutput,
   UserRole,
   WorkerDashboardSummary,
   WorkerPayrollSummary,
 } from "../../types/api";
+
+type OutputPoint = ProductionOutput & {
+  time_window?: string;
+  line_number?: number;
+  order_component_id?: string;
+};
+
+type ClientProgress = {
+  order_id: string;
+  order_number: string;
+  client_id: string;
+  status: string;
+  completion_pct: number;
+};
+
+type SpeedBucket = { label: string; qty: number };
 
 const DASHBOARD_BY_ROLE: Record<UserRole, { title: string; subtitle: string; action?: string; href?: string }> = {
   OWNER: {
@@ -90,6 +109,115 @@ function getPayrollWeeksForMonth(monthValue: string): { start: string; end: stri
   return weeks;
 }
 
+function DonutChart({ segments, size = 150 }: { segments: { label: string; value: number; color: string }[]; size?: number }) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) {
+    return <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Belum ada data.</p>;
+  }
+  let acc = 0;
+  const stops = segments.map((s) => {
+    const from = (acc / total) * 360;
+    acc += s.value;
+    const to = (acc / total) * 360;
+    return `${s.color} ${from}deg ${to}deg`;
+  });
+  return (
+    <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        <div
+          role="img"
+          aria-label={segments.map((s) => `${s.label}: ${s.value}`).join(", ")}
+          style={{
+            width: "100%",
+            height: "100%",
+            borderRadius: "9999px",
+            background: `conic-gradient(${stops.join(", ")})`,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: "26%",
+            borderRadius: "9999px",
+            background: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+          }}
+        >
+          <span className="font-mono" style={{ fontWeight: 800, fontSize: "1.15rem" }}>{total}</span>
+          <span style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>total</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "0.8rem" }}>
+        {segments.map((s) => (
+          <span key={s.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: s.color }} />
+            {s.label}: <strong className="font-mono">{s.value}</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrendChart({ points }: { points: { month: string; revenue: number; payroll: number; net: number }[] }) {
+  if (points.length < 2) {
+    return <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Butuh minimal 2 bulan data untuk tren.</p>;
+  }
+  const W = 620;
+  const H = 240;
+  const PAD_L = 58;
+  const PAD_B = 28;
+  const PAD_T = 12;
+  const maxV = Math.max(1, ...points.flatMap((p) => [p.revenue, p.payroll, Math.abs(p.net)]));
+  const x = (i: number) => PAD_L + (i / (points.length - 1)) * (W - PAD_L - 16);
+  const y = (v: number) => PAD_T + (1 - Math.min(1, Math.max(0, v / maxV))) * (H - PAD_T - PAD_B);
+  const line = (pick: (p: (typeof points)[number]) => number) =>
+    points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(pick(p)).toFixed(1)}`).join(" ");
+  const fmtShort = (v: number) =>
+    v >= 1_000_000_000 ? `${(v / 1_000_000_000).toFixed(1)}M`
+    : v >= 1_000_000 ? `${(v / 1_000_000).toFixed(0)}jt`
+    : v >= 1_000 ? `${(v / 1_000).toFixed(0)}rb` : `${v}`;
+  const series = [
+    { label: "Revenue", color: "#7C3AED", d: line((p) => p.revenue) },
+    { label: "Payroll", color: "#EC4899", d: line((p) => p.payroll) },
+    { label: "Net profit", color: "#059669", d: line((p) => Math.max(0, p.net)) },
+  ];
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }} role="img"
+        aria-label={`Tren 6 bulan: ${points.map((p) => `${p.month} revenue ${p.revenue}`).join(", ")}`}>
+        {[0.25, 0.5, 0.75, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD_L} y1={y(maxV * f)} x2={W - 8} y2={y(maxV * f)} stroke="#e5e7eb" strokeDasharray="3 3" />
+            <text x={PAD_L - 6} y={y(maxV * f) + 4} textAnchor="end" fontSize="10" fill="#84829a">{fmtShort(maxV * f)}</text>
+          </g>
+        ))}
+        {series.map((s) => (
+          <path key={s.label} d={s.d} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        ))}
+        {points.map((p, i) => (
+          <g key={p.month}>
+            <circle cx={x(i)} cy={y(p.revenue)} r="3.5" fill="#7C3AED" />
+            <circle cx={x(i)} cy={y(p.payroll)} r="3.5" fill="#EC4899" />
+            <text x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="#5B5870">{p.month}</text>
+          </g>
+        ))}
+      </svg>
+      <div style={{ display: "flex", gap: 16, fontSize: "0.8rem", marginTop: 4, flexWrap: "wrap" }}>
+        {series.map((s) => (
+          <span key={s.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span aria-hidden="true" style={{ width: 14, height: 3, borderRadius: 2, background: s.color }} />
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState({
@@ -102,6 +230,14 @@ export default function DashboardPage() {
   const [financials, setFinancials] = useState<BatchFinancial[]>([]);
   const [monthlySummary, setMonthlySummary] = useState<PayrollMonthlySummary | null>(null);
   const [payrollNotifications, setPayrollNotifications] = useState<PayrollNotification[]>([]);
+  const [speedBuckets, setSpeedBuckets] = useState<SpeedBucket[]>([]);
+  const [linesActive, setLinesActive] = useState(0);
+  const [tailorsOnDuty, setTailorsOnDuty] = useState(0);
+  const [clientProgress, setClientProgress] = useState<ClientProgress[]>([]);
+  const [statusCounts, setStatusCounts] = useState<{ status: string; count: number }[]>([]);
+  const [trend, setTrend] = useState<{ month: string; revenue: number; payroll: number; net: number }[]>([]);
+  const [leaderboard, setLeaderboard] = useState<{ user_id: string; name: string; total_qty: number; verified_qty: number }[]>([]);
+  const [outputByLine, setOutputByLine] = useState<{ line: number; qty: number }[]>([]);
   const [workerDashboard, setWorkerDashboard] = useState<WorkerDashboardSummary | null>(null);
   const [workerPayroll, setWorkerPayroll] = useState<WorkerPayrollSummary[]>([]);
   const [selectedPayrollWeek, setSelectedPayrollWeek] = useState("all");
@@ -111,6 +247,76 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+
+  async function loadRealtimeOps(orders: { id: string; order_number: string; client_id: string; status: string }[]) {
+    try {
+      const allOutputs = (await produksiApi.getOutputs({})) as OutputPoint[];
+      const today = new Date().toISOString().slice(0, 10);
+      const todays = allOutputs.filter((o) => {
+        const ts = o.time_window || o.interval_start;
+        return ts && ts.slice(0, 10) === today;
+      });
+      const buckets = new Map<number, number>();
+      const lines = new Set<number>();
+      const tailors = new Set<string>();
+      for (const o of todays) {
+        const ts = new Date(o.time_window || o.interval_start);
+        if (Number.isNaN(ts.getTime())) continue;
+        const slot = Math.floor((ts.getHours() * 60 + ts.getMinutes()) / 30);
+        buckets.set(slot, (buckets.get(slot) || 0) + o.qty_completed);
+        if (o.line_number) lines.add(o.line_number);
+        if (o.operator_user_id) tailors.add(o.operator_user_id);
+      }
+      const sorted = [...buckets.entries()].sort((a, b) => a[0] - b[0]).slice(-12);
+      setSpeedBuckets(
+        sorted.map(([slot, qty]) => ({
+          label: `${String(Math.floor(slot / 2)).padStart(2, "0")}:${slot % 2 === 0 ? "00" : "30"}`,
+          qty,
+        }))
+      );
+      setLinesActive(lines.size);
+      setTailorsOnDuty(tailors.size);
+      const perLine = new Map<number, number>();
+      for (const o of todays) {
+        if (o.line_number) perLine.set(o.line_number, (perLine.get(o.line_number) || 0) + o.qty_completed);
+      }
+      setOutputByLine(
+        [...perLine.entries()]
+          .map(([line, qty]) => ({ line, qty }))
+          .sort((a, b) => a.line - b.line)
+          .slice(0, 10)
+      );
+
+      const counts = new Map<string, number>();
+      for (const o of orders) counts.set(o.status, (counts.get(o.status) || 0) + 1);
+      const ORDER_STEPS = ["SAMPLE", "CUTTING", "SEWING", "MENUNGGU_QC", "QC", "COMPLETED"];
+      setStatusCounts(
+        ORDER_STEPS.filter((s) => counts.has(s)).map((s) => ({ status: s, count: counts.get(s) || 0 }))
+      );
+
+      const active = orders.filter((o) => o.status !== "COMPLETED").slice(0, 12);
+      const progress: ClientProgress[] = [];
+      await Promise.all(
+        active.map(async (o) => {
+          try {
+            const s: OrderSummary = await produksiApi.getOrderSummary(o.id);
+            progress.push({
+              order_id: o.id,
+              order_number: o.order_number,
+              client_id: o.client_id,
+              status: o.status,
+              completion_pct: s.completion_pct ?? s.percentage_completed ?? 0,
+            });
+          } catch {
+            // Order tanpa output dilewati
+          }
+        })
+      );
+      setClientProgress(progress.sort((a, b) => a.order_number.localeCompare(b.order_number)));
+    } catch {
+      // Panel real-time opsional — kegagalan tidak menggagalkan dashboard
+    }
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -152,6 +358,29 @@ export default function DashboardPage() {
             inventoryItemsCount: items.length,
           }));
           setFinancials(finList);
+          await loadRealtimeOps(orders);
+          try {
+            setLeaderboard(await produksiApi.getLeaderboard(8));
+          } catch {
+            // Leaderboard opsional
+          }
+          const now = new Date();
+          const points: { month: string; revenue: number; payroll: number; net: number }[] = [];
+          for (let back = 5; back >= 0; back -= 1) {
+            const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
+            try {
+              const s = await payrollApi.getMonthlySummary(d.getFullYear(), d.getMonth() + 1);
+              points.push({
+                month: d.toLocaleDateString("id-ID", { month: "short" }),
+                revenue: Number(s.contract_revenue),
+                payroll: Number(s.payroll_total),
+                net: Number(s.net_profit),
+              });
+            } catch {
+              // Bulan tanpa data dilewati
+            }
+          }
+          setTrend(points);
         } else if (user?.role === "MANDOR") {
           const [orders, outputs, notifications] = await Promise.all([
             produksiApi.getOrders(),
@@ -165,6 +394,7 @@ export default function DashboardPage() {
             unverifiedOutputs: outputs.length,
           }));
           setPayrollNotifications(notifications);
+          await loadRealtimeOps(orders);
         } else if (user?.role === "FINANCE_PAYROLL") {
           setFinancials(await payrollApi.getBatchFinancials());
         }
@@ -220,11 +450,204 @@ export default function DashboardPage() {
     >
       {dataError && <Notice type="danger" message={dataError} />}
 
-      {dashboard?.href && dashboard.action && (
-        <section className="card-elevated" style={{ marginBottom: 24, display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-          <Link href={dashboard.href} className="btn btn-primary">
-            {dashboard.action} →
-          </Link>
+      {user?.role === "KLIEN_MAKLON" && (
+        <ClientProfileCard user={user} />
+      )}
+
+      {user?.role === "OWNER" ? (
+        <section className="card-elevated" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+            <div>
+              <span className="badge badge-purple">Look Utama Operasional</span>
+              <h2 style={{ margin: "8px 0 0", fontSize: "1.25rem" }}>Diagram Alir Proses & Kinerja Pekerja</h2>
+            </div>
+            {dashboard?.href && dashboard.action && (
+              <Link href={dashboard.href} className="btn btn-primary btn-sm">
+                {dashboard.action} →
+              </Link>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+            <div>
+              <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Aliran Order per Tahap Proses</h3>
+              {statusCounts.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(() => {
+                    const max = Math.max(...statusCounts.map((s) => s.count), 1);
+                    const colors = ["#84829a", "#0284c7", "#7C3AED", "#d97706", "#EC4899", "#059669"];
+                    return statusCounts.map((s, i) => (
+                      <div key={s.status} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ width: 110, fontSize: "0.75rem", fontWeight: 700 }}>{s.status}</span>
+                        <div style={{ flex: 1, height: 20, borderRadius: "var(--radius-sm)", background: "var(--bg-secondary)", overflow: "hidden" }}>
+                          <div
+                            role="img"
+                            aria-label={`${s.status}: ${s.count} order`}
+                            style={{ width: `${Math.max(3, (s.count / max) * 100)}%`, height: "100%", background: colors[i % colors.length], display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8 }}
+                          >
+                            <span className="font-mono" style={{ fontSize: "0.72rem", fontWeight: 800, color: "#ffffff" }}>{s.count}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{loading ? "Memuat..." : "Belum ada order."}</p>
+              )}
+            </div>
+            <div>
+              <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Kinerja Pekerja (pcs terverifikasi)</h3>
+              {leaderboard.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(() => {
+                    const max = Math.max(...leaderboard.map((e) => e.verified_qty), 1);
+                    return leaderboard.map((e, i) => (
+                      <div key={e.user_id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span className="font-mono" style={{ width: 22, fontWeight: 800, color: i < 3 ? "#BE185D" : "var(--text-muted)" }}>{i + 1}</span>
+                        <span style={{ width: 110, fontSize: "0.78rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</span>
+                        <div style={{ flex: 1, height: 20, borderRadius: "var(--radius-sm)", background: "var(--bg-secondary)", overflow: "hidden" }}>
+                          <div
+                            role="img"
+                            aria-label={`${e.name}: ${e.verified_qty} pcs terverifikasi dari ${e.total_qty}`}
+                            style={{ width: `${Math.max(3, (e.verified_qty / max) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #7C3AED, #EC4899)" }}
+                          />
+                        </div>
+                        <span className="font-mono" style={{ fontSize: "0.78rem", fontWeight: 700 }}>{e.verified_qty}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{loading ? "Memuat..." : "Belum ada output pekerja."}</p>
+              )}
+            </div>
+            <div>
+              <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Output per Line Hari Ini (pcs)</h3>
+              {outputByLine.length > 0 ? (
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 150, paddingTop: 8 }}>
+                  {(() => {
+                    const max = Math.max(...outputByLine.map((l) => l.qty), 1);
+                    return outputByLine.map((l, i) => (
+                      <div key={l.line} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }}>
+                        <span className="font-mono" style={{ fontSize: "0.7rem", fontWeight: 700 }}>{l.qty}</span>
+                        <div
+                          role="img"
+                          aria-label={`Line ${l.line}: ${l.qty} pcs`}
+                          title={`Line ${l.line}: ${l.qty} pcs`}
+                          style={{
+                            width: "100%",
+                            height: `${Math.max(4, (l.qty / max) * 100)}%`,
+                            borderRadius: "4px 4px 2px 2px",
+                            background: i === 0 ? "linear-gradient(180deg, #EC4899 0%, #DB2777 100%)" : "rgba(124, 58, 237, 0.35)",
+                          }}
+                        />
+                        <span className="font-mono" style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>L{l.line}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{loading ? "Memuat..." : "Belum ada output hari ini."}</p>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : (
+        dashboard?.href && dashboard.action && (
+          <section className="card-elevated" style={{ marginBottom: 24, display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+            <Link href={dashboard.href} className="btn btn-primary">
+              {dashboard.action} →
+            </Link>
+          </section>
+        )
+      )}
+
+      {(user?.role === "OWNER" || user?.role === "MANDOR") && (
+        <section className="card-elevated" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+            <div>
+              <span className="badge badge-purple">Real-time Operasional</span>
+              <h2 style={{ margin: "8px 0 0", fontSize: "1.15rem" }}>Kondisi Lantai Pabrik Hari Ini</h2>
+            </div>
+            <div style={{ display: "flex", gap: 16, fontSize: "0.85rem" }}>
+              <span><strong className="font-mono">{linesActive}</strong> line aktif</span>
+              <span><strong className="font-mono">{tailorsOnDuty}</strong> penjahit bertugas</span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 8, fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+            Kecepatan produksi per interval 30 menit (pcs)
+          </div>
+          {speedBuckets.length > 0 ? (
+            <div
+              role="img"
+              aria-label={`Grafik kecepatan produksi: ${speedBuckets.map((b) => `${b.label} ${b.qty} pcs`).join(", ")}`}
+              style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 120, paddingTop: 8 }}
+            >
+              {speedBuckets.map((b, i) => {
+                const max = Math.max(...speedBuckets.map((x) => x.qty), 1);
+                const isLast = i === speedBuckets.length - 1;
+                return (
+                  <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }}>
+                    <span className="font-mono" style={{ fontSize: "0.7rem", fontWeight: 700 }}>{b.qty}</span>
+                    <div
+                      title={`${b.label}: ${b.qty} pcs`}
+                      style={{
+                        width: "100%",
+                        height: `${Math.max(4, (b.qty / max) * 100)}%`,
+                        borderRadius: "4px 4px 2px 2px",
+                        background: isLast
+                          ? "linear-gradient(180deg, #EC4899 0%, #DB2777 100%)"
+                          : "rgba(124, 58, 237, 0.35)",
+                      }}
+                    />
+                    <span className="font-mono" style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{b.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+              {loading ? "Memuat grafik..." : "Belum ada output tercatat hari ini."}
+            </p>
+          )}
+
+          <h3 style={{ fontSize: "1rem", margin: "20px 0 10px" }}>Progres Order per Klien</h3>
+          {clientProgress.length > 0 ? (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Klien</th>
+                    <th>Status</th>
+                    <th>Progres</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientProgress.map((p) => (
+                    <tr key={p.order_id}>
+                      <td className="font-mono" style={{ fontWeight: 700 }}>{p.order_number}</td>
+                      <td><span className="badge badge-purple font-mono" style={{ fontSize: "0.72rem" }}>{p.client_id.slice(0, 8)}...</span></td>
+                      <td><span className="badge badge-info">{p.status}</span></td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ flex: 1, height: 8, borderRadius: "var(--radius-full)", background: "var(--bg-secondary)", overflow: "hidden" }}>
+                            <div style={{ width: `${Math.min(100, p.completion_pct)}%`, height: "100%", background: "linear-gradient(90deg, #7C3AED, #EC4899)" }} />
+                          </div>
+                          <span className="font-mono" style={{ fontSize: "0.78rem", fontWeight: 700 }}>{p.completion_pct}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+              {loading ? "Memuat progres..." : "Tidak ada order aktif."}
+            </p>
+          )}
         </section>
       )}
 
@@ -476,6 +899,7 @@ export default function DashboardPage() {
                 <div className="stat-value" style={{ fontSize: "1rem" }}>
                   Rp {(Number(monthlySummary.material_cost) + Number(monthlySummary.overhead_cost)).toLocaleString("id-ID")}
                 </div>
+                <div className="stat-meta">Overhead/unit: Rp {Number(monthlySummary.overhead_per_unit ?? 0).toLocaleString("id-ID")}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Total HPP</div>
@@ -512,6 +936,84 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {user?.role === "OWNER" && (
+        <section className="card-elevated" style={{ marginBottom: 24 }}>
+          <span className="badge badge-purple">Visualisasi Data Riil</span>
+          <h2 style={{ margin: "8px 0 16px", fontSize: "1.15rem" }}>Grafik Operasional & Finansial</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+            <div>
+              <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Distribusi Status Order</h3>
+              <DonutChart
+                segments={statusCounts.map((s, i) => ({
+                  label: s.status,
+                  value: s.count,
+                  color: ["#84829a", "#0284c7", "#7C3AED", "#d97706", "#EC4899", "#059669"][i % 6],
+                }))}
+              />
+            </div>
+            <div>
+              <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Hasil QC Bulan Berjalan (pcs)</h3>
+              {monthlySummary ? (
+                <DonutChart
+                  segments={[
+                    { label: "Lolos", value: monthlySummary.qc_pass_pcs, color: "#059669" },
+                    { label: "Repair", value: monthlySummary.qc_repair_pcs, color: "#d97706" },
+                    { label: "Defect", value: monthlySummary.qc_defect_pcs, color: "#dc2626" },
+                  ]}
+                />
+              ) : (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                  {loading ? "Memuat..." : "Belum ada data QC bulan ini."}
+                </p>
+              )}
+            </div>
+          </div>
+          <h3 style={{ fontSize: "0.95rem", margin: "24px 0 12px" }}>Tren Revenue vs Payroll vs Net Profit (6 bulan)</h3>
+          {trend.length > 0 ? (
+            <TrendChart points={trend} />
+          ) : (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+              {loading ? "Memuat tren..." : "Belum ada data tren."}
+            </p>
+          )}
+          {monthlySummary && Number(monthlySummary.contract_revenue) > 0 && (
+            <>
+              <h3 style={{ fontSize: "0.95rem", margin: "24px 0 12px" }}>Komposisi Revenue Bulan Berjalan</h3>
+              {(() => {
+                const rev = Number(monthlySummary.contract_revenue);
+                const parts = [
+                  { label: "Material", value: Number(monthlySummary.material_cost), color: "#7C3AED" },
+                  { label: "Overhead", value: Number(monthlySummary.overhead_cost), color: "#d97706" },
+                  { label: "Labor", value: Math.max(0, Number(monthlySummary.total_hpp) - Number(monthlySummary.material_cost) - Number(monthlySummary.overhead_cost)), color: "#0284c7" },
+                  { label: "Net profit", value: Math.max(0, Number(monthlySummary.net_profit)), color: "#059669" },
+                ];
+                return (
+                  <div>
+                    <div
+                      role="img"
+                      aria-label={parts.map((p) => `${p.label}: Rp ${p.value.toLocaleString("id-ID")}`).join(", ")}
+                      style={{ display: "flex", height: 26, borderRadius: "var(--radius-full)", overflow: "hidden", background: "var(--bg-secondary)" }}
+                    >
+                      {parts.map((p) => (
+                        <div key={p.label} title={`${p.label}: Rp ${p.value.toLocaleString("id-ID")}`}
+                          style={{ width: `${(p.value / rev) * 100}%`, background: p.color, minWidth: p.value > 0 ? 4 : 0 }} />
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 16, fontSize: "0.8rem", marginTop: 8, flexWrap: "wrap" }}>
+                      {parts.map((p) => (
+                        <span key={p.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
+                          {p.label}: <strong className="font-mono">Rp {p.value.toLocaleString("id-ID")}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </section>
+      )}
       {(user?.role === "OWNER" || user?.role === "MANDOR") && (
         <div className="stats-grid">
           {user.role === "OWNER" && (

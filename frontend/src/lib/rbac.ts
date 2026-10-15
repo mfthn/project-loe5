@@ -14,6 +14,8 @@ export type AppModule =
   | "analisis";
 
 // Matriks RBAC resmi sesuai dokumen SRS v2.0 & dokumen SOP autentikasi
+// PENJAHIT butuh produksi (terminal 30 mnt) + rekap-gaji (slip sendiri).
+// MANDOR butuh gudang (ajukan bahan + terima serah terima).
 export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
   OWNER: [
     "dashboard",
@@ -27,8 +29,8 @@ export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
   ],
   TIM_SAMPLE: ["dashboard", "sample"],
   GUDANG: ["dashboard", "gudang"],
-  MANDOR: ["dashboard", "produksi", "qc"],
-  PENJAHIT: ["dashboard"],
+  MANDOR: ["dashboard", "gudang", "produksi", "qc"],
+  PENJAHIT: ["dashboard", "produksi", "rekap-gaji"],
   QC_INSPECTOR: ["dashboard", "qc", "gudang"],
   FINANCE_PAYROLL: ["dashboard", "payroll", "ai-assistant"],
   KLIEN_MAKLON: ["dashboard", "portal-klien", "konsultasi"],

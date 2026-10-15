@@ -24,10 +24,22 @@ class RegisterClientRequest(BaseModel):
     phone_number: str = Field(..., min_length=8, max_length=20, description="Nomor WhatsApp/telepon aktif")
 
 
+class ClientProfileResponse(BaseModel):
+    id: uuid.UUID
+    company_name: str
+    contact_person: str | None = None
+    phone_number: str | None = None
+    client_code: str = Field(..., max_length=10, description="Format LOE-id_client tepat 10 karakter")
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RegisterClientResponse(BaseModel):
     """Response setelah registrasi klien berhasil."""
     message: str
     client_id: uuid.UUID
+    client_code: str = Field(..., max_length=10, description="Format LOE-id_client 10 karakter")
     user: "UserResponse"
 
     model_config = ConfigDict(from_attributes=True)
@@ -40,6 +52,8 @@ class UserResponse(BaseModel):
     name: str
     role: UserRole
     client_id: uuid.UUID | None = None
+    client_code: str | None = None
+    client: ClientProfileResponse | None = None
     is_active: bool
     created_at: datetime
 

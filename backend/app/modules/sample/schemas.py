@@ -43,12 +43,30 @@ class SampleVersionApprove(BaseModel):
     pass
 
 
+class OwnerApproveRequest(BaseModel):
+    """Tahap 2: owner menyetujui produk + harga kesepakatan."""
+    agreed_price: float = Field(..., gt=0, description="Harga deal per pcs yang disetujui owner")
+    currency: str = Field(default="IDR", min_length=3, max_length=3)
+    costing_notes: str | None = Field(None, description="Catatan costing / skema maklon")
+
+
+class OwnerRejectRequest(BaseModel):
+    reason: str | None = Field(None, description="Alasan penolakan owner")
+
+
 class SampleVersionResponse(BaseModel):
     id: uuid.UUID
     sample_id: uuid.UUID
     version_number: int
     status: SampleStatus
     tech_pack_notes: str | None
+    agreed_price: float | None = None
+    currency: str = "IDR"
+    costing_notes: str | None = None
+    sample_approved_by: uuid.UUID | None = None
+    sample_approved_at: datetime | None = None
+    owner_approved_by: uuid.UUID | None = None
+    owner_approved_at: datetime | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -73,7 +73,9 @@ def seed_data() -> None:
         ]
 
         for username, password, name, email, role, client_id in internal_users:
-            existing = db.scalar(select(User).where(User.username == username))
+            existing = db.scalar(
+                select(User).where((User.username == username) | (User.email == email))
+            )
             if not existing:
                 user = User(
                     username=username,
@@ -86,6 +88,15 @@ def seed_data() -> None:
                 )
                 db.add(user)
                 print(f"  + User '{username}' ({role.value}) berhasil dibuat.")
+            else:
+                existing.username = username
+                existing.email = email
+                existing.name = name
+                existing.hashed_password = hash_password(password)
+                existing.role = role
+                existing.client_id = client_id
+                existing.is_active = True
+                print(f"  ~ User '{username}' ({role.value}) berhasil diperbarui.")
 
         db.flush()
 
@@ -158,10 +169,12 @@ def seed_data() -> None:
         demo_order = db.scalar(select(Order).where(Order.order_number == "ORD-SNOHUND-003"))
         demo_sewers = list(
             db.scalars(
-                select(User).where(User.username.in_(["penjahit_siti", "penjahit_rini"]))
+                select(User).where((User.role == UserRole.PENJAHIT) & (User.is_active == True))
             ).all()
         )
-        demo_mandor = db.scalar(select(User).where(User.username == "mandor_agus")        )
+        demo_mandor = db.scalar(
+            select(User).where((User.role == UserRole.MANDOR) & (User.is_active == True))
+        )
         if demo_order and demo_sewers and demo_mandor:
             component = db.scalar(
                 select(OrderComponent).where(
@@ -225,7 +238,9 @@ def seed_data() -> None:
                     QCInspection(
                         order_id=demo_order.id,
                         inspector_user_id=db.scalar(
-                            select(User.id).where(User.username == "qc_dewi")
+                            select(User.id).where(
+                                (User.role == UserRole.QC_INSPECTOR) & (User.is_active == True)
+                            )
                         ),
                         status=QCStatus.LOLOS,
                         qty_inspected=80,

@@ -280,6 +280,9 @@ class TestQCEndpoints:
         ins.inspector_user_id = _USER_ID
         ins.status = QCStatus.LOLOS
         ins.qty_inspected = 50
+        ins.repair_count = 0
+        ins.escalated_to_sample = False
+        ins.action_route = "GUDANG_BARANG_JADI"
         ins.defect_category = None
         ins.notes = None
         ins.inspected_at = _NOW
@@ -351,6 +354,7 @@ class TestQCEndpoints:
         mock_insp.notes = "Jahitan melenceng 3x"
         mock_insp.repair_count = 3
         mock_insp.escalated_to_sample = True
+        mock_insp.action_route = "LINE_REPAIR"
         mock_insp.inspector_user_id = _USER_ID
         mock_insp.inspected_at = _NOW
         mock_list.return_value = [mock_insp]

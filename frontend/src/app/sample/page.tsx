@@ -128,19 +128,54 @@ export default function SamplePage() {
     }
   };
 
-  // Approve Version
+  // Approve Version Tahap 1 (tim sample)
   const handleApproveVersion = async (versionId: string) => {
     try {
       await sampleApi.approveVersion(versionId);
       setNotice({
         type: "success",
-        message: "Versi sample berhasil di-APPROVE! Sekarang versi ini siap dikonversi ke pesanan produksi massal.",
+        message: "Tahap 1 lolos! Versi APPROVED — menunggu approval owner beserta harga.",
       });
       if (selectedSample) {
         handleSelectSample(selectedSample.id);
       }
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal menyetujui versi sampel." });
+    }
+  };
+
+  // Owner approval tahap 2 (produk + harga)
+  const [ownerModalOpen, setOwnerModalOpen] = useState(false);
+  const [ownerPrice, setOwnerPrice] = useState(45000);
+  const [ownerNotes, setOwnerNotes] = useState("");
+
+  const handleApproveOwner = async () => {
+    if (!activeVersion) return;
+    try {
+      await sampleApi.approveOwner(activeVersion.id, {
+        agreed_price: Number(ownerPrice),
+        costing_notes: ownerNotes || undefined,
+      });
+      setNotice({
+        type: "success",
+        message: `Owner APPROVED Rp ${Number(ownerPrice).toLocaleString("id-ID")}/pcs — versi siap jadi order massal.`,
+      });
+      setOwnerModalOpen(false);
+      if (selectedSample) handleSelectSample(selectedSample.id);
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal approval owner." });
+    }
+  };
+
+  const handleRejectOwner = async (versionId: string) => {
+    const reason = window.prompt("Alasan penolakan owner:");
+    if (reason === null) return;
+    try {
+      await sampleApi.rejectOwner(versionId, reason || undefined);
+      setNotice({ type: "warning", message: "Versi DITOLAK owner — buat revisi baru untuk lanjut." });
+      if (selectedSample) handleSelectSample(selectedSample.id);
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal menolak versi." });
     }
   };
 
@@ -322,12 +357,16 @@ export default function SamplePage() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {activeVersion && (
                       <span
                         className={`badge ${
-                          activeVersion.status === "APPROVED"
+                          activeVersion.status === "OWNER_APPROVED"
                             ? "badge-success"
+                            : activeVersion.status === "APPROVED"
+                            ? "badge-info"
+                            : activeVersion.status === "OWNER_REJECTED"
+                            ? "badge-danger"
                             : activeVersion.status === "REVISION"
                             ? "badge-warning"
                             : "badge-neutral"
@@ -335,16 +374,40 @@ export default function SamplePage() {
                         style={{ fontSize: "0.85rem", padding: "6px 14px" }}
                       >
                         Versi v{activeVersion.version_number} : {activeVersion.status}
+                        {activeVersion.status === "OWNER_APPROVED" && activeVersion.agreed_price != null
+                          ? ` — Rp ${Number(activeVersion.agreed_price).toLocaleString("id-ID")}/pcs`
+                          : ""}
                       </span>
                     )}
 
-                    {activeVersion && activeVersion.status !== "APPROVED" && (
-                      <button
-                        onClick={() => handleApproveVersion(activeVersion.id)}
-                        className="btn btn-success btn-sm"
-                      >
-                        ✅ Setujui (Approve) Versi Ini
-                      </button>
+                    {activeVersion &&
+                      (activeVersion.status === "DRAFT" || activeVersion.status === "REVISION") && (
+                        <button
+                          onClick={() => handleApproveVersion(activeVersion.id)}
+                          className="btn btn-success btn-sm"
+                        >
+                          ✅ Setujui Tahap 1 (Tim Sample)
+                        </button>
+                      )}
+
+                    {activeVersion && activeVersion.status === "APPROVED" && (
+                      <>
+                        <button onClick={() => setOwnerModalOpen(true)} className="btn btn-primary btn-sm">
+                          💰 Approve Owner + Harga
+                        </button>
+                        <button
+                          onClick={() => handleRejectOwner(activeVersion.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          ❌ Tolak Owner
+                        </button>
+                      </>
+                    )}
+
+                    {activeVersion && activeVersion.status === "OWNER_APPROVED" && (
+                      <span className="badge badge-success">
+                        Siap dikonversi ke order massal
+                      </span>
                     )}
                   </div>
                 </div>
@@ -460,7 +523,11 @@ export default function SamplePage() {
                   <button
                     onClick={() => setNewComponentModal(true)}
                     className="btn btn-secondary btn-sm"
-                    disabled={activeVersion?.status === "APPROVED"}
+                    disabled={
+                      activeVersion?.status === "APPROVED" ||
+                      activeVersion?.status === "OWNER_APPROVED" ||
+                      activeVersion?.status === "OWNER_REJECTED"
+                    }
                   >
                     ➕ Tambah Komponen
                   </button>
@@ -640,6 +707,50 @@ export default function SamplePage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Approval Owner + Harga */}
+      <Modal
+        isOpen={ownerModalOpen}
+        onClose={() => setOwnerModalOpen(false)}
+        title="💰 Approval Owner — Produk + Harga Kesepakatan"
+      >
+        <div className="notice notice-info" style={{ marginBottom: 16 }}>
+          <span>💡</span>
+          <div style={{ fontSize: "0.82rem" }}>
+            Tahap 2: owner mengunci produk yang dipelajari tim sample beserta harga deal per pcs.
+            Setelah ini versi menjadi OWNER_APPROVED dan bisa dikonversi ke order massal.
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Harga Deal per Pcs (Rp, wajib &gt; 0)</label>
+          <input
+            type="number"
+            className="form-input"
+            value={ownerPrice}
+            onChange={(e) => setOwnerPrice(Number(e.target.value))}
+            min={1}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Catatan Costing / Skema Maklon</label>
+          <input
+            type="text"
+            className="form-input"
+            value={ownerNotes}
+            onChange={(e) => setOwnerNotes(e.target.value)}
+            placeholder="Contoh: Deal CMT 45rb/pcs, MOQ 100"
+          />
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setOwnerModalOpen(false)}>
+            Batal
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleApproveOwner}>
+            Kunci & Setujui Owner
+          </button>
+        </div>
       </Modal>
     </AppLayout>
   );

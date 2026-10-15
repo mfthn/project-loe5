@@ -579,8 +579,10 @@ class TestProduksiEndpoints:
         )
         assert resp.status_code == 409
 
+    @patch("app.modules.produksi.router.get_order")
     @patch("app.modules.produksi.router.get_order_output_summary")
-    def test_get_order_summary_returns_200(self, mock_summary: MagicMock) -> None:
+    def test_get_order_summary_returns_200(self, mock_summary: MagicMock, mock_get: MagicMock) -> None:
+        mock_get.return_value = MagicMock(client_id=None)
         mock_summary.return_value = {
             "order_id": _ORDER_ID,
             "order_number": "ORD-2026-001",

@@ -16,7 +16,12 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, title, subtitle, requiredModule }: AppLayoutProps) {
   const { user, loading } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Terbuka default di desktop, tertutup default di mobile
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(
+    () =>
+      typeof window === "undefined" ||
+      window.matchMedia("(min-width: 901px)").matches,
+  );
 
   if (loading) {
     return (
@@ -31,7 +36,7 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
           gap: 16,
         }}
       >
-        <img src="/Lukla.jpeg" alt="Logo Lukla" style={{ width: 48, height: 48, borderRadius: "var(--radius-md)", objectFit: "cover" }} />
+        <div style={{ fontSize: "2rem" }}>🏔️</div>
         <div style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
           Memuat sesi Lukla Operations Engine...
         </div>
@@ -70,26 +75,26 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
   const hasAccess = requiredModule ? canAccessModule(user.role, requiredModule) : true;
 
   return (
-    <div className="app-container">
-      <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
-      {/* Backdrop penutup sidebar di mobile */}
-      {mobileMenuOpen && (
+    <div className={`app-container${sidebarOpen ? "" : " sidebar-collapsed"}`}>
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => {
+          if (window.matchMedia("(max-width: 900px)").matches) setSidebarOpen(false);
+        }}
+      />
+      {sidebarOpen && (
         <div
-          onClick={() => setMobileMenuOpen(false)}
-          aria-hidden
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(20, 24, 62, 0.45)",
-            zIndex: 35,
-          }}
+          className="sidebar-backdrop"
+          aria-hidden="true"
+          onClick={() => setSidebarOpen(false)}
         />
       )}
       <div className="main-content">
         <TopBar
           title={title}
           subtitle={subtitle}
-          onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onMenuClick={() => setSidebarOpen((open) => !open)}
+          menuOpen={sidebarOpen}
         />
         <main className="page-body">
           {!hasAccess ? (
@@ -110,10 +115,6 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
             children
           )}
         </main>
-        <footer className="app-footer">
-          <span>© 2026 Lukla Operations Engine (project-loe5)</span>
-          <span className="watermark">Made with ♥ @makewithteeam5</span>
-        </footer>
       </div>
     </div>
   );

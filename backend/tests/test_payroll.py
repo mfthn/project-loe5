@@ -413,15 +413,20 @@ class TestPayrollEndpoints:
         assert response.json()["funding_status"] == "INSUFFICIENT"
 
     @patch("app.modules.payroll.router.review_payroll_funding")
-    def test_owner_cannot_finalize_payroll(
+    def test_owner_can_finalize_payroll(
         self, mock_review: MagicMock
     ) -> None:
+        # Matriks RBAC: Owner (konfigurasi sistem) dapat menjalankan finance-review.
+        run = _mock_run(locked=True)
+        run.funding_status = "SUFFICIENT"
+        run.available_funds = Decimal("250000.00")
+        mock_review.return_value = run
         response = self._client(user_fn=lambda: _MOCK_OWNER).post(
             f"/api/v1/payroll/runs/{_RUN_ID}/finance-review",
             json={"available_funds": "250000.00"},
         )
-        assert response.status_code == 403
-        mock_review.assert_not_called()
+        assert response.status_code == 200
+        mock_review.assert_called_once()
 
     @patch("app.modules.payroll.router.mark_payroll_detail_paid")
     def test_finance_can_confirm_payment(self, mock_mark_paid: MagicMock) -> None:

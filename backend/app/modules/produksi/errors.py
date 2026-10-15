@@ -39,10 +39,10 @@ class InvalidOutputQuantityError(ValueError):
 
 
 class SampleVersionNotApprovedError(ValueError):
-    """Versi sample belum APPROVED sehingga tidak bisa dikonversi ke order massal."""
+    """Versi sample belum OWNER_APPROVED sehingga tidak bisa dikonversi ke order massal."""
     def __init__(self, version_id: uuid.UUID) -> None:
         super().__init__(
-            f"Versi sample {version_id} belum disetujui (APPROVED). "
-            "Approve versi tersebut terlebih dahulu sebelum membuat order massal."
+            f"Versi sample {version_id} belum disetujui owner (OWNER_APPROVED). "
+            "Lewati tahap 1 tim sample lalu approval owner beserta harga sebelum membuat order massal."
         )
         self.version_id = version_id

@@ -80,6 +80,7 @@ class PayrollMonthlySummaryResponse(BaseModel):
     overhead_cost: Decimal
     total_hpp: Decimal
     net_profit: Decimal
+    overhead_per_unit: Decimal
 
 
 # ---------------------------------------------------------------------------

@@ -26,3 +26,20 @@ class CrossContaminationError(ValueError):
             f"Sistem membatalkan transaksi sebelum stok berkurang."
         )
         super().__init__(message)
+
+
+class MaterialRequestNotFoundError(ValueError):
+    def __init__(self, request_id) -> None:
+        super().__init__(f"Pengajuan bahan {request_id} tidak ditemukan.")
+
+
+class MaterialHandoverNotFoundError(ValueError):
+    def __init__(self, handover_id) -> None:
+        super().__init__(f"Serah terima bahan {handover_id} tidak ditemukan.")
+
+
+class InvalidRequestTransitionError(ValueError):
+    def __init__(self, current: str, action: str) -> None:
+        super().__init__(
+            f"Transisi tidak valid: status saat ini {current}, aksi {action} ditolak."
+        )

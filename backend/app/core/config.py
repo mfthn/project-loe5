@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://loe:loe_dev@localhost:5433/project_loe5"
 
     auth_secret: str = _DEV_SECRET
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+    ]
 
     aws_region: str = "us-east-1"
     aws_access_key_id: str = ""

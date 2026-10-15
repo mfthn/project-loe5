@@ -254,13 +254,14 @@ export default function QCPage() {
                         <th>Jumlah</th>
                         <th>Hasil Evaluasi</th>
                         <th>Jenis Cacat (Defect)</th>
+                        <th>Rute Tindakan</th>
                         <th>Catatan</th>
                       </tr>
                     </thead>
                     <tbody>
                       {inspections.length === 0 ? (
                         <tr>
-                          <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+                          <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
                             Belum ada catatan inspeksi untuk pesanan ini.
                           </td>
                         </tr>
@@ -269,6 +270,14 @@ export default function QCPage() {
                           const statusResult = insp.status || insp.result;
                           const defectCat = insp.defect_category || insp.defect_type;
                           const notes = insp.notes || insp.defect_notes;
+                          const route = insp.action_route
+                            || (statusResult === "LOLOS" ? "GUDANG_BARANG_JADI"
+                              : statusResult === "REPAIR" ? "LINE_REPAIR" : "SCRAP_DISPOSAL");
+                          const routeLabel: Record<string, string> = {
+                            GUDANG_BARANG_JADI: "→ Gudang Barang Jadi",
+                            LINE_REPAIR: "→ Kembali ke Line",
+                            SCRAP_DISPOSAL: "→ Scrap Disposal",
+                          };
                           const isEscalated = (insp.repair_count && insp.repair_count >= 3) || insp.escalated_to_sample;
                           return (
                             <tr key={insp.id}>
@@ -305,6 +314,11 @@ export default function QCPage() {
                               </td>
                               <td style={{ color: defectCat ? "var(--color-danger)" : "var(--text-muted)" }}>
                                 {defectCat || "-"}
+                              </td>
+                              <td>
+                                <span className="badge badge-purple" style={{ fontSize: "0.72rem" }}>
+                                  {routeLabel[route] || route}
+                                </span>
                               </td>
                               <td style={{ fontSize: "0.82rem" }}>{notes || "-"}</td>
                             </tr>

@@ -49,7 +49,9 @@ from app.modules.payroll.service import (
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
 
-_FINANCE_ROLES = [UserRole.FINANCE_PAYROLL]
+# Finance mengeksekusi, Owner mengawasi & dapat menjalankan (konfigurasi sistem).
+# Penguncian audit permanen tetap berlaku untuk semua peran.
+_FINANCE_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER]
 _VIEW_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER]
 
 

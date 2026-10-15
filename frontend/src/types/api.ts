@@ -11,6 +11,15 @@ export type UserRole =
   | "FINANCE_PAYROLL"
   | "KLIEN_MAKLON";
 
+export type ClientProfile = {
+  id: string;
+  company_name: string;
+  contact_person: string | null;
+  phone_number: string | null;
+  client_code: string; // Format LOE-XXXXXX (10 karakter)
+  created_at: string | null;
+};
+
 export type User = {
   id: string;
   username: string;
@@ -18,6 +27,8 @@ export type User = {
   name: string;
   role: UserRole;
   client_id: string | null;
+  client_code?: string | null; // LOE-XXXXXX
+  client?: ClientProfile | null;
   is_active: boolean;
   created_at: string;
 };
@@ -40,6 +51,7 @@ export type RegisterClientRequest = {
 export type RegisterClientResponse = {
   message: string;
   client_id: string;
+  client_code: string;
   user: User;
 };
 
@@ -59,8 +71,45 @@ export type InventoryItem = {
   material_name: string;
   current_stock: number;
   unit_measure: string;
+  storage_location?: string | null;
   created_at: string;
   client?: Client;
+};
+
+export type MaterialRequestStatus =
+  | "DIAJUKAN"
+  | "DISETUJUI"
+  | "DITOLAK"
+  | "DISERAHKAN";
+
+export type MaterialRequest = {
+  id: string;
+  order_id: string;
+  inventory_item_id: string;
+  client_id: string;
+  qty_requested: number;
+  qty_fulfilled: number;
+  status: MaterialRequestStatus;
+  requested_by_user_id: string | null;
+  reviewed_by_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+};
+
+export type MaterialHandover = {
+  id: string;
+  order_id: string;
+  inventory_item_id: string;
+  material_request_id: string | null;
+  transaction_id: string | null;
+  client_id: string;
+  quantity: number;
+  handed_by_user_id: string | null;
+  received_by_user_id: string | null;
+  handed_at: string;
+  received_at: string | null;
+  notes: string | null;
 };
 
 export type InventoryTransaction = {
@@ -75,8 +124,75 @@ export type InventoryTransaction = {
   notes: string | null;
 };
 
+// ================= Finance (PO & Invoice) =================
+export type POStatus = "DRAFT" | "DISETUJUI" | "DITOLAK" | "DITERIMA_SEBAGIAN" | "SELESAI";
+
+export type POLine = {
+  id: string;
+  inventory_item_id: string;
+  sequence_order: number;
+  qty_ordered: number;
+  qty_received: number;
+  unit_price: number | string;
+};
+
+export type PurchaseOrder = {
+  id: string;
+  po_number: string;
+  client_id: string;
+  order_id: string;
+  supplier_name: string;
+  status: POStatus;
+  total_amount: number | string;
+  requested_by_user_id: string | null;
+  reviewed_by_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  lines: POLine[];
+};
+
+export type InvoiceStatus = "DRAFT" | "BELUM_BAYAR" | "SEBAGIAN" | "LUNAS" | "DITOLAK";
+
+export type Invoice = {
+  id: string;
+  invoice_number: string;
+  client_id: string;
+  order_id: string;
+  amount_total: number | string;
+  amount_paid: number | string;
+  status: InvoiceStatus;
+  issued_by_user_id: string | null;
+  approved_by_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  approved_at: string | null;
+};
+
+export type CuttingResult = {
+  id: string;
+  order_id: string;
+  inventory_item_id: string | null;
+  client_id: string;
+  qty_lapis: number;
+  qty_potong_hasil: number;
+  waste_qty: number;
+  waste_category?: string | null;
+  cut_by_user_id: string | null;
+  notes: string | null;
+  cut_at: string;
+};
+
+export type HPPRealized = {
+  order_id: string;
+  order_number: string;
+  realized_material_cost: number;
+  po_count: number;
+  breakdown: { po_id: string; po_number: string; status: string; realized_cost: number }[];
+};
+
 // ================= Sample & Time Study =================
-export type VersionStatus = "DRAFT" | "REVISION" | "APPROVED";
+export type VersionStatus = "DRAFT" | "REVISION" | "APPROVED" | "OWNER_APPROVED" | "OWNER_REJECTED";
 
 export type TimeStudy = {
   id: string;
@@ -103,6 +219,14 @@ export type SampleVersion = {
   version_number: number;
   status: VersionStatus;
   notes: string | null;
+  tech_pack_notes?: string | null;
+  agreed_price?: number | null;
+  currency?: string;
+  costing_notes?: string | null;
+  sample_approved_by?: string | null;
+  sample_approved_at?: string | null;
+  owner_approved_by?: string | null;
+  owner_approved_at?: string | null;
   created_at: string;
   approved_at: string | null;
   approved_by_user_id: string | null;
@@ -228,6 +352,7 @@ export type QCInspection = {
   status?: QCResult;
   defect_type?: string | null;
   defect_category?: string | null;
+  action_route?: string | null;
   defect_notes?: string | null;
   notes?: string | null;
   repair_count?: number;
@@ -356,6 +481,7 @@ export type PayrollMonthlySummary = {
   overhead_cost: MonetaryAmount;
   total_hpp: MonetaryAmount;
   net_profit: MonetaryAmount;
+  overhead_per_unit?: MonetaryAmount;
 };
 
 export type WorkerProductionNote = {
