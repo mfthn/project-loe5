@@ -1,44 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useAuth, DEMO_ACCOUNTS } from "../lib/auth-context";
+import { useAuth } from "../lib/auth-context";
 import { getAllowedModules } from "../lib/rbac";
 
-// Icon warna per role dari DESIGN.md (purple brand primary)
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "#7C3AED",
   FINANCE_PAYROLL: "#059669",
-  MANDOR_LINE: "#d97706",
-  MANDOR_QC: "#0284c7",
-  MANDOR_GUDANG: "#BE185D",
-  OPERATOR_GUDANG: "#EC4899",
-  KLIEN: "#6D28D9",
-  KLIEN_INTERNAL: "#2E1065",
+  MANDOR: "#d97706",
+  GUDANG: "#BE185D",
+  PENJAHIT: "#0284c7",
+  TIM_SAMPLE: "#D97706",
+  QC_INSPECTOR: "#0891b2",
+  KLIEN_MAKLON: "#6D28D9",
 };
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const { user, quickLogin, logout } = useAuth();
-  const [switching, setSwitching] = useState(false);
+  const { user, logout } = useAuth();
 
   const modules = getAllowedModules(user?.role);
-
-  const handleRoleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedUsername = e.target.value;
-    if (!selectedUsername) return;
-    try {
-      setSwitching(true);
-      await quickLogin(selectedUsername);
-    } catch (err) {
-      console.error("Gagal beralih peran:", err);
-    } finally {
-      setSwitching(false);
-    }
-  };
-
   const roleColor = ROLE_COLORS[user?.role || ""] || "#7C3AED";
   const userInitial = user?.name?.charAt(0)?.toUpperCase() || "?";
 
@@ -47,32 +31,56 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       {/* ── Brand Header ── */}
       <div
         style={{
-          padding: "24px 22px 20px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
+          padding: "20px 18px 18px",
+          borderBottom: "1px solid #EDE9FE",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 10,
         }}
       >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img
-            src="/Lukla.jpeg"
-            alt="Logo Lukla"
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          <div
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: "var(--radius-md)",
-              objectFit: "cover",
-              boxShadow: "var(--shadow-coral)",
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              overflow: "hidden",
               flexShrink: 0,
+              boxShadow: "0 4px 10px rgba(124, 58, 237, 0.28)",
             }}
-          />
+          >
+            <Image
+              src="/icon.jpeg"
+              alt="Lukla L5 Logo"
+              width={38}
+              height={38}
+              style={{ objectFit: "cover", width: "100%", height: "100%" }}
+              priority
+            />
+          </div>
+
           <div>
-            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#ffffff", letterSpacing: "-0.02em" }}>
-              Lukla <span style={{ color: "var(--jadoo-coral)" }}>Ops</span>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: "0.95rem",
+                color: "#2E1065",
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Lukla <span style={{ color: "#7C3AED" }}>Ops Engine</span>
             </div>
-            <div style={{ fontSize: "0.7rem", color: "rgba(237, 233, 254, 0.75)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>
+            <div
+              style={{
+                fontSize: "0.65rem",
+                color: "#84829a",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 700,
+              }}
+            >
               Garment Engine v2.0
             </div>
           </div>
@@ -110,7 +118,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             fontSize: "0.68rem",
             fontWeight: 800,
             textTransform: "uppercase",
-            color: "rgba(237, 233, 254, 0.7)",
+            color: "#84829a",
             letterSpacing: "0.08em",
             padding: "6px 10px 10px",
           }}
@@ -130,11 +138,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "11px 14px",
-                  borderRadius: "var(--radius-md)",
-                  fontSize: "0.9rem",
-                  fontWeight: isActive ? 700 : 600,
-                  color: isActive ? "#ffffff" : "rgba(237, 233, 254, 0.85)",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  fontSize: "0.88rem",
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? "#ffffff" : "#5B5870",
                   background: isActive
                     ? "linear-gradient(135deg, #7C3AED 0%, #2E1065 100%)"
                     : "transparent",
@@ -162,11 +170,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                 {mod.badge && (
                   <span
                     style={{
-                      fontSize: "0.68rem",
-                      padding: "2px 8px",
-                      borderRadius: "var(--radius-full)",
-                      background: isActive ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.15)",
-                      color: isActive ? "#ffffff" : "#EDE9FE",
+                      fontSize: "0.64rem",
+                      padding: "2px 7px",
+                      borderRadius: 9999,
+                      background: isActive ? "rgba(255,255,255,0.2)" : "#EDE9FE",
+                      color: isActive ? "#ffffff" : "#7C3AED",
                       fontWeight: 700,
                       whiteSpace: "nowrap",
                     }}
@@ -180,53 +188,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         </nav>
       </div>
 
-      {/* ── Bottom: Demo Switcher & User Card ── */}
+      {/* ── Bottom: User Card ── */}
       <div
         style={{
-          padding: 16,
-          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
-          background: "rgba(255, 255, 255, 0.06)",
+          padding: "14px 14px 16px",
+          borderTop: "1px solid #EDE9FE",
+          background: "#FAF8FF",
         }}
       >
-        {/* Quick Role Switcher (hackathon demo) */}
-        <div style={{ marginBottom: 10 }}>
-          <label
-            style={{
-              fontSize: "0.65rem",
-              fontWeight: 800,
-              textTransform: "uppercase",
-              color: "rgba(237, 233, 254, 0.7)",
-              display: "block",
-              marginBottom: 4,
-              letterSpacing: "0.06em",
-            }}
-          >
-            ⚡ Demo RBAC — Ganti Peran:
-          </label>
-          <select
-            className="form-select"
-            value={user?.username || ""}
-            onChange={handleRoleChange}
-            disabled={switching}
-            style={{
-              padding: "7px 10px",
-              fontSize: "0.78rem",
-              background: "#ffffff",
-              borderColor: "#EDE9FE",
-              borderRadius: 10,
-              color: "#2E1065",
-              fontWeight: 600,
-            }}
-          >
-            {DEMO_ACCOUNTS.map((acc) => (
-              <option key={acc.username} value={acc.username}>
-                {acc.name} — {acc.role}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* User Card */}
         <div
           style={{
             display: "flex",
@@ -307,12 +276,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               transition: "all 0.15s ease",
               flexShrink: 0,
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#fef2f2";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#fef2f2"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             🚪
           </button>

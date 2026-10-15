@@ -59,24 +59,20 @@ def seed_data() -> None:
 
         db.flush()
 
-        # 2. Akun Pengguna untuk ke-8 Role
-        demo_users = [
-            # (username, password, name, email, role, client_ref)
-            ("owner", "owner123", "Pak Hendra (Owner/CEO)", "owner@lukla.id", UserRole.OWNER, None),
-            ("adis_sample", "sample123", "Adis (Tim Sample)", "adis@lukla.id", UserRole.TIM_SAMPLE, None),
-            ("gudang_budi", "gudang123", "Budi (Petugas Gudang)", "gudang@lukla.id", UserRole.GUDANG, None),
-            ("mandor_agus", "mandor123", "Agus (Mandor Line 1)", "agus@lukla.id", UserRole.MANDOR, None),
-            ("mandor_joko", "mandor123", "Joko (Mandor Line 2)", "joko@lukla.id", UserRole.MANDOR, None),
-            ("ka_ops", "kaops123", "Bambang (Kepala Operasional)", "kaops@lukla.id", UserRole.MANDOR, None),
-            ("penjahit_siti", "jahit123", "Siti (Penjahit Line 1)", "siti@lukla.id", UserRole.PENJAHIT, None),
-            ("penjahit_rini", "jahit123", "Rini (Penjahit Line 2)", "rini@lukla.id", UserRole.PENJAHIT, None),
-            ("qc_dewi", "qc123", "Dewi (QC Inspector)", "qc@lukla.id", UserRole.QC_INSPECTOR, None),
-            ("finance_rina", "finance123", "Rina (Finance & Payroll)", "finance@lukla.id", UserRole.FINANCE_PAYROLL, None),
-            ("klien_a", "klien123", "Klien A - PT Tekstil Maju", "maya@tekstilmaju.com", UserRole.KLIEN_MAKLON, klien_a.id),
-            ("klien_b", "klien123", "Klien B - CV Busana Prima", "doni@busanaprima.com", UserRole.KLIEN_MAKLON, klien_b.id),
+        # 2. Akun Pengguna per Role (Akun Produksi — bukan demo)
+        # Password disimpan di README.md bagian "Akun Sistem per Role"
+        internal_users = [
+            # (username, password, name, email, role, client_id)
+            ("hendra_owner",   "Lukla@Owner2026",   "Hendra Lukla (Owner/CEO)",       "owner@lukla.id",   UserRole.OWNER,          None),
+            ("rina_finance",   "Lukla@Finance2026", "Rina Lestari (Finance & Payroll)","finance@lukla.id", UserRole.FINANCE_PAYROLL, None),
+            ("agus_mandor",    "Lukla@Mandor2026",  "Agus Santoso (Mandor Line 1)",   "mandor@lukla.id",  UserRole.MANDOR,          None),
+            ("siti_jahit",     "Lukla@Jahit2026",   "Siti Rahayu (Penjahit Line 1)",  "siti@lukla.id",    UserRole.PENJAHIT,        None),
+            ("budi_gudang",    "Lukla@Gudang2026",  "Budi Santoso (Petugas Gudang)",  "gudang@lukla.id",  UserRole.GUDANG,          None),
+            ("adis_sample",    "Lukla@Sample2026",  "Adis Purnama (Tim Sample)",      "sample@lukla.id",  UserRole.TIM_SAMPLE,      None),
+            ("dewi_qc",        "Lukla@QC2026",      "Dewi Anggraini (QC Inspector)",  "qc@lukla.id",      UserRole.QC_INSPECTOR,    None),
         ]
 
-        for username, password, name, email, role, client_id in demo_users:
+        for username, password, name, email, role, client_id in internal_users:
             existing = db.scalar(select(User).where(User.username == username))
             if not existing:
                 user = User(

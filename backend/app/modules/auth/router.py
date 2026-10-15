@@ -6,8 +6,14 @@ from app.core.database import get_db
 from app.core.security import ACCESS_TOKEN_EXPIRE_HOURS, create_access_token
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.auth.schemas import LoginRequest, TokenResponse, UserResponse
-from app.modules.auth.service import authenticate_user
+from app.modules.auth.schemas import (
+    LoginRequest,
+    RegisterClientRequest,
+    RegisterClientResponse,
+    TokenResponse,
+    UserResponse,
+)
+from app.modules.auth.service import authenticate_user, register_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,6 +52,37 @@ def login(
     return TokenResponse(
         access_token=token,
         token_type="bearer",
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.post("/register", response_model=RegisterClientResponse, status_code=status.HTTP_201_CREATED)
+def register(
+    payload: RegisterClientRequest,
+    db: Session = Depends(get_db),
+) -> RegisterClientResponse:
+    """Registrasi mandiri klien maklon baru.
+
+    Membuat record Client (perusahaan) dan User KLIEN_MAKLON secara atomik.
+    Client ID yang dihasilkan menjadi PK yang digunakan di seluruh transaksi klien tersebut.
+    """
+    try:
+        client, user = register_client(db, payload)
+        db.commit()
+        db.refresh(client)
+        db.refresh(user)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    return RegisterClientResponse(
+        message=(
+            f"Registrasi berhasil! ID Klien Anda: {client.id}. "
+            "Silakan login dengan username dan password yang telah dibuat."
+        ),
+        client_id=client.id,
         user=UserResponse.model_validate(user),
     )
 

@@ -21,6 +21,8 @@ import type {
   QCBatchSummary,
   QCInspection,
   RateCard,
+  RegisterClientRequest,
+  RegisterClientResponse,
   Sample,
   SampleVersion,
   TokenResponse,
@@ -121,6 +123,12 @@ export const authApi = {
   },
   getMe: async (): Promise<User> => {
     return apiFetch<User>("/auth/me");
+  },
+  register: async (data: RegisterClientRequest): Promise<RegisterClientResponse> => {
+    return apiFetch<RegisterClientResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 };
 
