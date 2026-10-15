@@ -64,27 +64,99 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse at top center, #F3E8FF 0%, #F8FAFC 70%)",
+        background: "#ffffff",
+        position: "relative",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      <div style={{ maxWidth: 1000, width: "100%" }}>
-        {/* Brand Header */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <Link href="/" style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
-            <img
-              src="/Lukla.jpeg"
-              alt="Logo Lukla"
-              style={{
-                width: 60,
-                height: 60,
-                borderRadius: "var(--radius-lg)",
-                objectFit: "cover",
-                boxShadow: "var(--shadow-coral)",
-                marginBottom: 16,
-              }}
-            />
+      {/* Ambient background orbs — konsisten dengan landing page */}
+      <AmbientOrb size={560} top="-120px" right="-100px" opacity={0.5} blur={90} />
+      <AmbientOrb size={400} bottom="-80px" left="-100px" opacity={0.3} blur={80} />
+
+      {/* ── Navbar minimal ── */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          padding: "14px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "rgba(255,255,255,0.8)",
+          backdropFilter: "blur(16px)",
+          borderBottom: "1px solid rgba(196,181,253,0.25)",
+          maxWidth: "100vw",
+        }}
+      >
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 10px rgba(124,58,237,0.25)" }}>
+            <Image src="/icon.jpeg" alt="Lukla L5" width={36} height={36} style={{ objectFit: "cover" }} priority />
+          </div>
+          <div>
+            <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#2E1065", letterSpacing: "-0.02em" }}>
+              Lukla Operations Engine
+            </div>
+            <div style={{ fontSize: "0.65rem", color: "#84829a", fontWeight: 600 }}>
+              Lukla Manufacturing · Ciwidey
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/"
+          style={{
+            fontSize: "0.82rem",
+            fontWeight: 700,
+            color: "#5B5870",
+            padding: "7px 16px",
+            border: "1px solid #EDE9FE",
+            borderRadius: 9999,
+            textDecoration: "none",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C4B5FD"; e.currentTarget.style.color = "#7C3AED"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#EDE9FE"; e.currentTarget.style.color = "#5B5870"; }}
+        >
+          ← Kembali ke Landing
+        </Link>
+      </header>
+
+      {/* ── Main content ── */}
+      <main
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 24px 60px",
+          position: "relative",
+          zIndex: 2,
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 1080 }}>
+          {/* Page heading */}
+          <div style={{ textAlign: "center", marginBottom: 36 }}>
+            <div style={{ marginBottom: 12 }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "6px 16px",
+                  borderRadius: 9999,
+                  background: "#EDE9FE",
+                  border: "1px solid #C4B5FD",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  color: "#2E1065",
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#EC4899", display: "inline-block" }} />
+                Portal Autentikasi Sistem
+              </span>
+            </div>
             <h1
               style={{
                 fontSize: "clamp(1.75rem, 4vw, 2.5rem)",
@@ -97,22 +169,8 @@ export default function LoginPage() {
             >
               Masuk ke Dashboard Operasional
             </h1>
-          </Link>
-          <p style={{ color: "var(--jadoo-text)", fontSize: "1rem" }}>
-            Portal Operasional Konveksi Ciwidey & Maklon B2B (project-loe5)
-          </p>
-        </div>
-
-        {errorMsg && <Notice type="danger" message={errorMsg} onClose={() => setErrorMsg(null)} />}
-
-        <div
-          className="login-grid"
-        >
-          {/* Manual Login Form */}
-          <div className="card-elevated">
-            <h2 style={{ fontSize: "1.3rem", marginBottom: 6, color: "var(--jadoo-navy)" }}>Masuk Sistem</h2>
-            <p style={{ fontSize: "0.88rem", color: "var(--jadoo-muted)", marginBottom: 24 }}>
-              Gunakan kredensial terdaftar untuk mengakses hak otorisasi modul.
+            <p style={{ fontSize: "1rem", color: "#5B5870", margin: 0 }}>
+              Akses modul sesuai hak otorisasi RBAC Anda
             </p>
           </div>
 
