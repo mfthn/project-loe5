@@ -14,7 +14,7 @@ export default function NotFound() {
         textAlign: "center",
       }}
     >
-      <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏔️</div>
+      <img src="/Lukla.jpeg" alt="Logo Lukla" style={{ width: 56, height: 56, borderRadius: "var(--radius-lg)", objectFit: "cover", marginBottom: 12 }} />
       <h1 className="heading-editorial" style={{ fontSize: "2rem", marginBottom: 8, color: "var(--jadoo-navy)" }}>
         404 - Halaman Tidak Ditemukan
       </h1>

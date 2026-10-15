@@ -47,57 +47,32 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       {/* ── Brand Header ── */}
       <div
         style={{
-          padding: "20px 18px 18px",
-          borderBottom: "1px solid #EDE9FE",
+          padding: "24px 22px 20px",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 10,
         }}
       >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          {/* Icon L5 (icon.jpeg) */}
-          <div
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img
+            src="/Lukla.jpeg"
+            alt="Logo Lukla"
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 10,
-              overflow: "hidden",
+              width: 40,
+              height: 40,
+              borderRadius: "var(--radius-md)",
+              objectFit: "cover",
+              boxShadow: "var(--shadow-coral)",
               flexShrink: 0,
-              boxShadow: "0 4px 10px rgba(124, 58, 237, 0.28)",
             }}
-          >
-            <Image
-              src="/icon.jpeg"
-              alt="Lukla L5 Logo"
-              width={38}
-              height={38}
-              style={{ objectFit: "cover", width: "100%", height: "100%" }}
-              priority
-            />
-          </div>
-
+          />
           <div>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: "0.95rem",
-                color: "#2E1065",
-                lineHeight: 1.2,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Lukla <span style={{ color: "#7C3AED" }}>Ops Engine</span>
+            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#ffffff", letterSpacing: "-0.02em" }}>
+              Lukla <span style={{ color: "var(--jadoo-coral)" }}>Ops</span>
             </div>
-            <div
-              style={{
-                fontSize: "0.65rem",
-                color: "#84829a",
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                fontWeight: 700,
-              }}
-            >
+            <div style={{ fontSize: "0.7rem", color: "rgba(237, 233, 254, 0.75)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>
               Garment Engine v2.0
             </div>
           </div>
@@ -135,7 +110,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             fontSize: "0.68rem",
             fontWeight: 800,
             textTransform: "uppercase",
-            color: "#84829a",
+            color: "rgba(237, 233, 254, 0.7)",
             letterSpacing: "0.08em",
             padding: "6px 10px 10px",
           }}
@@ -155,11 +130,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  fontSize: "0.88rem",
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? "#ffffff" : "#5B5870",
+                  padding: "11px 14px",
+                  borderRadius: "var(--radius-md)",
+                  fontSize: "0.9rem",
+                  fontWeight: isActive ? 700 : 600,
+                  color: isActive ? "#ffffff" : "rgba(237, 233, 254, 0.85)",
                   background: isActive
                     ? "linear-gradient(135deg, #7C3AED 0%, #2E1065 100%)"
                     : "transparent",
@@ -187,11 +162,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                 {mod.badge && (
                   <span
                     style={{
-                      fontSize: "0.64rem",
-                      padding: "2px 7px",
-                      borderRadius: 9999,
-                      background: isActive ? "rgba(255,255,255,0.2)" : "#EDE9FE",
-                      color: isActive ? "#ffffff" : "#7C3AED",
+                      fontSize: "0.68rem",
+                      padding: "2px 8px",
+                      borderRadius: "var(--radius-full)",
+                      background: isActive ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.15)",
+                      color: isActive ? "#ffffff" : "#EDE9FE",
                       fontWeight: 700,
                       whiteSpace: "nowrap",
                     }}
@@ -208,9 +183,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       {/* ── Bottom: Demo Switcher & User Card ── */}
       <div
         style={{
-          padding: "14px 14px 16px",
-          borderTop: "1px solid #EDE9FE",
-          background: "#FAF8FF",
+          padding: 16,
+          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
+          background: "rgba(255, 255, 255, 0.06)",
         }}
       >
         {/* Quick Role Switcher (hackathon demo) */}
@@ -220,7 +195,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               fontSize: "0.65rem",
               fontWeight: 800,
               textTransform: "uppercase",
-              color: "#84829a",
+              color: "rgba(237, 233, 254, 0.7)",
               display: "block",
               marginBottom: 4,
               letterSpacing: "0.06em",

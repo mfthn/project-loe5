@@ -45,8 +45,19 @@ export function TopBar({ title, subtitle, onMenuClick }: TopBarProps) {
 
   return (
     <header className="topbar">
-      {/* ── Kiri: Hamburger + Judul Halaman ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <img
+          src="/Lukla.jpeg"
+          alt="Logo Lukla"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "var(--radius-sm)",
+            objectFit: "cover",
+            boxShadow: "var(--shadow-coral)",
+            flexShrink: 0,
+          }}
+        />
         {onMenuClick && (
           <button
             onClick={onMenuClick}
@@ -100,10 +111,10 @@ export function TopBar({ title, subtitle, onMenuClick }: TopBarProps) {
         </div>
       </div>
 
-      {/* ── Kanan: Clock + AI Status + User Quick Info ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {/* Live Factory Clock */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        {/* Live Factory Clock (disembunyikan di mobile) */}
         <div
+          className="font-mono topbar-clock"
           style={{
             display: "flex",
             alignItems: "center",

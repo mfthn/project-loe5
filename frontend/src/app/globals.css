@@ -1,51 +1,39 @@
 /* =========================================================================
    Lukla Operations Engine (project-loe5) - Visual Design System
-   Inspired by Sunlit Editorial & Modern High-End Craft (Warm Cream, Navy Ink, Coral & Purple)
+   White / Purple / Pink — Proporsi 60-30-10 (Spesifikasi Sistem Desain UI/UX)
    ========================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Volkhov:ital,wght@0,700;1,700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-  /* 60-30-10 Color System Tokens (Mandatory Specification) */
-  --color-bg: #FFFFFF;            /* 60% White Primary Background */
-  --color-surface: #FAF8FF;       /* Soft Surface Tint */
-  --color-purple-900: #2E1065;    /* 30% Dark Accent Heading */
-  --color-purple-700: #6D28D9;    /* Hover State Primary */
-  --color-purple-600: #7C3AED;    /* 30% Primary Brand (Buttons, Hero Cards) */
-  --color-purple-300: #C4B5FD;    /* Borders & Subtle Lines */
-  --color-purple-100: #EDE9FE;    /* Badges & Chips */
-  --color-pink-700: #BE185D;      /* 10% Pink AA-compliant text on white */
-  --color-pink-500: #EC4899;      /* 10% Pink Accent (Glow, Icons, Active Dots) */
-  --color-pink-200: #FBCFE8;      /* Ambient Mist Background Gradient */
-  --color-text-dark: #0F0F14;     /* Primary Text on Light */
-  --color-text-light: #FFFFFF;    /* Primary Text on Dark Purple */
-  --color-text-muted: #5B5870;    /* Secondary Text (WCAG AA > 4.5:1) */
+  /* Purple 30% — Struktural & Navigasi */
+  --jadoo-navy: #4C1D95;   /* Deep Purple (Primary Brand) */
+  --jadoo-ink: #1E293B;    /* Slate 800 (H2) */
+  --jadoo-text: #334155;   /* Slate 700 (Body) */
+  --jadoo-muted: #64748B;  /* Slate 500 (Caption) */
+  --jadoo-purple: #6D28D9; /* Royal Purple (Interactive) */
+  --jadoo-lilac: #A78BFA;  /* Violet 400 */
+  --jadoo-cream: #F3E8FF;  /* Soft Purple (Light Surface) */
 
-  /* Legacy & Semantic Bindings */
-  --jadoo-navy: var(--color-purple-900);
-  --jadoo-ink: var(--color-purple-900);
-  --jadoo-text: var(--color-text-muted);
-  --jadoo-muted: #84829a;
-  --jadoo-coral: var(--color-pink-500);
-  --jadoo-orange: #ff7d68;
-  --jadoo-purple: var(--color-purple-600);
-  --jadoo-lilac: var(--color-purple-300);
-  --jadoo-cream: #FAF8FF;
-  --jadoo-line: #EDE9FE;
-  --jadoo-chip: #EDE9FE;
-  --jadoo-yellow: #f1a501;
+  /* Pink 10% — Aksentuasi & Aksi Utama */
+  --jadoo-coral: #DB2777;  /* Vivid Pink (Primary Accent/CTA) */
+  --jadoo-orange: #BE185D; /* Pink Hover */
+  --jadoo-line: #E2E8F0;   /* Slate 200 (Border/Divider) */
+  --jadoo-chip: #F1F5F9;   /* Soft Slate */
+  --jadoo-yellow: #F59E0B;
 
-  /* Surfaces & Backgrounds */
-  --bg-page: #fbfbfd;
-  --bg-surface: #ffffff;
-  --bg-subtle: #f8f9fc;
-  --bg-card: #ffffff;
-  --bg-elevated: #ffffff;
+  /* White 60% — Dominan: Latar, Kartu, Pemisah */
+  --bg-page: #F8FAFC;       /* Slate 50 */
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #F1F5F9;     /* Soft Slate */
+  --bg-card: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-violet-tint: #FAF5FF;
 
   /* Borders */
-  --border-subtle: #f1f2f6;
-  --border-default: #e5e7eb;
-  --border-focus: #df6951;
+  --border-subtle: #E2E8F0; /* Slate 200 */
+  --border-default: #CBD5E1;
+  --border-focus: #6D28D9;
 
   /* Text Roles */
   --text-primary: #181e4b;
@@ -86,8 +74,8 @@
   --shadow-subtle: 0 2px 8px rgba(24, 30, 75, 0.04);
   --shadow-card: 0 10px 30px rgba(24, 30, 75, 0.06), 0 1px 3px rgba(24, 30, 75, 0.03);
   --shadow-hover: 0 20px 48px rgba(24, 30, 75, 0.1), 0 4px 12px rgba(24, 30, 75, 0.04);
-  --shadow-coral: 0 12px 28px -4px rgba(223, 105, 81, 0.35);
-  --shadow-purple: 0 12px 28px -4px rgba(98, 70, 229, 0.3);
+  --shadow-coral: 0 12px 28px -4px rgba(219, 39, 119, 0.35);
+  --shadow-purple: 0 12px 28px -4px rgba(109, 40, 217, 0.3);
 
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
@@ -103,22 +91,27 @@
 html, body {
   min-height: 100%;
   background: var(--bg-page);
-  color: var(--text-primary);
+  color: var(--jadoo-text);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip; /* dekorasi absolut tidak boleh bikin halaman geser samping */
 }
 
-/* Typography */
+/* Typography (Spesifikasi: seluruh teksSans-Serif) */
 h1, h2, h3, h4 {
   color: var(--jadoo-navy);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
 }
 
+h1 { font-size: 24px; }
+h2 { font-size: 18px; font-weight: 500; color: var(--jadoo-ink); }
+h3 { font-size: 14px; font-weight: 600; color: var(--jadoo-muted); }
+
 .font-volkhov, .heading-editorial {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
 }
 
 .font-mono {
@@ -139,8 +132,8 @@ a {
 
 .sidebar {
   width: 280px;
-  background: #ffffff;
-  border-right: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, #4C1D95 0%, #5B21B6 100%);
+  border-right: 1px solid rgba(76, 29, 149, 0.9);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -149,7 +142,7 @@ a {
   left: 0;
   z-index: 40;
   transition: transform var(--transition-normal);
-  box-shadow: 2px 0 16px rgba(24, 30, 75, 0.02);
+  box-shadow: 2px 0 16px rgba(76, 29, 149, 0.18);
 }
 
 .main-content {
@@ -230,7 +223,7 @@ a {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--color-purple-600), var(--color-purple-900));
+  background: linear-gradient(90deg, var(--jadoo-purple), var(--jadoo-coral));
 }
 
 .stat-label {
@@ -271,15 +264,15 @@ a {
 }
 
 .badge-coral {
-  background: #fff1ee;
+  background: #FCE7F3;
   color: var(--jadoo-coral);
-  border: 1px solid #ffdcd5;
+  border: 1px solid #FBCFE8;
 }
 
 .badge-purple {
-  background: #f3f0ff;
-  color: var(--jadoo-purple);
-  border: 1px solid #e2d9fd;
+  background: var(--jadoo-cream);
+  color: var(--jadoo-navy);
+  border: 1px solid #E9D5FF;
 }
 
 .badge-success {
@@ -312,15 +305,15 @@ a {
   border: 1px solid var(--border-subtle);
 }
 
-/* Buttons */
+/* Tombol (Spesifikasi: Pink CTA, Soft Purple Secondary, Outline) */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-family: var(--font-sans);
-  font-size: 0.92rem;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   padding: 12px 22px;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
@@ -335,24 +328,13 @@ a {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-purple-600) 0%, var(--color-purple-900) 100%);
-  color: #ffffff;
-  box-shadow: var(--shadow-purple);
-}
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-}
-
-/* Coral variant — digunakan di landing page CTA khusus */
-.btn-coral {
-  background: linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%);
+  background: var(--jadoo-coral);
   color: #ffffff;
   box-shadow: var(--shadow-coral);
 }
 .btn-coral:hover:not(:disabled) {
   transform: translateY(-2px);
-  filter: brightness(1.05);
+  background: var(--jadoo-orange); /* Pink 700 #BE185D */
 }
 
 .btn-purple {
@@ -362,17 +344,17 @@ a {
 }
 .btn-purple:hover:not(:disabled) {
   transform: translateY(-2px);
-  background: #543ac9;
+  background: #5B21B6;
 }
 
 .btn-secondary {
-  background: #ffffff;
-  border-color: var(--border-default);
+  background: var(--jadoo-cream); /* Soft Purple #F3E8FF */
+  border-color: transparent;
   color: var(--jadoo-navy);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-subtle);
-  border-color: #cbd5e1;
+  background: #E9D5FF;
+  border-color: transparent;
 }
 
 .btn-success {
@@ -395,11 +377,13 @@ a {
 
 .btn-ghost {
   background: transparent;
-  color: var(--jadoo-text);
+  color: var(--jadoo-muted);
+  border-color: var(--border-default);
 }
 .btn-ghost:hover:not(:disabled) {
-  background: var(--jadoo-chip);
+  background: var(--jadoo-cream);
   color: var(--jadoo-navy);
+  border-color: #E9D5FF;
 }
 
 .btn-sm {
@@ -449,8 +433,8 @@ a {
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   outline: none;
-  border-color: var(--jadoo-coral);
-  box-shadow: 0 0 0 4px rgba(223, 105, 81, 0.12);
+  border-color: var(--jadoo-purple);
+  box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.15);
 }
 
 .form-input::placeholder, .form-textarea::placeholder {
@@ -481,9 +465,9 @@ a {
 }
 
 .table th {
-  background: #f8f9fc;
-  color: var(--jadoo-muted);
-  font-size: 0.78rem;
+  background: #F1F5F9;
+  color: var(--jadoo-navy);
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -503,15 +487,15 @@ a {
 }
 
 .table tr:hover td {
-  background: #fafbfc;
-  color: var(--jadoo-navy);
+  background: var(--bg-violet-tint); /* Soft Purple #FAF5FF */
+  color: var(--jadoo-ink);
 }
 
 /* Modals */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(20, 24, 62, 0.45);
+  background: rgba(76, 29, 149, 0.35);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -578,9 +562,9 @@ a {
   background: var(--jadoo-cream);
   padding: 20px 36px;
   border-radius: var(--radius-lg);
-  border: 1px solid #ffdcb0;
+  border: 1px solid #E9D5FF;
   display: inline-block;
-  box-shadow: inset 0 2px 8px rgba(223, 105, 81, 0.08);
+  box-shadow: inset 0 2px 8px rgba(109, 40, 217, 0.08);
 }
 
 /* Chat Assistant Window */
@@ -615,10 +599,10 @@ a {
 
 .chat-bubble-user {
   align-self: flex-end;
-  background: linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%);
+  background: linear-gradient(135deg, var(--jadoo-purple) 0%, var(--jadoo-coral) 100%);
   color: #ffffff;
   border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 16px rgba(223, 105, 81, 0.25);
+  box-shadow: 0 4px 16px rgba(219, 39, 119, 0.25);
 }
 
 .chat-bubble-ai {
@@ -638,6 +622,111 @@ a {
   color: var(--jadoo-muted);
 }
 
+/* Markdown rendering di bubble AI (tebal / judul / list tanpa simbol mentah) */
+.md-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.md-p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.md-h,
+.md-h3,
+.md-h4 {
+  font-weight: 800;
+  color: var(--jadoo-navy);
+  line-height: 1.4;
+  margin: 6px 0 2px;
+}
+
+.md-h {
+  font-size: 1.08rem;
+}
+
+.md-h3 {
+  font-size: 1rem;
+}
+
+.md-h4 {
+  font-size: 0.94rem;
+}
+
+.md-ul,
+.md-ol {
+  margin: 4px 0 4px 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.6;
+}
+
+.md-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.md-link {
+  color: var(--jadoo-purple);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.md-link-placeholder {
+  font-weight: 600;
+}
+
+/* Bubble bantuan AI melayang */
+.ai-bubble-root {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ai-chat-window {
+  width: 380px;
+  max-width: calc(100vw - 48px);
+  height: 520px;
+  max-height: calc(100vh - 140px);
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px -12px rgba(24, 30, 75, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ai-bubble-btn {
+  transition: transform 0.2s ease;
+  animation: ai-bubble-pulse 2.4s infinite;
+}
+
+.ai-bubble-btn:hover {
+  transform: scale(1.08);
+}
+
+@keyframes ai-bubble-pulse {
+  0%, 100% {
+    box-shadow: 0 10px 28px rgba(219, 39, 119, 0.4);
+  }
+  50% {
+    box-shadow: 0 10px 34px rgba(219, 39, 119, 0.6), 0 0 0 10px rgba(219, 39, 119, 0.08);
+  }
+}
+
 /* Decorative Plus Grid (from design reference) */
 .plus-grid {
   display: grid;
@@ -648,6 +737,158 @@ a {
   color: #e5e5e5;
   user-select: none;
   pointer-events: none;
+}
+
+/* Gambar tidak pernah meluber dari kontainer */
+img {
+  max-width: 100%;
+}
+
+/* Kontainer tabel generik (dipakai sample/page escalation) */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Footer ramping area login + watermark kreator */
+.app-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: 18px 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--jadoo-muted);
+  background: var(--bg-surface);
+}
+
+.watermark {
+  font-weight: 700;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--jadoo-purple) 0%, var(--jadoo-coral) 100%);
+  padding: 5px 16px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 12px rgba(219, 39, 119, 0.3);
+  display: inline-block;
+}
+
+/* ===== Landing footer ===== */
+.landing-footer {
+  padding: 60px 28px 40px;
+}
+
+.landing-footer-links {
+  display: contents;
+}
+
+.landing-footer-bottom {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--jadoo-muted);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.landing-footer-meta {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+/* ===== Landing page: layout desktop ===== */
+.landing-nav-links {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+
+.landing-nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.landing-hamburger {
+  display: none;
+}
+
+.landing-mobile-menu {
+  display: none;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.hero-section {
+  padding: 60px 28px 90px;
+  overflow: hidden; /* jepit glow dekoratif agar tidak meluber */
+}
+
+.hero-mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.hero-title {
+  font-size: clamp(2rem, 4.5vw, 3.4rem);
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--jadoo-ink);
+  margin-bottom: 24px;
+}
+
+.hero-cta-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.hero-metrics {
+  display: flex;
+  gap: 32px;
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.landing-section {
+  padding: 100px 28px;
+}
+
+.landing-footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 48px;
+}
+
+.login-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) 1fr;
+  gap: 32px;
+  align-items: start;
 }
 
 /* Responsive */
@@ -663,10 +904,151 @@ a {
     max-width: 100vw;
   }
   .topbar {
-    padding: 0 20px;
+    padding: 0 16px;
+    height: auto;
+    min-height: 64px;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .topbar-clock {
+    display: none;
   }
   .page-body {
-    padding: 20px;
+    padding: 16px;
+  }
+  .app-footer {
+    padding: 14px 16px;
+    justify-content: center;
+    text-align: center;
+  }
+  .card, .card-elevated {
+    padding: 18px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .stat-value {
+    font-size: 1.5rem;
+  }
+  .chat-window {
+    height: calc(100dvh - 280px);
+    min-height: 440px;
+  }
+  .chat-messages {
+    padding: 16px;
+  }
+  .chat-bubble {
+    max-width: 94%;
+    padding: 12px 14px;
+  }
+  .chat-window .form-input {
+    min-width: 0;
+  }
+  .digital-clock {
+    font-size: 2.4rem;
+  }
+  .modal-content {
+    padding: 22px;
+  }
+  .btn-lg {
+    padding: 12px 20px;
+    font-size: 0.95rem;
+  }
+
+  /* Landing */
+  .landing-nav-links,
+  .landing-nav-cta {
+    display: none;
+  }
+  .landing-hamburger {
+    display: inline-flex;
+  }
+  .landing-mobile-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 28px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: #fff;
+  }
+  .landing-mobile-menu a,
+  .landing-mobile-menu button {
+    text-align: left;
+    padding: 10px 4px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--jadoo-text);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 1px solid var(--bg-subtle);
+  }
+  .hero-grid,
+  .workflow-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .hero-section {
+    padding: 40px 20px 60px;
+  }
+  .hero-cta-row .btn {
+    flex: 1 1 100%;
+  }
+  .hero-mini-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Chatbot AI jadi lembar hampir selayar di HP */
+  .ai-bubble-root {
+    bottom: 12px;
+    right: 12px;
+  }
+  .ai-chat-window {
+    width: calc(100vw - 24px);
+    max-width: none;
+    height: calc(100dvh - 96px);
+    max-height: none;
+  }
+  .landing-section {
+    padding: 60px 20px;
+  }
+  .landing-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .landing-footer {
+    padding: 40px 20px 120px; /* ruang bawah agar tombol AI melayang tidak menutupi watermark */
+  }
+  .landing-footer-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .landing-footer-bottom {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+  }
+  .landing-footer-meta {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .landing-footer-meta .dot {
+    display: none;
+  }
+  .login-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Layout sidebar + konten (QC, sample, produksi) jadi susun bawah di HP */
+  .split-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
   }
 }
 

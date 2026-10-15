@@ -5,12 +5,9 @@ import { AuthProvider } from "../lib/auth-context";
 export const metadata = {
   title: "Lukla Operations Engine — Platform Operasional Pabrik Garmen",
   description:
-    "Platform operasional terpadu pabrik garmen maklon Lukla Manufacturing Ciwidey: Gudang Multi-Klien, Sample Stopwatch, Terminal Produksi 30m, QC Defect Tracking, Payroll Engine, dan AI Dual-Assistant.",
-  keywords: "maklon garmen, pabrik garmen, CMT, Semi-CMT, Full Package, Ciwidey, Lukla Manufacturing, Snøhund",
-  openGraph: {
-    title: "Lukla Operations Engine",
-    description: "Pabrik garmen terkendali. Transparan dari Cutting hingga Jahit.",
-    type: "website",
+    "Platform Operasional Terpadu Konveksi Garmen Ciwidey: Gudang Multi-Klien, Sample Stopwatch, Terminal 30m, QC Defect, Payroll Engine Sabtu, dan AI Dual-Assistant.",
+  icons: {
+    icon: "/favicon.png",
   },
 };
 

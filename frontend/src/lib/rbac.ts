@@ -9,7 +9,9 @@ export type AppModule =
   | "payroll"
   | "rekap-gaji"
   | "portal-klien"
-  | "ai-assistant";
+  | "ai-assistant"
+  | "konsultasi"
+  | "analisis";
 
 // Matriks RBAC resmi sesuai dokumen SRS v2.0 & dokumen SOP autentikasi
 export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
@@ -21,15 +23,15 @@ export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
     "qc",
     "payroll",
     "portal-klien",
-    "ai-assistant",
+    "analisis",
   ],
   TIM_SAMPLE: ["dashboard", "sample"],
   GUDANG: ["dashboard", "gudang"],
   MANDOR: ["dashboard", "produksi", "qc"],
   PENJAHIT: ["dashboard"],
   QC_INSPECTOR: ["dashboard", "qc", "gudang"],
-  FINANCE_PAYROLL: ["dashboard", "payroll"],
-  KLIEN_MAKLON: ["dashboard", "portal-klien", "ai-assistant"],
+  FINANCE_PAYROLL: ["dashboard", "payroll", "ai-assistant"],
+  KLIEN_MAKLON: ["dashboard", "portal-klien", "konsultasi"],
 };
 
 export interface ModuleMetadata {
@@ -106,6 +108,22 @@ export const MODULE_REGISTRY: Record<AppModule, ModuleMetadata> = {
     icon: "🤖",
     badge: "Bedrock RAG",
     description: "Asisten cerdas dual-persona: Owner Business Tracker & Konsultan Maklon Calon Klien.",
+  },
+  konsultasi: {
+    id: "konsultasi",
+    label: "Konsultasi Maklon",
+    href: "/konsultasi",
+    icon: "🤝",
+    badge: "Bedrock RAG",
+    description: "Chatbot konsultasi maklon: skema CMT, estimasi sample, MOQ, dan negosiasi pesanan.",
+  },
+  analisis: {
+    id: "analisis",
+    label: "Analisis Operasional",
+    href: "/analisis",
+    icon: "📊",
+    badge: "Bedrock RAG",
+    description: "Chatbot analisis owner: kapasitas produksi, tren QC, payroll, dan prioritas order.",
   },
 };
 

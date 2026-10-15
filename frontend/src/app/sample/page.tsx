@@ -256,6 +256,7 @@ export default function SamplePage() {
       </div>
 
       <div
+        className="split-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "300px 1fr",
