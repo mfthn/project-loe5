@@ -31,7 +31,7 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
           gap: 16,
         }}
       >
-        <div style={{ fontSize: "2rem" }}>🏔️</div>
+        <img src="/Lukla.jpeg" alt="Logo Lukla" style={{ width: 48, height: 48, borderRadius: "var(--radius-md)", objectFit: "cover" }} />
         <div style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
           Memuat sesi Lukla Operations Engine...
         </div>
@@ -72,6 +72,19 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
   return (
     <div className="app-container">
       <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+      {/* Backdrop penutup sidebar di mobile */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(20, 24, 62, 0.45)",
+            zIndex: 35,
+          }}
+        />
+      )}
       <div className="main-content">
         <TopBar
           title={title}
@@ -97,6 +110,10 @@ export function AppLayout({ children, title, subtitle, requiredModule }: AppLayo
             children
           )}
         </main>
+        <footer className="app-footer">
+          <span>© 2026 Lukla Operations Engine (project-loe5)</span>
+          <span className="watermark">Made with ♥ @makewithteeam5</span>
+        </footer>
       </div>
     </div>
   );

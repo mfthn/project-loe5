@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.core.swagger import register_responsive_docs
 # Registrasi seluruh model ORM agar metadata foreign key terhubung utuh
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.gudang import models as gudang_models  # noqa: F401
@@ -23,7 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        docs_url="/docs",
+        docs_url=None,  # diganti halaman /docs responsif via register_responsive_docs
         openapi_url="/openapi.json",
     )
 
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router, prefix="/api/v1")
+    register_responsive_docs(app, title=f"{settings.app_name} - API Docs")
     return app
 
 

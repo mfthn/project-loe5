@@ -49,7 +49,7 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse at top center, #fff1da 0%, #fbfbfd 70%)",
+        background: "radial-gradient(ellipse at top center, #F3E8FF 0%, #F8FAFC 70%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -60,22 +60,18 @@ export default function LoginPage() {
         {/* Brand Header */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <Link href="/" style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
-            <div
+            <img
+              src="/Lukla.jpeg"
+              alt="Logo Lukla"
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
                 width: 60,
                 height: 60,
                 borderRadius: "var(--radius-lg)",
-                background: "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)",
-                fontSize: "1.8rem",
+                objectFit: "cover",
                 boxShadow: "var(--shadow-coral)",
                 marginBottom: 16,
               }}
-            >
-              🏔️
-            </div>
+            />
             <h1
               className="heading-editorial"
               style={{
@@ -95,12 +91,7 @@ export default function LoginPage() {
         {errorMsg && <Notice type="danger" message={errorMsg} onClose={() => setErrorMsg(null)} />}
 
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(320px, 380px) 1fr",
-            gap: 32,
-            alignItems: "start",
-          }}
+          className="login-grid"
         >
           {/* Manual Login Form */}
           <div className="card-elevated">

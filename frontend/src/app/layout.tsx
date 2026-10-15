@@ -6,6 +6,9 @@ export const metadata = {
   title: "Lukla Operations Engine (project-loe5)",
   description:
     "Platform Operasional Terpadu Konveksi Garmen Ciwidey: Gudang Multi-Klien, Sample Stopwatch, Terminal 30m, QC Defect, Payroll Engine Sabtu, dan AI Dual-Assistant.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

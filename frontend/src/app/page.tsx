@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useAuth, DEMO_ACCOUNTS } from "../lib/auth-context";
+import { AiHelpBubble } from "../components/AiHelpBubble";
+import { openPublicChat } from "../lib/public-chat";
 
 // PlusGrid dekoratif seperti di nextjs-react-fe
 function PlusGrid({ className = "" }: { className?: string }) {
@@ -42,6 +44,7 @@ function PlusGrid({ className = "" }: { className?: string }) {
 export default function LandingPage() {
   const { user } = useAuth();
   const [activeService, setActiveService] = useState<number>(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const services = [
     {
@@ -110,21 +113,18 @@ export default function LandingPage() {
         }}
       >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
+          <img
+            src="/Lukla.jpeg"
+            alt="Logo Lukla"
             style={{
               width: 44,
               height: 44,
               borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.3rem",
+              objectFit: "cover",
               boxShadow: "var(--shadow-coral)",
+              flexShrink: 0,
             }}
-          >
-            🏔️
-          </div>
+          />
           <div>
             <div style={{ fontSize: "1.35rem", fontWeight: 800, letterSpacing: "-0.03em", color: "var(--jadoo-navy)" }}>
               Lukla <span style={{ color: "var(--jadoo-coral)" }}>Ops</span>
@@ -136,7 +136,7 @@ export default function LandingPage() {
         </Link>
 
         {/* Center Links */}
-        <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
+        <div className="landing-nav-links">
           <a href="#services" style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-text)" }}>
             Fitur Operasional
           </a>
@@ -146,13 +146,13 @@ export default function LandingPage() {
           <a href="#workflow" style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-text)" }}>
             Alur 3 Langkah
           </a>
-          <Link href="/ai-assistant" style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-purple)" }}>
+          <button onClick={openPublicChat} style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-purple)", background: "none", border: "none", cursor: "pointer" }}>
             AI Assistant ✨
-          </Link>
+          </button>
         </div>
 
         {/* Right CTA */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div className="landing-nav-cta">
           {user ? (
             <Link href="/dashboard" className="btn btn-primary">
               Buka Dashboard ({user.role}) →
@@ -168,18 +168,42 @@ export default function LandingPage() {
             </>
           )}
         </div>
+
+        {/* Hamburger (mobile) */}
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          aria-label="Buka menu navigasi"
+          className="btn btn-secondary btn-sm landing-hamburger"
+          style={{ fontSize: "1.2rem", padding: "8px 12px" }}
+        >
+          {mobileMenuOpen ? "✕" : "☰"}
+        </button>
       </nav>
+
+      {/* Mobile dropdown menu */}
+      {mobileMenuOpen && (
+        <div className="landing-mobile-menu">
+          <a href="#services" onClick={() => setMobileMenuOpen(false)}>Fitur Operasional</a>
+          <a href="#schemes" onClick={() => setMobileMenuOpen(false)}>Skema Maklon</a>
+          <a href="#workflow" onClick={() => setMobileMenuOpen(false)}>Alur 3 Langkah</a>
+          <button onClick={() => { setMobileMenuOpen(false); openPublicChat(); }}>AI Assistant ✨</button>
+          {user ? (
+            <Link href="/dashboard">Buka Dashboard ({user.role}) →</Link>
+          ) : (
+            <>
+              <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Masuk Sistem</Link>
+              <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Coba Demo RBAC →</Link>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Hero Section */}
       <section
+        className="hero-grid hero-section"
         style={{
           maxWidth: 1240,
           margin: "0 auto",
-          padding: "60px 28px 90px",
-          display: "grid",
-          gridTemplateColumns: "1.15fr 1fr",
-          gap: 48,
-          alignItems: "center",
           position: "relative",
         }}
       >
@@ -216,14 +240,7 @@ export default function LandingPage() {
           </p>
 
           <h1
-            className="heading-editorial"
-            style={{
-              fontSize: "3.4rem",
-              lineHeight: 1.15,
-              fontWeight: 700,
-              color: "var(--jadoo-ink)",
-              marginBottom: 24,
-            }}
+            className="heading-editorial hero-title"
           >
             Operasional Pabrik Terpadu dengan Kapasitas <span style={{ color: "var(--jadoo-coral)" }}>±70 Mesin</span>
           </h1>
@@ -240,24 +257,18 @@ export default function LandingPage() {
             Platform operasional lengkap untuk <em>Lukla Manufacturing & Snøhund Brand Management</em>. Melayani pesanan internal dan brand klien secara paralel dengan proteksi anti-kontaminasi gudang, terminal output 30 menit, dan payroll audit lock Sabtu permanen.
           </p>
 
-          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="hero-cta-row">
             <Link href="/login" className="btn btn-primary btn-lg">
               Buka Dashboard Operasional →
             </Link>
-            <Link href="/ai-assistant" className="btn btn-secondary btn-lg" style={{ borderColor: "#ffdcd5" }}>
+            <button onClick={openPublicChat} className="btn btn-secondary btn-lg" style={{ borderColor: "#E9D5FF" }}>
               💬 Tanya AI Konsultan Maklon
-            </Link>
+            </button>
           </div>
 
           {/* Quick Metrics Under CTA */}
           <div
-            style={{
-              display: "flex",
-              gap: 32,
-              marginTop: 48,
-              paddingTop: 28,
-              borderTop: "1px solid var(--border-subtle)",
-            }}
+            className="hero-metrics"
           >
             <div>
               <div className="font-mono" style={{ fontSize: "1.7rem", fontWeight: 800, color: "var(--jadoo-navy)" }}>
@@ -333,11 +344,7 @@ export default function LandingPage() {
 
             {/* Mini Floating Card on Top (Like in Jadoo) */}
             <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 14,
-              }}
+              className="hero-mini-grid"
             >
               <div style={{ background: "var(--jadoo-cream)", padding: 14, borderRadius: "var(--radius-md)" }}>
                 <div style={{ fontSize: "0.75rem", color: "var(--jadoo-muted)", fontWeight: 700, textTransform: "uppercase" }}>
@@ -389,7 +396,7 @@ export default function LandingPage() {
           <h2
             className="heading-editorial"
             style={{
-              fontSize: "2.8rem",
+              fontSize: "clamp(1.7rem, 4vw, 2.8rem)",
               fontWeight: 700,
               color: "var(--jadoo-ink)",
             }}
@@ -416,7 +423,7 @@ export default function LandingPage() {
                   borderRadius: "var(--radius-xl)",
                   padding: "36px 28px",
                   textAlign: "center",
-                  border: isHovered ? "1px solid #ffdcd5" : "1px solid var(--border-subtle)",
+                  border: isHovered ? "1px solid #E9D5FF" : "1px solid var(--border-subtle)",
                   boxShadow: isHovered ? "var(--shadow-hover)" : "var(--shadow-card)",
                   transition: "all var(--transition-normal)",
                   position: "relative",
@@ -500,7 +507,7 @@ export default function LandingPage() {
             <h2
               className="heading-editorial"
               style={{
-                fontSize: "2.8rem",
+                fontSize: "clamp(1.7rem, 4vw, 2.8rem)",
                 fontWeight: 700,
                 color: "var(--jadoo-ink)",
               }}
@@ -512,7 +519,7 @@ export default function LandingPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
               gap: 28,
             }}
           >
@@ -553,14 +560,10 @@ export default function LandingPage() {
       {/* 3 Steps Workflow Section (Inspired by Jadoo Book a trip) */}
       <section
         id="workflow"
+        className="workflow-grid landing-section"
         style={{
           maxWidth: 1240,
           margin: "0 auto",
-          padding: "100px 28px",
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 60,
-          alignItems: "center",
         }}
       >
         <div>
@@ -579,7 +582,7 @@ export default function LandingPage() {
           <h2
             className="heading-editorial"
             style={{
-              fontSize: "2.8rem",
+              fontSize: "clamp(1.7rem, 4vw, 2.8rem)",
               fontWeight: 700,
               lineHeight: 1.2,
               color: "var(--jadoo-ink)",
@@ -706,28 +709,23 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <Link href="/ai-assistant" className="btn btn-primary" style={{ width: "100%" }}>
+          <button onClick={openPublicChat} className="btn btn-primary" style={{ width: "100%" }}>
             Mulai Percakapan dengan AI →
-          </Link>
+          </button>
         </div>
       </section>
 
       {/* Footer */}
       <footer
+        className="landing-footer"
         style={{
           borderTop: "1px solid var(--border-subtle)",
-          padding: "60px 28px 40px",
           maxWidth: 1240,
           margin: "0 auto",
         }}
       >
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.5fr 1fr 1fr",
-            gap: 40,
-            marginBottom: 48,
-          }}
+          className="landing-footer-grid"
         >
           <div>
             <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--jadoo-navy)", marginBottom: 12 }}>
@@ -738,6 +736,7 @@ export default function LandingPage() {
             </p>
           </div>
 
+          <div className="landing-footer-links">
           <div>
             <h4 style={{ fontSize: "1rem", color: "var(--jadoo-navy)", marginBottom: 16 }}>Modul Utama</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: "0.9rem", color: "var(--jadoo-text)" }}>
@@ -754,33 +753,25 @@ export default function LandingPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: "0.9rem", color: "var(--jadoo-text)" }}>
               <Link href="/login">Masuk Akun Sistem</Link>
               <Link href="/portal-klien">Portal Klien Maklon</Link>
-              <Link href="/ai-assistant">AI Dual-Assistant</Link>
+              <button onClick={openPublicChat} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "0.9rem", color: "var(--jadoo-text)", textAlign: "left" }}>AI Konsultan Maklon (Publik)</button>
               <a href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API Documentation</a>
             </div>
           </div>
+          </div>
         </div>
 
-        <div
-          style={{
-            borderTop: "1px solid var(--border-subtle)",
-            paddingTop: 24,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: "0.85rem",
-            color: "var(--jadoo-muted)",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
+        <div className="landing-footer-bottom">
           <div>© 2026 Lukla Operations Engine (project-loe5). All rights reserved.</div>
-          <div style={{ display: "flex", gap: 16 }}>
+          <div className="watermark">Made with ♥ @makewithteeam5</div>
+          <div className="landing-footer-meta">
             <span>Ciwidey, Bandung, Jawa Barat</span>
-            <span>•</span>
+            <span className="dot">•</span>
             <span>PostgreSQL 16 & AWS Bedrock RAG</span>
           </div>
         </div>
       </footer>
+
+      <AiHelpBubble />
     </div>
   );
 }

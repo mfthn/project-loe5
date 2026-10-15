@@ -156,6 +156,7 @@ export default function QCPage() {
 
       {/* Main Grid: Orders & Inspections */}
       <div
+        className="split-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "300px 1fr",

@@ -171,6 +171,7 @@ export default function ProduksiPage() {
       </div>
 
       <div
+        className="split-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "320px 1fr",

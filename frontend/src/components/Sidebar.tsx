@@ -32,33 +32,30 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       <div
         style={{
           padding: "24px 22px 20px",
-          borderBottom: "1px solid var(--border-subtle)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
+          <img
+            src="/Lukla.jpeg"
+            alt="Logo Lukla"
             style={{
               width: 40,
               height: 40,
               borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.25rem",
+              objectFit: "cover",
               boxShadow: "var(--shadow-coral)",
+              flexShrink: 0,
             }}
-          >
-            🏔️
-          </div>
+          />
           <div>
-            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--jadoo-navy)", letterSpacing: "-0.02em" }}>
+            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#ffffff", letterSpacing: "-0.02em" }}>
               Lukla <span style={{ color: "var(--jadoo-coral)" }}>Ops</span>
             </div>
-            <div style={{ fontSize: "0.7rem", color: "var(--jadoo-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>
+            <div style={{ fontSize: "0.7rem", color: "rgba(237, 233, 254, 0.75)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>
               Garment Engine v2.0
             </div>
           </div>
@@ -81,7 +78,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             fontSize: "0.72rem",
             fontWeight: 800,
             textTransform: "uppercase",
-            color: "var(--jadoo-muted)",
+            color: "rgba(237, 233, 254, 0.7)",
             letterSpacing: "0.08em",
             padding: "8px 12px 12px",
           }}
@@ -105,7 +102,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   borderRadius: "var(--radius-md)",
                   fontSize: "0.9rem",
                   fontWeight: isActive ? 700 : 600,
-                  color: isActive ? "#ffffff" : "var(--jadoo-navy)",
+                  color: isActive ? "#ffffff" : "rgba(237, 233, 254, 0.85)",
                   background: isActive
                     ? "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)"
                     : "transparent",
@@ -123,8 +120,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                       fontSize: "0.68rem",
                       padding: "2px 8px",
                       borderRadius: "var(--radius-full)",
-                      background: isActive ? "rgba(255, 255, 255, 0.25)" : "var(--jadoo-chip)",
-                      color: isActive ? "#ffffff" : "var(--jadoo-purple)",
+                      background: isActive ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.15)",
+                      color: isActive ? "#ffffff" : "#EDE9FE",
                       fontWeight: 700,
                     }}
                   >
@@ -141,8 +138,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       <div
         style={{
           padding: 16,
-          borderTop: "1px solid var(--border-subtle)",
-          background: "var(--bg-subtle)",
+          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
+          background: "rgba(255, 255, 255, 0.06)",
         }}
       >
         {/* Quick Role Switcher for Hackathon Demo */}
@@ -152,7 +149,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               fontSize: "0.7rem",
               fontWeight: 800,
               textTransform: "uppercase",
-              color: "var(--jadoo-muted)",
+              color: "rgba(237, 233, 254, 0.7)",
               display: "block",
               marginBottom: 4,
             }}

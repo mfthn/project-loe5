@@ -202,7 +202,7 @@ export default function DashboardPage() {
         style={{
           marginBottom: 32,
           background: "linear-gradient(135deg, var(--jadoo-cream) 0%, #ffffff 100%)",
-          border: "1px solid #ffdcb0",
+          border: "1px solid #E9D5FF",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>

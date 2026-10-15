@@ -71,7 +71,7 @@ export default function PortalKlienPage() {
             </div>
           </div>
 
-          <Link href="/ai-assistant" className="btn btn-primary">
+          <Link href="/konsultasi" className="btn btn-primary">
             💬 Tanya AI Konsultan Maklon →
           </Link>
         </div>
