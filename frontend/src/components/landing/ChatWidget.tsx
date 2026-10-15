@@ -23,6 +23,7 @@ const QUICK_PROMPTS = [
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -88,35 +89,39 @@ export function ChatWidget() {
 
   return (
     <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999 }}>
-      {/* Floating Avatar Trigger with Speech Bubble Prompt (Inspired by User Screenshot) */}
+      {/* Floating Avatar Trigger with Speech Bubble Prompt on Hover */}
       {!isOpen && (
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 14 }}>
-          {/* Floating Speech Bubble Prompt */}
-          <div
-            style={{
-              background: "#ffffff",
-              borderRadius: 20,
-              padding: "16px 18px",
-              boxShadow: "0 14px 36px rgba(46, 16, 101, 0.16)",
-              border: "1.5px solid #EDE9FE",
-              maxWidth: 240,
-              position: "relative",
-              fontSize: "0.86rem",
-              color: "#2E1065",
-              lineHeight: 1.45,
-              animation: "fadeInUp 0.3s ease",
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 4, color: "#7C3AED", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Asisten SOP Maklon
-            </div>
+        <div
+          style={{ display: "flex", alignItems: "flex-end", gap: 14 }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          {/* Floating Speech Bubble Prompt (Only appears when cursor hovers over avatar) */}
+          {isHovered && (
             <div
-              onClick={() => setIsOpen(true)}
-              style={{ cursor: "pointer", fontWeight: 600 }}
+              style={{
+                background: "#ffffff",
+                borderRadius: 20,
+                padding: "16px 18px",
+                boxShadow: "0 14px 36px rgba(46, 16, 101, 0.16)",
+                border: "1.5px solid #EDE9FE",
+                maxWidth: 240,
+                position: "relative",
+                fontSize: "0.86rem",
+                color: "#2E1065",
+                lineHeight: 1.45,
+                animation: "fadeInUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                pointerEvents: "none",
+              }}
             >
-              Mau konsultasi skema maklon atau alur sample? Tanyakan langsung di sini!
+              <div style={{ fontWeight: 700, marginBottom: 4, color: "#7C3AED", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Asisten SOP Maklon
+              </div>
+              <div style={{ fontWeight: 600 }}>
+                Mau konsultasi skema maklon atau alur sample? Tanyakan langsung di sini!
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Circular Avatar Button with Green Ring (Like Samsung/Telco Style) */}
           <button
@@ -130,22 +135,17 @@ export function ChatWidget() {
               background: "#ffffff",
               padding: 4,
               border: "3px solid #10B981", // Green active circle ring
-              boxShadow: "0 10px 28px rgba(16, 185, 129, 0.35), 0 4px 12px rgba(46, 16, 101, 0.12)",
+              boxShadow: isHovered
+                ? "0 14px 32px rgba(16, 185, 129, 0.45), 0 6px 16px rgba(46, 16, 101, 0.16)"
+                : "0 10px 28px rgba(16, 185, 129, 0.35), 0 4px 12px rgba(46, 16, 101, 0.12)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               position: "relative",
+              transform: isHovered ? "scale(1.06) translateY(-2px)" : "scale(1) translateY(0)",
               transition: "transform 0.25s ease, box-shadow 0.25s ease",
               flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.06) translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 14px 32px rgba(16, 185, 129, 0.45)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1) translateY(0)";
-              e.currentTarget.style.boxShadow = "0 10px 28px rgba(16, 185, 129, 0.35), 0 4px 12px rgba(46, 16, 101, 0.12)";
             }}
           >
             {/* L5 Brand Avatar Icon */}
