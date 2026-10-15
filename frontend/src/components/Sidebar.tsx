@@ -2,9 +2,22 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth, DEMO_ACCOUNTS } from "../lib/auth-context";
 import { getAllowedModules } from "../lib/rbac";
+
+// Icon warna per role dari DESIGN.md (purple brand primary)
+const ROLE_COLORS: Record<string, string> = {
+  OWNER: "#7C3AED",
+  FINANCE_PAYROLL: "#059669",
+  MANDOR_LINE: "#d97706",
+  MANDOR_QC: "#0284c7",
+  MANDOR_GUDANG: "#BE185D",
+  OPERATOR_GUDANG: "#EC4899",
+  KLIEN: "#6D28D9",
+  KLIEN_INTERNAL: "#2E1065",
+};
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
@@ -26,70 +39,111 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
     }
   };
 
+  const roleColor = ROLE_COLORS[user?.role || ""] || "#7C3AED";
+  const userInitial = user?.name?.charAt(0)?.toUpperCase() || "?";
+
   return (
     <aside className={`sidebar ${isOpen ? "open" : ""}`}>
-      {/* Brand Logo & Header */}
+      {/* ── Brand Header ── */}
       <div
         style={{
-          padding: "24px 22px 20px",
-          borderBottom: "1px solid var(--border-subtle)",
+          padding: "20px 18px 18px",
+          borderBottom: "1px solid #EDE9FE",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: 10,
         }}
       >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          {/* Icon L5 (icon.jpeg) */}
           <div
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.25rem",
-              boxShadow: "var(--shadow-coral)",
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              overflow: "hidden",
+              flexShrink: 0,
+              boxShadow: "0 4px 10px rgba(124, 58, 237, 0.28)",
             }}
           >
-            🏔️
+            <Image
+              src="/icon.jpeg"
+              alt="Lukla L5 Logo"
+              width={38}
+              height={38}
+              style={{ objectFit: "cover", width: "100%", height: "100%" }}
+              priority
+            />
           </div>
+
           <div>
-            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--jadoo-navy)", letterSpacing: "-0.02em" }}>
-              Lukla <span style={{ color: "var(--jadoo-coral)" }}>Ops</span>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: "0.95rem",
+                color: "#2E1065",
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Lukla <span style={{ color: "#7C3AED" }}>Ops Engine</span>
             </div>
-            <div style={{ fontSize: "0.7rem", color: "var(--jadoo-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>
+            <div
+              style={{
+                fontSize: "0.65rem",
+                color: "#84829a",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 700,
+              }}
+            >
               Garment Engine v2.0
             </div>
           </div>
         </Link>
+
+        {/* Close button (mobile) */}
         {onClose && (
           <button
             onClick={onClose}
-            className="btn btn-ghost btn-sm"
-            style={{ display: "none" }}
+            aria-label="Tutup sidebar"
+            style={{
+              background: "transparent",
+              border: "1px solid #EDE9FE",
+              borderRadius: 8,
+              width: 30,
+              height: 30,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "#5B5870",
+              fontSize: "1rem",
+              flexShrink: 0,
+            }}
           >
-            ×
+            ✕
           </button>
         )}
       </div>
 
-      {/* Navigation Modules */}
-      <div style={{ flex: 1, padding: "18px 14px", overflowY: "auto" }}>
+      {/* ── Navigation Modules ── */}
+      <div style={{ flex: 1, padding: "14px 12px", overflowY: "auto" }}>
         <div
           style={{
-            fontSize: "0.72rem",
+            fontSize: "0.68rem",
             fontWeight: 800,
             textTransform: "uppercase",
-            color: "var(--jadoo-muted)",
+            color: "#84829a",
             letterSpacing: "0.08em",
-            padding: "8px 12px 12px",
+            padding: "6px 10px 10px",
           }}
         >
-          Modul Operasional Pabrik
+          Modul Operasional
         </div>
 
-        <nav style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {modules.map((mod) => {
             const isActive = pathname === mod.href || pathname.startsWith(`${mod.href}/`);
             return (
@@ -101,31 +155,45 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "11px 14px",
-                  borderRadius: "var(--radius-md)",
-                  fontSize: "0.9rem",
-                  fontWeight: isActive ? 700 : 600,
-                  color: isActive ? "#ffffff" : "var(--jadoo-navy)",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  fontSize: "0.88rem",
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? "#ffffff" : "#5B5870",
                   background: isActive
-                    ? "linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%)"
+                    ? "linear-gradient(135deg, #7C3AED 0%, #2E1065 100%)"
                     : "transparent",
-                  boxShadow: isActive ? "var(--shadow-coral)" : "none",
-                  transition: "all var(--transition-fast)",
+                  boxShadow: isActive ? "0 6px 16px rgba(124, 58, 237, 0.28)" : "none",
+                  transition: "all 0.15s ease",
+                  textDecoration: "none",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = "#FAF8FF";
+                    e.currentTarget.style.color = "#2E1065";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "#5B5870";
+                  }
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: "1.15rem" }}>{mod.icon}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>{mod.icon}</span>
                   <span>{mod.label}</span>
                 </div>
                 {mod.badge && (
                   <span
                     style={{
-                      fontSize: "0.68rem",
-                      padding: "2px 8px",
-                      borderRadius: "var(--radius-full)",
-                      background: isActive ? "rgba(255, 255, 255, 0.25)" : "var(--jadoo-chip)",
-                      color: isActive ? "#ffffff" : "var(--jadoo-purple)",
+                      fontSize: "0.64rem",
+                      padding: "2px 7px",
+                      borderRadius: 9999,
+                      background: isActive ? "rgba(255,255,255,0.2)" : "#EDE9FE",
+                      color: isActive ? "#ffffff" : "#7C3AED",
                       fontWeight: 700,
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {mod.badge}
@@ -137,27 +205,28 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         </nav>
       </div>
 
-      {/* Bottom User Profile & Switcher */}
+      {/* ── Bottom: Demo Switcher & User Card ── */}
       <div
         style={{
-          padding: 16,
-          borderTop: "1px solid var(--border-subtle)",
-          background: "var(--bg-subtle)",
+          padding: "14px 14px 16px",
+          borderTop: "1px solid #EDE9FE",
+          background: "#FAF8FF",
         }}
       >
-        {/* Quick Role Switcher for Hackathon Demo */}
-        <div style={{ marginBottom: 12 }}>
+        {/* Quick Role Switcher (hackathon demo) */}
+        <div style={{ marginBottom: 10 }}>
           <label
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.65rem",
               fontWeight: 800,
               textTransform: "uppercase",
-              color: "var(--jadoo-muted)",
+              color: "#84829a",
               display: "block",
               marginBottom: 4,
+              letterSpacing: "0.06em",
             }}
           >
-            Demo Peran (RBAC 8 Role):
+            ⚡ Demo RBAC — Ganti Peran:
           </label>
           <select
             className="form-select"
@@ -166,14 +235,17 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             disabled={switching}
             style={{
               padding: "7px 10px",
-              fontSize: "0.8rem",
+              fontSize: "0.78rem",
               background: "#ffffff",
-              borderColor: "var(--border-default)",
+              borderColor: "#EDE9FE",
+              borderRadius: 10,
+              color: "#2E1065",
+              fontWeight: 600,
             }}
           >
             {DEMO_ACCOUNTS.map((acc) => (
               <option key={acc.username} value={acc.username}>
-                {acc.name} ({acc.role})
+                {acc.name} — {acc.role}
               </option>
             ))}
           </select>
@@ -187,26 +259,85 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             justifyContent: "space-between",
             padding: "10px 12px",
             background: "#ffffff",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border-subtle)",
-            boxShadow: "var(--shadow-subtle)",
+            borderRadius: 12,
+            border: "1px solid #EDE9FE",
+            boxShadow: "0 2px 8px rgba(46, 16, 101, 0.04)",
           }}
         >
-          <div style={{ overflow: "hidden", paddingRight: 8 }}>
-            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--jadoo-navy)", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
-              {user?.name || "Belum Login"}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+            {/* Avatar initial */}
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 9,
+                background: `linear-gradient(135deg, ${roleColor} 0%, #2E1065 100%)`,
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 800,
+                fontSize: "0.85rem",
+                flexShrink: 0,
+                boxShadow: `0 3px 8px ${roleColor}44`,
+              }}
+            >
+              {userInitial}
             </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--jadoo-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-              <span className="badge badge-coral" style={{ fontSize: "0.65rem", padding: "1px 6px" }}>
-                {user?.role || "GUEST"}
-              </span>
+            <div style={{ overflow: "hidden" }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  color: "#2E1065",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                }}
+              >
+                {user?.name || "Belum Login"}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <span
+                  style={{
+                    fontSize: "0.62rem",
+                    padding: "1px 6px",
+                    borderRadius: 9999,
+                    background: "#EDE9FE",
+                    color: "#7C3AED",
+                    fontWeight: 700,
+                  }}
+                >
+                  {user?.role || "GUEST"}
+                </span>
+              </div>
             </div>
           </div>
+
           <button
             onClick={logout}
             title="Keluar / Logout"
-            className="btn btn-ghost btn-sm"
-            style={{ padding: "6px 8px", color: "var(--color-danger)" }}
+            style={{
+              background: "transparent",
+              border: "1px solid #fecaca",
+              borderRadius: 8,
+              padding: "5px 8px",
+              cursor: "pointer",
+              color: "#dc2626",
+              fontSize: "0.78rem",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontWeight: 700,
+              transition: "all 0.15s ease",
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#fef2f2";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
           >
             🚪
           </button>

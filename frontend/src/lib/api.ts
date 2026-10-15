@@ -432,8 +432,23 @@ export const payrollApi = {
   },
 };
 
-// ================= AI Dual-Assistant API =================
+// ================= AI Assistant API =================
 export const aiApi = {
+  // 1. /ai/rag — Chatbot publik & klien maklon (S3 SOP knowledge base)
+  askClient: async (question: string): Promise<DualAskResponse> => {
+    return apiFetch<DualAskResponse>("/ai/rag", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+    });
+  },
+  // 2. /ai/ask-agent — Owner tracker (S3 SOP + live database context)
+  askAgent: async (question: string): Promise<DualAskResponse> => {
+    return apiFetch<DualAskResponse>("/ai/ask-agent", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+    });
+  },
+  // Legacy backward-compatible assistant endpoint
   askAssistant: async (data: DualAskRequest): Promise<DualAskResponse> => {
     return apiFetch<DualAskResponse>("/ai/assistant", {
       method: "POST",

@@ -1,5 +1,20 @@
-"""Endpoint RAG: /api/v1/ai/ask, /api/v1/ai/assistant, /api/v1/ai/reindex, dan /api/v1/ai/status."""
+"""Endpoint RAG AI — role-based chatbot untuk Lukla Operations Engine.
+
+Tiga kelompok endpoint:
+  1. POST /ai/rag          → Chatbot publik (S3 only). Untuk: Landing page, klien aktif.
+                             Selalu append WhatsApp handoff di akhir jawaban.
+  2. POST /ai/ask-agent    → Owner Tracker (S3 + live DB). Untuk: Owner / internal.
+                             Menggabungkan knowledge base + data operasional real-time.
+  3. POST /ai/assistant    → Legacy dual-assistant (backward compat, tanpa DB live).
+  4. POST /ai/ask          → Endpoint generik (backward compat, S3 only, tanpa handoff).
+  5. POST /ai/reindex      → Rebuild embedding index dari S3.
+  6. GET  /ai/status       → Status index RAG.
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.modules.ai.db_context import build_db_context
 from app.modules.ai.errors import RagError, RagUpstreamError
 from app.modules.ai.schemas import (
     AskRequest,
@@ -24,39 +39,93 @@ _PERSONA_LABELS = {
 
 
 def _to_http(exc: RagError) -> HTTPException:
-    # Kegagalan AWS dianggap 502 (layanan hulu). Konfigurasi atau data kosong dianggap 503.
+    """Kegagalan AWS dianggap 502 (layanan hulu). Konfigurasi/data kosong dianggap 503."""
     status = 502 if isinstance(exc, RagUpstreamError) else 503
     return HTTPException(status_code=status, detail=str(exc))
 
 
-@router.post("/ask", response_model=AskResponse)
-def ask(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> AskResponse:
+# ── 1. /rag — Chatbot publik (Landing page & Klien) ───────────────────────────
+
+@router.post(
+    "/rag",
+    response_model=AskResponse,
+    summary="Chatbot Publik (S3 Knowledge Base + WhatsApp Handoff)",
+    description=(
+        "Endpoint chatbot untuk **calon klien B2B dan klien aktif**. "
+        "Menjawab pertanyaan seputar maklon, skema harga, proses sampling, dan QC "
+        "berdasarkan dokumen SOP dari S3. "
+        "Setiap jawaban selalu diakhiri dengan ajakan kontak WhatsApp."
+    ),
+)
+def ask_client(
+    body: AskRequest,
+    rag: RagService = Depends(get_rag_service),
+) -> AskResponse:
     try:
-        result = rag.ask(body.question)
+        result = rag.ask_client(body.question)
     except RagError as e:
         raise _to_http(e) from e
     return AskResponse(**result)
 
 
-@router.post("/ask-agent", response_model=AskResponse)
-def ask_agent(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> AskResponse:
+# ── 2. /ask-agent — Owner Tracker (S3 + live DB) ─────────────────────────────
+
+@router.post(
+    "/ask-agent",
+    response_model=AskResponse,
+    summary="Owner Tracker AI (S3 Knowledge Base + Data Operasional Real-time)",
+    description=(
+        "Endpoint chatbot untuk **Owner dan tim internal**. "
+        "Menggabungkan dokumen SOP dari S3 dengan data live dari database sistem "
+        "(pesanan aktif, output produksi, payroll, inventaris, QC, sample). "
+        "Digunakan untuk monitoring, analisis bisnis, dan pengambilan keputusan operasional. "
+        "**Hanya untuk pengguna dengan role `owner` atau `admin`.**"
+    ),
+)
+def ask_agent(
+    body: AskRequest,
+    rag: RagService = Depends(get_rag_service),
+    db: Session = Depends(get_db),
+) -> AskResponse:
     try:
-        result = rag.ask(body.question)
+        db_ctx = build_db_context(db)
+        result = rag.ask_agent(body.question, db_ctx)
     except RagError as e:
         raise _to_http(e) from e
     return AskResponse(**result)
 
 
-@router.get("/ask-agent", response_model=AskResponse)
-def ask_agent_get(question: str, rag: RagService = Depends(get_rag_service)) -> AskResponse:
+@router.get(
+    "/ask-agent",
+    response_model=AskResponse,
+    summary="Owner Tracker AI via GET (S3 + live DB)",
+    include_in_schema=False,  # Tersembunyi di docs — untuk testing via browser
+)
+def ask_agent_get(
+    question: str,
+    rag: RagService = Depends(get_rag_service),
+    db: Session = Depends(get_db),
+) -> AskResponse:
     try:
-        result = rag.ask(question)
+        db_ctx = build_db_context(db)
+        result = rag.ask_agent(question, db_ctx)
     except RagError as e:
         raise _to_http(e) from e
     return AskResponse(**result)
 
 
-@router.post("/assistant", response_model=DualAskResponse)
+# ── 3. /assistant — Legacy dual-assistant (backward compat) ───────────────────
+
+@router.post(
+    "/assistant",
+    response_model=DualAskResponse,
+    summary="AI Dual-Assistant — Pilih Persona (Legacy)",
+    description=(
+        "Endpoint legacy untuk memilih persona secara eksplisit. "
+        "Gunakan `/rag` untuk klien atau `/ask-agent` untuk owner (dengan data live DB). "
+        "Endpoint ini tidak menyertakan data real-time dari database."
+    ),
+)
 def ask_dual_assistant(
     body: DualAskRequest,
     rag: RagService = Depends(get_rag_service),
@@ -101,8 +170,27 @@ def ask_dual_assistant(
         persona_label=_PERSONA_LABELS[body.persona],
         answer=result["answer"],
         sources=result["sources"],
+        whatsapp_handoff_url=result.get("whatsapp_handoff_url"),
     )
 
+
+# ── 4. /ask — Generik S3 RAG (backward compat) ────────────────────────────────
+
+@router.post(
+    "/ask",
+    response_model=AskResponse,
+    summary="RAG Generik (S3 only, tanpa persona)",
+    description="Endpoint generik untuk testing. Gunakan `/rag` atau `/ask-agent` di produksi.",
+)
+def ask(body: AskRequest, rag: RagService = Depends(get_rag_service)) -> AskResponse:
+    try:
+        result = rag.ask(body.question)
+    except RagError as e:
+        raise _to_http(e) from e
+    return AskResponse(**result)
+
+
+# ── 5 & 6. Utilities ──────────────────────────────────────────────────────────
 
 @router.post("/reindex", response_model=ReindexResponse)
 def reindex(rag: RagService = Depends(get_rag_service)) -> ReindexResponse:
@@ -115,4 +203,8 @@ def reindex(rag: RagService = Depends(get_rag_service)) -> ReindexResponse:
 
 @router.get("/status", response_model=RagStatusResponse)
 def rag_status(rag: RagService = Depends(get_rag_service)) -> RagStatusResponse:
-    return RagStatusResponse(index_ready=rag.is_ready, chunks=rag.chunk_count, document=rag.document_uri)
+    return RagStatusResponse(
+        index_ready=rag.is_ready,
+        chunks=rag.chunk_count,
+        document=rag.document_uri,
+    )

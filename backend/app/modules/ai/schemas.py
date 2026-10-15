@@ -36,7 +36,9 @@ class SourceOut(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
-    sources: list[SourceOut]
+    sources: list[SourceOut] = []
+    whatsapp_handoff_url: str | None = None
+    db_context_used: bool = False
 
 
 class DualAskResponse(BaseModel):
@@ -44,8 +46,9 @@ class DualAskResponse(BaseModel):
     persona: AssistantPersona
     persona_label: str
     answer: str
-    sources: list[SourceOut]
+    sources: list[SourceOut] = []
     whatsapp_handoff_url: str | None = None
+    db_context_used: bool = False
 
 
 class ReindexResponse(BaseModel):

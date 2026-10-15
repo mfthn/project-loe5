@@ -1,52 +1,70 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { aiApi } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
-import type { AssistantPersona, DualAskResponse, SourceDocument } from "../../types/api";
+import type { DualAskResponse, SourceDocument } from "../../types/api";
 
 interface ChatMessage {
   id: string;
   sender: "user" | "ai";
   text: string;
   sources?: SourceDocument[];
-  persona: AssistantPersona;
   timestamp: string;
   whatsapp_handoff_url?: string | null;
+  mode?: "owner_agent" | "client_rag";
 }
 
 const OWNER_PROMPTS = [
-  "Berapa kapasitas mesin aktif saat ini dan bagaimana alur produksi?",
-  "Bagaimana cara kerja Pool Bonus QC Mandor berdasarkan SOP?",
-  "Jelaskan aturan Audit Lock pada Payroll Sabtu (FR-10).",
-  "Mengapa bahan Klien A tidak boleh keluar untuk pesanan Klien B?",
+  "Berapa kapasitas mesin aktif saat ini dan status pesanan di lini produksi?",
+  "Bagaimana proyeksi dan kalkulasi Pool Bonus QC Mandor saat ini?",
+  "Jelaskan data audit lock dan rekap upah borongan payroll Sabtu ini.",
+  "Tampilkan ringkasan stok bahan baku dan peringatan kontaminasi di gudang.",
 ];
 
 const CLIENT_PROMPTS = [
   "Apa saja tahapan order maklon dari sample sampai produksi?",
   "Apa perbedaan skema maklon CMT, Semi-CMT, dan Full Package?",
-  "Saya ingin negosiasi pesanan jaket 500 pcs dengan Tim Sampel",
+  "Bagaimana alur pembuatan sampel dari v1 hingga konversi pesanan massal?",
   "Berapa estimasi waktu pengerjaan sample dan minimal order (MOQ)?",
+  "Aksesoris apa saja yang disediakan Lukla pada skema Semi-CMT?",
 ];
 
 export default function AiAssistantPage() {
   const { user } = useAuth();
-  const isClient = user?.role === "KLIEN_MAKLON";
-  const persona: AssistantPersona = isClient ? "client_assistant" : "owner_tracker";
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      sender: "ai",
-      text: "Halo! Saya AI Assistant Lukla Operations Engine. Silakan tanyakan hal yang ingin Anda ketahui.",
-      persona: "owner_tracker",
-      timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
+  const isOwner = user?.role === "OWNER";
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ type: "danger" | "warning"; message: string } | null>(null);
+
+  // Set initial welcome message based on user role
+  useEffect(() => {
+    if (isOwner) {
+      setMessages([
+        {
+          id: "welcome-owner",
+          sender: "ai",
+          text: `Halo ${user?.name || "Pak Hendra"}! Saya adalah Owner Monitoring & Analytics Agent. Saya terhubung langsung ke basis pengetahuan SOP dan database sistem operasional terkini (pesanan aktif, output 30 menit, QC, stok gudang, & payroll). Apa analisis operasional yang ingin Anda pantau hari ini?`,
+          timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          mode: "owner_agent",
+        },
+      ]);
+    } else {
+      setMessages([
+        {
+          id: "welcome-client",
+          sender: "ai",
+          text: `Halo! Saya adalah Asisten Konsultasi Maklon Lukla Operations Engine. Silakan tanyakan hal seputar skema kerja sama (CMT/Semi-CMT/Full Package), alur pembuatan sample, prosedur pengiriman bahan, hingga panduan SOP pabrik kami.`,
+          timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          mode: "client_rag",
+        },
+      ]);
+    }
+  }, [isOwner, user?.name]);
 
   const handleSendMessage = async (textToSend?: string) => {
     const question = textToSend || inputText;
@@ -56,8 +74,8 @@ export default function AiAssistantPage() {
       id: String(Date.now()),
       sender: "user",
       text: question,
-      persona,
       timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      mode: isOwner ? "owner_agent" : "client_rag",
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -65,38 +83,43 @@ export default function AiAssistantPage() {
     setLoading(true);
 
     try {
-      const res: DualAskResponse = await aiApi.askAssistant({
-        question,
-        persona,
-      });
+      // Owner -> /ai/ask-agent (S3 docs + live database tracking)
+      // Client/Others -> /ai/rag (S3 docs SOP only + WhatsApp handoff)
+      const res: DualAskResponse = isOwner
+        ? await aiApi.askAgent(question)
+        : await aiApi.askClient(question);
 
       const aiMsg: ChatMessage = {
         id: String(Date.now() + 1),
         sender: "ai",
         text: res.answer,
         sources: res.sources,
-        persona: res.persona,
         timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
         whatsapp_handoff_url: res.whatsapp_handoff_url,
+        mode: isOwner ? "owner_agent" : "client_rag",
       };
 
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err: any) {
       setNotice({
         type: "danger",
-        message: err.message || "Gagal menghubungi AI Bedrock RAG. Periksa kredensial AWS.",
+        message: err.message || "Gagal menghubungi AI Bedrock RAG. Periksa status layanan.",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const activeQuickPrompts = persona === "owner_tracker" ? OWNER_PROMPTS : CLIENT_PROMPTS;
+  const activeQuickPrompts = isOwner ? OWNER_PROMPTS : CLIENT_PROMPTS;
 
   return (
     <AppLayout
-      title="AI Dual-Assistant (Owner Tracker & Konsultan Maklon)"
-      subtitle="Amazon Bedrock RAG Titan & Nova Lite — Satu pipeline RAG dengan dua persona cerdas (Fase 7 - P1)"
+      title={isOwner ? "Owner Monitoring & Analytics Agent (/ask-agent)" : "Asisten Konsultasi Maklon (/rag)"}
+      subtitle={
+        isOwner
+          ? "Monitoring real-time: Dokumen SOP (S3) + Live Database (Orders, Output 30m, QC, Payroll, Stok)"
+          : "Knowledge Base SOP Maklon (S3) — Panduan Alur Produksi & Konsultasi Pemesanan"
+      }
       requiredModule="ai-assistant"
     >
       {notice && (
@@ -107,7 +130,7 @@ export default function AiAssistantPage() {
         />
       )}
 
-      {/* Persona Toggle Bar */}
+      {/* Mode Banner */}
       <div
         className="card-elevated"
         style={{
@@ -117,19 +140,35 @@ export default function AiAssistantPage() {
           alignItems: "center",
           flexWrap: "wrap",
           gap: 14,
+          background: isOwner ? "linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)" : "#FFFFFF",
+          border: isOwner ? "1.5px solid #C4B5FD" : "1px solid #EDE9FE",
         }}
       >
         <div>
-          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-            Mode Asisten:
+          <div style={{ fontSize: "0.78rem", color: "#6D28D9", textTransform: "uppercase", fontWeight: 700 }}>
+            {isOwner ? "Akses Khusus Eksekutif / Owner" : "Akses Klien & Mitra Maklon"}
           </div>
-          <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>
-            {persona === "owner_tracker"
-              ? "👔 Owner Business & Operations Tracker (Internal)"
-              : "🤝 Asisten Calon Klien B2B (Konsultan Maklon)"}
+          <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#2E1065" }}>
+            {isOwner
+              ? "📊 Mode Agentic Analytics — Mengakses S3 SOP + Live Database Sistem"
+              : "🤝 Mode Chatbot Maklon — Mengakses S3 SOP Dokumen Publik"}
           </div>
         </div>
 
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span
+            style={{
+              padding: "6px 14px",
+              borderRadius: 9999,
+              background: isOwner ? "#7C3AED" : "#EDE9FE",
+              color: isOwner ? "#ffffff" : "#2E1065",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+            }}
+          >
+            {isOwner ? "Endpoint: /ai/ask-agent (DB Live)" : "Endpoint: /ai/rag (S3 SOP)"}
+          </span>
+        </div>
       </div>
 
       {/* Chat Window */}
@@ -142,7 +181,7 @@ export default function AiAssistantPage() {
               className={`chat-bubble ${msg.sender === "user" ? "chat-bubble-user" : "chat-bubble-ai"}`}
             >
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: 4, opacity: 0.8 }}>
-                <span>{msg.sender === "user" ? "Anda" : msg.persona === "owner_tracker" ? "AI Owner Tracker" : "AI Asisten Klien"}</span>
+                <span>{msg.sender === "user" ? "Anda" : msg.mode === "owner_agent" ? "AI Owner Tracker (/ask-agent)" : "AI Asisten Maklon (/rag)"}</span>
                 <span>{msg.timestamp}</span>
               </div>
               <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
@@ -256,7 +295,7 @@ export default function AiAssistantPage() {
             type="text"
             className="form-input"
             placeholder={
-              persona === "owner_tracker"
+              isOwner
                 ? "Tanyakan kondisi operasional, SOP payroll, QC, atau kapasitas..."
                 : "Tanyakan tentang alur maklon, skema CMT, estimasi waktu, atau MOQ..."
             }

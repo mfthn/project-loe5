@@ -6,18 +6,33 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Volkhov:ital,wght@0,700;1,700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-  /* Signature Brand Palette (Sunlit Warm Editorial & Navy Ink) */
-  --jadoo-navy: #181e4b;
-  --jadoo-ink: #14183e;
-  --jadoo-text: #5e6282;
+  /* 60-30-10 Color System Tokens (Mandatory Specification) */
+  --color-bg: #FFFFFF;            /* 60% White Primary Background */
+  --color-surface: #FAF8FF;       /* Soft Surface Tint */
+  --color-purple-900: #2E1065;    /* 30% Dark Accent Heading */
+  --color-purple-700: #6D28D9;    /* Hover State Primary */
+  --color-purple-600: #7C3AED;    /* 30% Primary Brand (Buttons, Hero Cards) */
+  --color-purple-300: #C4B5FD;    /* Borders & Subtle Lines */
+  --color-purple-100: #EDE9FE;    /* Badges & Chips */
+  --color-pink-700: #BE185D;      /* 10% Pink AA-compliant text on white */
+  --color-pink-500: #EC4899;      /* 10% Pink Accent (Glow, Icons, Active Dots) */
+  --color-pink-200: #FBCFE8;      /* Ambient Mist Background Gradient */
+  --color-text-dark: #0F0F14;     /* Primary Text on Light */
+  --color-text-light: #FFFFFF;    /* Primary Text on Dark Purple */
+  --color-text-muted: #5B5870;    /* Secondary Text (WCAG AA > 4.5:1) */
+
+  /* Legacy & Semantic Bindings */
+  --jadoo-navy: var(--color-purple-900);
+  --jadoo-ink: var(--color-purple-900);
+  --jadoo-text: var(--color-text-muted);
   --jadoo-muted: #84829a;
-  --jadoo-coral: #df6951;
+  --jadoo-coral: var(--color-pink-500);
   --jadoo-orange: #ff7d68;
-  --jadoo-purple: #6246e5;
-  --jadoo-lilac: #8a79df;
-  --jadoo-cream: #fff1da;
-  --jadoo-line: #f7f7f7;
-  --jadoo-chip: #f5f5f5;
+  --jadoo-purple: var(--color-purple-600);
+  --jadoo-lilac: var(--color-purple-300);
+  --jadoo-cream: #FAF8FF;
+  --jadoo-line: #EDE9FE;
+  --jadoo-chip: #EDE9FE;
   --jadoo-yellow: #f1a501;
 
   /* Surfaces & Backgrounds */
@@ -215,7 +230,7 @@ a {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--jadoo-coral), var(--jadoo-orange));
+  background: linear-gradient(90deg, var(--color-purple-600), var(--color-purple-900));
 }
 
 .stat-label {
@@ -320,11 +335,22 @@ a {
 }
 
 .btn-primary {
+  background: linear-gradient(135deg, var(--color-purple-600) 0%, var(--color-purple-900) 100%);
+  color: #ffffff;
+  box-shadow: var(--shadow-purple);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+/* Coral variant — digunakan di landing page CTA khusus */
+.btn-coral {
   background: linear-gradient(135deg, var(--jadoo-coral) 0%, var(--jadoo-orange) 100%);
   color: #ffffff;
   box-shadow: var(--shadow-coral);
 }
-.btn-primary:hover:not(:disabled) {
+.btn-coral:hover:not(:disabled) {
   transform: translateY(-2px);
   filter: brightness(1.05);
 }
@@ -643,3 +669,120 @@ a {
     padding: 20px;
   }
 }
+
+/* =========================================================================
+   Landing Page Visual Effects (Referenced from Image 1 & Image 2)
+   ========================================================================= */
+
+@keyframes float-hero {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(0.4deg);
+  }
+}
+
+@keyframes orb-drift {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, -20px) scale(1.08);
+  }
+  100% {
+    transform: translate(-20px, 15px) scale(0.96);
+  }
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.hero-floating-element {
+  animation: float-hero 6s ease-in-out infinite;
+}
+
+.ambient-orb-gradient {
+  animation: orb-drift 24s ease-in-out infinite alternate;
+}
+
+/* Accessible Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .hero-floating-element,
+  .ambient-orb-gradient {
+    animation: none !important;
+  }
+}
+
+/* Landing Page Grid Media Queries */
+@media (min-width: 901px) {
+  .desktop-nav {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .mobile-menu-btn {
+    display: inline-flex !important;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 36px !important;
+  }
+  .bento-card-link {
+    grid-column: span 12 !important;
+  }
+  .skema-grid-container {
+    grid-template-columns: 1fr !important;
+  }
+  .workflow-stepper {
+    grid-template-columns: 1fr !important;
+  }
+  .feature-row {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+    direction: ltr !important;
+  }
+  .portal-grid {
+    grid-template-columns: 1fr !important;
+    gap: 36px !important;
+  }
+  .asisten-grid {
+    grid-template-columns: 1fr !important;
+    gap: 36px !important;
+  }
+  .stats-grid-container {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .footer-grid-container {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .stats-grid-container {
+    grid-template-columns: 1fr !important;
+  }
+  .footer-grid-container {
+    grid-template-columns: 1fr !important;
+  }
+  .hero-subcard-bottom {
+    position: relative !important;
+    bottom: auto !important;
+    left: auto !important;
+    margin-top: 16px !important;
+    max-width: 100% !important;
+  }
+  .hero-subcard-top {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    margin-bottom: 16px !important;
+    display: inline-flex !important;
+  }
+}
+
