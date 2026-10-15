@@ -15,6 +15,14 @@ Jalankan dari folder backend:
 """
 import logging
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:  # python-dotenv belum diinstal: pakai env sistem saja
+    pass
 
 import httpx
 from telegram import Update
@@ -127,6 +135,7 @@ async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     uid = str(user.id)
     username = (user.username or "").lower()
     if uid.lower() not in ALLOWED_IDS and username not in ALLOWED_IDS:
+        log.info("/owner ditolak: id=%s username=%s", uid, username or "-")
         await update.message.reply_text("Maaf, perintah /owner hanya untuk internal yang terdaftar.")
         return
     q = " ".join(context.args).strip()
