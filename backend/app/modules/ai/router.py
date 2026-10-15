@@ -1,6 +1,5 @@
 """Endpoint RAG: /api/v1/ai/ask, /api/v1/ai/assistant, /api/v1/ai/reindex, dan /api/v1/ai/status."""
-from fastapi import APIRouter, Depends, HTTPException
-
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.modules.ai.errors import RagError, RagUpstreamError
 from app.modules.ai.schemas import (
     AskRequest,
@@ -12,6 +11,8 @@ from app.modules.ai.schemas import (
     ReindexResponse,
 )
 from app.modules.ai.service import RagService, get_rag_service
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User, UserRole
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -59,14 +60,38 @@ def ask_agent_get(question: str, rag: RagService = Depends(get_rag_service)) -> 
 def ask_dual_assistant(
     body: DualAskRequest,
     rag: RagService = Depends(get_rag_service),
+    current_user: User = Depends(get_current_user),
 ) -> DualAskResponse:
     """AI Dual-Assistant — pilih persona sesuai kebutuhan:
 
-    - **owner_tracker**: Asisten operasional internal untuk Owner / Mandor.
+    - **owner_tracker**: Asisten operasional internal untuk Owner.
       Membantu memantau produksi, QC, payroll, dan status pesanan berbasis SOP.
     - **client_assistant**: Asisten publik B2B untuk calon klien maklon.
       Menjelaskan alur kerja sama, skema harga, proses sampling, dan standar QC.
     """
+    if current_user.role not in (UserRole.OWNER, UserRole.KLIEN_MAKLON):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI Assistant hanya tersedia untuk akun Owner dan Klien.",
+        )
+
+    if current_user.role == UserRole.KLIEN_MAKLON:
+        if body.persona != AssistantPersona.CLIENT_ASSISTANT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akun klien hanya dapat menggunakan persona Asisten Klien.",
+            )
+        if current_user.client_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akun klien belum terhubung ke data klien yang valid.",
+            )
+    elif body.persona != AssistantPersona.OWNER_TRACKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Persona Asisten Klien hanya tersedia untuk akun klien.",
+        )
+
     try:
         result = rag.ask_with_persona(body.question, body.persona.value)
     except RagError as e:

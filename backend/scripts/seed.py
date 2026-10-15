@@ -1,5 +1,7 @@
 """Script untuk mengisi seed data demo: klien dan akun untuk seluruh 8 peran operasional."""
 import sys
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
 # Pastikan backend ada di sys.path
@@ -93,7 +95,16 @@ def seed_data() -> None:
 
         # 3. Seed Bahan Baku Gudang Multi-Tenant
         from app.modules.gudang.models import InventoryItem, InventoryTransaction, TransactionType
-        from app.modules.produksi.models import MaklonScheme, Order, OrderStatus
+        from app.modules.produksi.models import (
+            MaklonScheme,
+            Order,
+            OrderComponent,
+            OrderStatus,
+            ProductionOutput,
+            RateCard,
+        )
+        from app.modules.qc.models import QCInspection, QCStatus
+        from app.modules.payroll.models import BatchFinancial
 
         demo_items = [
             (klien_a.id, "KAIN-COMBED-NAVY-01", "Cotton Combed 30s Navy", 800.0, "METER"),
@@ -146,6 +157,108 @@ def seed_data() -> None:
                 )
                 db.add(ord_obj)
                 print(f"  + Order '{onum}' ({target} pcs) berhasil dibuat.")
+
+        db.flush()
+        demo_order = db.scalar(select(Order).where(Order.order_number == "ORD-SNOHUND-003"))
+        demo_sewers = list(
+            db.scalars(
+                select(User).where(User.username.in_(["penjahit_siti", "penjahit_rini"]))
+            ).all()
+        )
+        demo_mandor = db.scalar(select(User).where(User.username == "mandor_agus")        )
+        if demo_order and demo_sewers and demo_mandor:
+            component = db.scalar(
+                select(OrderComponent).where(
+                    OrderComponent.order_id == demo_order.id,
+                    OrderComponent.component_name == "Jahitan Demo",
+                )
+            )
+            if not component:
+                component = OrderComponent(
+                    order_id=demo_order.id,
+                    component_name="Jahitan Demo",
+                    sequence_order=1,
+                )
+                db.add(component)
+                db.flush()
+            rate_card = db.scalar(
+                select(RateCard).where(RateCard.order_component_id == component.id)
+            )
+            if not rate_card:
+                db.add(
+                    RateCard(
+                        order_component_id=component.id,
+                        cutting_rate_per_pcs=Decimal("500.00"),
+                        sewing_rate_per_pcs=Decimal("2500.00"),
+                    )
+                )
+
+            monday = datetime.now(timezone.utc).date()
+            monday -= timedelta(days=monday.weekday())
+            for index, sewer in enumerate(demo_sewers):
+                work_time = datetime.combine(
+                    monday + timedelta(days=index + 1),
+                    datetime.min.time(),
+                    tzinfo=timezone.utc,
+                ) + timedelta(hours=9)
+                existing_output = db.scalar(
+                    select(ProductionOutput).where(
+                        ProductionOutput.order_id == demo_order.id,
+                        ProductionOutput.operator_user_id == sewer.id,
+                        ProductionOutput.time_window == work_time,
+                    )
+                )
+                if not existing_output:
+                    db.add(
+                        ProductionOutput(
+                            order_id=demo_order.id,
+                            order_component_id=component.id,
+                            operator_user_id=sewer.id,
+                            verified_by_user_id=demo_mandor.id,
+                            line_number=index + 1,
+                            qty_completed=40 + index * 10,
+                            is_verified=True,
+                            time_window=work_time,
+                        )
+                    )
+
+            if not db.scalar(
+                select(QCInspection.id).where(QCInspection.order_id == demo_order.id)
+            ):
+                db.add(
+                    QCInspection(
+                        order_id=demo_order.id,
+                        inspector_user_id=db.scalar(
+                            select(User.id).where(User.username == "qc_dewi")
+                        ),
+                        status=QCStatus.LOLOS,
+                        qty_inspected=80,
+                        repair_count=0,
+                        escalated_to_sample=False,
+                    )
+                )
+
+            if not db.scalar(
+                select(BatchFinancial.id).where(
+                    BatchFinancial.order_id == demo_order.id
+                )
+            ):
+                db.add(
+                    BatchFinancial(
+                        order_id=demo_order.id,
+                        contract_revenue=Decimal("120000000.00"),
+                        material_cost=Decimal("45000000.00"),
+                        overhead_cost=Decimal("12000000.00"),
+                        labor_cost=Decimal("225000.00"),
+                        total_hpp=Decimal("57225000.00"),
+                        net_profit=Decimal("62775000.00"),
+                        status="DRAFT",
+                    )
+                )
+            print(
+                "  + Data demo payroll, QC, dan finansial ditambahkan untuk ORD-SNOHUND-003. "
+                "Pastikan output Mandor sudah terverifikasi sebelum menghitung payroll."
+            )
 
         db.commit()
         print("Seeding data demo selesai dengan sukses!")

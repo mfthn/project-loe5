@@ -14,8 +14,9 @@ FR-10.1: Penjahit baru bisa ditambah di tengah minggu tanpa batasan slot.
 FR-10.2: Upah dihitung otomatis dari output 30 menit terverifikasi × rate sewing per komponen.
 """
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.orm import Session, selectinload
@@ -24,19 +25,36 @@ from app.modules.auth.models import User, UserRole
 from app.modules.payroll.errors import (
     NoOutputsForPeriodError,
     PayrollDetailNotFoundError,
+    PayrollPaymentAlreadyRecordedError,
     PayrollPeriodOverlapError,
+    PayrollRunNotLockedError,
     PayrollRunLockedError,
     PayrollRunNotFoundError,
 )
-from app.modules.payroll.models import BatchFinancial, PayrollDetail, PayrollRun
+from app.modules.payroll.models import (
+    BatchFinancial,
+    PayrollDetail,
+    PayrollNotification,
+    PayrollPayment,
+    PayrollRun,
+)
 from app.modules.payroll.schemas import (
     BatchFinancialCreate,
+    PayrollMonthlySummaryResponse,
     PayrollPreviewResponse,
     PayrollRunCreate,
     SlipPreview,
 )
-from app.modules.produksi.models import OrderComponent, OrderStatus, ProductionOutput, RateCard
+from app.modules.produksi.models import (
+    Order,
+    OrderComponent,
+    OrderStatus,
+    ProductionOutput,
+    RateCard,
+)
 from app.modules.qc.models import QCInspection, QCStatus
+
+_JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
 
 
 # ---------------------------------------------------------------------------
@@ -47,12 +65,20 @@ def _round2(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _get_or_raise(db: Session, run_id: uuid.UUID) -> PayrollRun:
-    run = db.scalar(
+def _get_or_raise(
+    db: Session, run_id: uuid.UUID, *, for_update: bool = False
+) -> PayrollRun:
+    stmt = (
         select(PayrollRun)
-        .options(selectinload(PayrollRun.details))
+        .options(
+            selectinload(PayrollRun.details).selectinload(PayrollDetail.user),
+            selectinload(PayrollRun.details).selectinload(PayrollDetail.payment),
+        )
         .where(PayrollRun.id == run_id)
     )
+    if for_update:
+        stmt = stmt.with_for_update()
+    run = db.scalar(stmt)
     if run is None:
         raise PayrollRunNotFoundError(run_id)
     return run
@@ -71,9 +97,9 @@ def _check_period_overlap(db: Session, period_start: date, period_end: date, exc
 
 
 def _period_datetimes(period_start: date, period_end: date) -> tuple[datetime, datetime]:
-    """Konversi date ke datetime UTC untuk filter query."""
-    start_dt = datetime(period_start.year, period_start.month, period_start.day, 0, 0, 0, tzinfo=timezone.utc)
-    end_dt = datetime(period_end.year, period_end.month, period_end.day, 23, 59, 59, tzinfo=timezone.utc)
+    """Konversi tanggal periode lokal Jakarta ke batas timestamp inklusif."""
+    start_dt = datetime.combine(period_start, time.min, tzinfo=_JAKARTA_TZ)
+    end_dt = datetime.combine(period_end, time.max, tzinfo=_JAKARTA_TZ)
     return start_dt, end_dt
 
 
@@ -110,7 +136,6 @@ def _calculate_slips(
     # Hitung total QC bonus pool dari pcs LOLOS dalam periode
     qty_lolos_raw = db.scalar(
         select(sa_func.coalesce(sa_func.sum(QCInspection.qty_inspected), 0))
-        .join(ProductionOutput, ProductionOutput.order_id == QCInspection.order_id, isouter=True)
         .where(
             QCInspection.status == QCStatus.LOLOS,
             QCInspection.inspected_at >= start_dt,
@@ -188,6 +213,99 @@ def get_payroll_run(db: Session, run_id: uuid.UUID) -> PayrollRun:
     return _get_or_raise(db, run_id)
 
 
+def mark_payroll_detail_paid(
+    db: Session,
+    run_id: uuid.UUID,
+    detail_id: uuid.UUID,
+    paid_by_user_id: uuid.UUID,
+) -> PayrollPayment:
+    """Catat pembayaran aktual untuk satu slip setelah payroll dikunci."""
+    detail = db.scalar(
+        select(PayrollDetail)
+        .where(
+            PayrollDetail.id == detail_id,
+            PayrollDetail.payroll_run_id == run_id,
+        )
+        .with_for_update()
+    )
+    if detail is None:
+        raise PayrollDetailNotFoundError(detail_id)
+    if not detail.payroll_run.is_locked:
+        raise PayrollRunNotLockedError(run_id)
+    if detail.payment is not None:
+        raise PayrollPaymentAlreadyRecordedError(detail_id)
+
+    payment = PayrollPayment(
+        payroll_detail_id=detail.id,
+        paid_by_user_id=paid_by_user_id,
+        paid_at=datetime.now(timezone.utc),
+    )
+    db.add(payment)
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def list_worker_payroll_summaries(db: Session, user_id: uuid.UUID) -> list[dict]:
+    """Ambil payroll terkunci dan catatan output milik Penjahit yang sedang login."""
+    runs = db.scalars(
+        select(PayrollRun)
+        .join(PayrollDetail, PayrollDetail.payroll_run_id == PayrollRun.id)
+        .options(
+            selectinload(PayrollRun.details).selectinload(PayrollDetail.payment)
+        )
+        .where(
+            PayrollRun.is_locked.is_(True),
+            PayrollDetail.user_id == user_id,
+        )
+        .order_by(PayrollRun.period_end.desc())
+    ).unique().all()
+
+    summaries: list[dict] = []
+    for run in runs:
+        detail = next(d for d in run.details if d.user_id == user_id)
+        start_dt, end_dt = _period_datetimes(run.period_start, run.period_end)
+        notes = db.execute(
+            select(ProductionOutput, Order.order_number, OrderComponent.component_name)
+            .join(Order, Order.id == ProductionOutput.order_id)
+            .join(OrderComponent, OrderComponent.id == ProductionOutput.order_component_id)
+            .where(
+                ProductionOutput.operator_user_id == user_id,
+                ProductionOutput.time_window >= start_dt,
+                ProductionOutput.time_window <= end_dt,
+            )
+            .order_by(ProductionOutput.time_window.desc())
+        ).all()
+        scheduled_payment_date = run.period_end + timedelta(
+            days=(5 - run.period_end.weekday()) % 7
+        )
+        summaries.append(
+            {
+                "run_id": run.id,
+                "period_start": run.period_start,
+                "period_end": run.period_end,
+                "net_salary": detail.net_salary,
+                "payment_status": "PAID" if detail.payment else "SCHEDULED",
+                "scheduled_payment_date": scheduled_payment_date,
+                "paid_at": detail.payment.paid_at if detail.payment else None,
+                "production_notes": [
+                    {
+                        "id": output.id,
+                        "order_id": output.order_id,
+                        "order_number": order_number,
+                        "component_name": component_name,
+                        "line_number": output.line_number,
+                        "qty_completed": output.qty_completed,
+                        "is_verified": output.is_verified,
+                        "time_window": output.time_window,
+                    }
+                    for output, order_number, component_name in notes
+                ],
+            }
+        )
+    return summaries
+
+
 def preview_payroll(
     db: Session,
     payload: PayrollRunCreate,
@@ -255,20 +373,158 @@ def create_payroll_run(db: Session, payload: PayrollRunCreate) -> PayrollRun:
     return run
 
 
-def lock_payroll_run(db: Session, run_id: uuid.UUID) -> PayrollRun:
-    """FR-10 Audit Lock: Mengunci payroll run secara permanen.
-
-    Setelah dikunci, tidak ada perubahan yang dapat dilakukan oleh siapa pun,
-    termasuk OWNER. Ini memastikan integritas data untuk keperluan audit keuangan.
-    """
-    run = _get_or_raise(db, run_id)
+def review_payroll_funding(
+    db: Session,
+    run_id: uuid.UUID,
+    available_funds: Decimal,
+    reviewed_by_user_id: uuid.UUID,
+    review_note: str | None = None,
+) -> PayrollRun:
+    """Finance locks payroll only after confirming sufficient funds."""
+    run = _get_or_raise(db, run_id, for_update=True)
     if run.is_locked:
         raise PayrollRunLockedError(run_id)
 
-    run.is_locked = True
+    payroll_total = sum(
+        (detail.net_salary for detail in run.details), start=Decimal("0.00")
+    )
+    run.available_funds = _round2(available_funds)
+    run.reviewed_by_user_id = reviewed_by_user_id
+    run.reviewed_at = datetime.now(timezone.utc)
+    run.review_note = review_note
+
+    if run.available_funds >= payroll_total:
+        run.funding_status = "SUFFICIENT"
+        run.is_locked = True
+    else:
+        run.funding_status = "INSUFFICIENT"
+        message = (
+            f"Dana payroll periode {run.period_start} s/d {run.period_end} belum mencukupi. "
+            f"Kekurangan Rp {_round2(payroll_total - run.available_funds):,.2f}. "
+            "Mohon Mandor meninjau progres dan berkoordinasi dengan Finance."
+        )
+        mandor_ids = db.scalars(
+            select(User.id).where(User.role == UserRole.MANDOR, User.is_active.is_(True))
+        ).all()
+        for recipient_user_id in mandor_ids:
+            db.add(
+                PayrollNotification(
+                    payroll_run_id=run.id,
+                    recipient_user_id=recipient_user_id,
+                    message=message,
+                )
+            )
+
     db.commit()
-    db.refresh(run)
-    return run
+    return _get_or_raise(db, run_id)
+
+
+def list_payroll_notifications(
+    db: Session, recipient_user_id: uuid.UUID
+) -> list[PayrollNotification]:
+    return list(
+        db.scalars(
+            select(PayrollNotification)
+            .where(PayrollNotification.recipient_user_id == recipient_user_id)
+            .order_by(PayrollNotification.created_at.desc())
+        ).all()
+    )
+
+
+def get_monthly_summary(
+    db: Session, year: int, month: int
+) -> PayrollMonthlySummaryResponse:
+    month_start = datetime(year, month, 1, tzinfo=_JAKARTA_TZ)
+    next_month = date(year + (month == 12), (month % 12) + 1, 1)
+    month_end = datetime.combine(next_month, time.min, tzinfo=_JAKARTA_TZ)
+
+    orders_created = db.scalar(
+        select(sa_func.count(Order.id)).where(
+            Order.created_at >= month_start, Order.created_at < month_end
+        )
+    ) or 0
+    active_orders = db.scalar(
+        select(sa_func.count(Order.id)).where(Order.status != OrderStatus.COMPLETED)
+    ) or 0
+    output_row = db.execute(
+        select(
+            sa_func.count(ProductionOutput.id),
+            sa_func.coalesce(sa_func.sum(ProductionOutput.qty_completed), 0),
+        ).where(
+            ProductionOutput.is_verified.is_(True),
+            ProductionOutput.time_window >= month_start,
+            ProductionOutput.time_window < month_end,
+        )
+    ).one()
+    qc_totals = {
+        status: int(qty or 0)
+        for status, qty in db.execute(
+            select(
+                QCInspection.status,
+                sa_func.coalesce(sa_func.sum(QCInspection.qty_inspected), 0),
+            )
+            .where(
+                QCInspection.inspected_at >= month_start,
+                QCInspection.inspected_at < month_end,
+            )
+            .group_by(QCInspection.status)
+        ).all()
+    }
+    financial_totals = db.execute(
+        select(
+            sa_func.coalesce(sa_func.sum(BatchFinancial.contract_revenue), 0),
+            sa_func.coalesce(sa_func.sum(BatchFinancial.material_cost), 0),
+            sa_func.coalesce(sa_func.sum(BatchFinancial.overhead_cost), 0),
+            sa_func.coalesce(sa_func.sum(BatchFinancial.total_hpp), 0),
+            sa_func.coalesce(sa_func.sum(BatchFinancial.net_profit), 0),
+        ).where(
+            BatchFinancial.updated_at >= month_start,
+            BatchFinancial.updated_at < month_end,
+        )
+    ).one()
+    runs = db.scalars(
+        select(PayrollRun)
+        .options(
+            selectinload(PayrollRun.details).selectinload(PayrollDetail.payment)
+        )
+        .where(
+            PayrollRun.is_locked.is_(True),
+            PayrollRun.period_end >= month_start.date(),
+            PayrollRun.period_end < month_end.date(),
+        )
+    ).all()
+    payroll_total = sum(
+        (detail.net_salary for run in runs for detail in run.details),
+        start=Decimal("0.00"),
+    )
+    payroll_paid_total = sum(
+        (
+            detail.net_salary
+            for run in runs
+            for detail in run.details
+            if detail.payment is not None
+        ),
+        start=Decimal("0.00"),
+    )
+
+    return PayrollMonthlySummaryResponse(
+        year=year,
+        month=month,
+        orders_created=int(orders_created),
+        active_orders_now=int(active_orders),
+        verified_output_entries=int(output_row[0] or 0),
+        verified_output_pcs=int(output_row[1] or 0),
+        qc_pass_pcs=qc_totals.get(QCStatus.LOLOS, 0),
+        qc_repair_pcs=qc_totals.get(QCStatus.REPAIR, 0),
+        qc_defect_pcs=qc_totals.get(QCStatus.DEFECT, 0),
+        payroll_total=_round2(payroll_total),
+        payroll_paid_total=_round2(payroll_paid_total),
+        contract_revenue=_round2(Decimal(financial_totals[0])),
+        material_cost=_round2(Decimal(financial_totals[1])),
+        overhead_cost=_round2(Decimal(financial_totals[2])),
+        total_hpp=_round2(Decimal(financial_totals[3])),
+        net_profit=_round2(Decimal(financial_totals[4])),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -338,4 +594,3 @@ def get_batch_financial(db: Session, order_id: uuid.UUID) -> BatchFinancial:
     if not fin:
         raise ValueError(f"Finansial batch untuk order {order_id} belum dihitung.")
     return fin
-

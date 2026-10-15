@@ -1,8 +1,11 @@
 """Pengujian RAG tanpa memanggil AWS. Semua pemanggilan AWS diganti FakeClients."""
 import pytest
+import uuid
 
 from app.core.config import Settings
 from app.main import app
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User, UserRole
 from app.modules.ai.errors import RagNotConfiguredError, RagUnavailableError, RagUpstreamError
 from app.modules.ai.service import (
     NO_CONTEXT_ANSWER,
@@ -122,11 +125,20 @@ def test_missing_bucket_raises_not_configured():
 @pytest.fixture
 def use_service(client):
     """Mengganti dependency RAG dengan service berisi fake clients."""
-    def _install(service: RagService):
+    def _install(service: RagService, role: UserRole = UserRole.OWNER):
         app.dependency_overrides[get_rag_service] = lambda: service
+        app.dependency_overrides[get_current_user] = lambda: User(
+            id=uuid.uuid4(),
+            username="test-user",
+            hashed_password="x",
+            name="Test User",
+            role=role,
+            client_id=uuid.uuid4() if role == UserRole.KLIEN_MAKLON else None,
+        )
         return client
     yield _install
     app.dependency_overrides.pop(get_rag_service, None)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_post_ask_returns_answer(use_service):
@@ -206,7 +218,9 @@ def test_dual_assistant_owner_tracker_persona(use_service):
 
 def test_dual_assistant_client_assistant_persona(use_service):
     """POST /ai/assistant dengan persona client_assistant harus mengembalikan label yang benar."""
-    http = use_service(RagService(make_settings(), FakeClients()))
+    http = use_service(
+        RagService(make_settings(), FakeClients()), role=UserRole.KLIEN_MAKLON
+    )
 
     res = http.post(
         "/api/v1/ai/assistant",
@@ -219,6 +233,32 @@ def test_dual_assistant_client_assistant_persona(use_service):
     assert body["persona"] == "client_assistant"
     assert "Calon Klien" in body["persona_label"]
     assert body["answer"] == "Jawaban uji."
+
+
+def test_client_cannot_select_owner_tracker(use_service):
+    http = use_service(
+        RagService(make_settings(), FakeClients()), role=UserRole.KLIEN_MAKLON
+    )
+
+    response = http.post(
+        "/api/v1/ai/assistant",
+        json={"question": "Status order", "persona": "owner_tracker"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_non_owner_operational_role_cannot_use_dual_assistant(use_service):
+    http = use_service(
+        RagService(make_settings(), FakeClients()), role=UserRole.MANDOR
+    )
+
+    response = http.post(
+        "/api/v1/ai/assistant",
+        json={"question": "Status produksi", "persona": "owner_tracker"},
+    )
+
+    assert response.status_code == 403
 
 
 def test_dual_assistant_default_persona_is_owner_tracker(use_service):

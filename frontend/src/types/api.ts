@@ -175,6 +175,30 @@ export type OrderSummary = {
   status?: OrderStatus;
 };
 
+export type WorkerDashboardOrder = {
+  order_id: string;
+  order_number: string;
+  status: OrderStatus;
+  target_quantity: number;
+  start_date: string | null;
+  deadline: string | null;
+  own_output_qty: number;
+  own_verified_qty: number;
+  qc_passed_qty: number;
+  qc_repair_qty: number;
+  qc_defect_qty: number;
+};
+
+export type WorkerDashboardSummary = {
+  total_output_qty: number;
+  verified_output_qty: number;
+  qc_passed_qty: number;
+  qc_repair_qty: number;
+  qc_defect_qty: number;
+  unattributed_qc_inspections: number;
+  orders: WorkerDashboardOrder[];
+};
+
 // ================= Quality Control =================
 export type QCResult = "LOLOS" | "REPAIR" | "DEFECT";
 
@@ -230,44 +254,115 @@ export type BatchFinancial = {
 
 export type BatchFinancialCreate = {
   order_id: string;
-  contract_revenue?: number;
-  overhead_percentage?: number;
-  status?: "DRAFT" | "LOCKED";
+  contract_revenue: number;
+  material_cost: number;
+  overhead_cost: number;
+};
+
+export type MonetaryAmount = number | string;
+
+export type PayrollPayment = {
+  id: string;
+  payroll_detail_id: string;
+  paid_by_user_id: string;
+  paid_at: string;
 };
 
 export type PayrollDetail = {
-  id?: string;
-  payroll_run_id?: string;
+  id: string;
+  payroll_run_id: string;
   user_id: string;
-  user_name: string;
-  role: string;
-  total_output_pcs: number;
-  piece_rate_pay: number;
-  meal_allowance: number;
-  qc_bonus: number;
-  total_pay: number;
+  total_sewing_fee: MonetaryAmount;
+  meal_allowance_amount: MonetaryAmount;
+  qc_bonus_share: MonetaryAmount;
+  net_salary: MonetaryAmount;
+  user: Pick<User, "id" | "name" | "role">;
+  payment: PayrollPayment | null;
 };
 
 export type PayrollPreview = {
   period_start: string;
   period_end: string;
-  meal_allowance_percentage: number;
-  qc_bonus_rate_per_pcs: number;
-  total_payroll: number;
-  total_operators: number;
-  details: PayrollDetail[];
+  meal_allowance_percentage: MonetaryAmount;
+  qc_bonus_rate_per_pcs: MonetaryAmount;
+  total_qc_bonus_pool: MonetaryAmount;
+  total_penjahit: number;
+  slips: {
+    user_id: string;
+    username: string;
+    name: string;
+    role: string;
+    total_qty_completed: number;
+    total_sewing_fee: MonetaryAmount;
+    meal_allowance_amount: MonetaryAmount;
+    qc_bonus_share: MonetaryAmount;
+    net_salary: MonetaryAmount;
+  }[];
 };
 
 export type PayrollRun = {
   id: string;
   period_start: string;
   period_end: string;
-  total_amount: number;
+  meal_allowance_percentage: MonetaryAmount;
+  qc_bonus_rate_per_pcs: MonetaryAmount;
+  total_qc_bonus_pool: MonetaryAmount;
   is_locked: boolean;
-  locked_at: string;
-  locked_by_user_id: string;
+  funding_status: "PENDING" | "SUFFICIENT" | "INSUFFICIENT";
+  available_funds: MonetaryAmount | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
   created_at: string;
   details?: PayrollDetail[];
+};
+
+export type PayrollNotification = {
+  id: string;
+  payroll_run_id: string;
+  message: string;
+  created_at: string;
+};
+
+export type PayrollMonthlySummary = {
+  year: number;
+  month: number;
+  orders_created: number;
+  active_orders_now: number;
+  verified_output_entries: number;
+  verified_output_pcs: number;
+  qc_pass_pcs: number;
+  qc_repair_pcs: number;
+  qc_defect_pcs: number;
+  payroll_total: MonetaryAmount;
+  payroll_paid_total: MonetaryAmount;
+  contract_revenue: MonetaryAmount;
+  material_cost: MonetaryAmount;
+  overhead_cost: MonetaryAmount;
+  total_hpp: MonetaryAmount;
+  net_profit: MonetaryAmount;
+};
+
+export type WorkerProductionNote = {
+  id: string;
+  order_id: string;
+  order_number: string;
+  component_name: string;
+  line_number: number;
+  qty_completed: number;
+  is_verified: boolean;
+  time_window: string;
+};
+
+export type WorkerPayrollSummary = {
+  run_id: string;
+  period_start: string;
+  period_end: string;
+  net_salary: MonetaryAmount;
+  payment_status: "SCHEDULED" | "PAID";
+  scheduled_payment_date: string;
+  paid_at: string | null;
+  production_notes: WorkerProductionNote[];
 };
 
 // ================= AI Dual-Assistant =================

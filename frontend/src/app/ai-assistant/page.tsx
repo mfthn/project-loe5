@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { aiApi } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
 import type { AssistantPersona, DualAskResponse, SourceDocument } from "../../types/api";
 
 interface ChatMessage {
@@ -24,19 +25,21 @@ const OWNER_PROMPTS = [
 ];
 
 const CLIENT_PROMPTS = [
+  "Apa saja tahapan order maklon dari sample sampai produksi?",
   "Apa perbedaan skema maklon CMT, Semi-CMT, dan Full Package?",
   "Saya ingin negosiasi pesanan jaket 500 pcs dengan Tim Sampel",
   "Berapa estimasi waktu pengerjaan sample dan minimal order (MOQ)?",
-  "Bisa lihat rincian gaji internal karyawan atau keuntungan pabrik?",
 ];
 
 export default function AiAssistantPage() {
-  const [persona, setPersona] = useState<AssistantPersona>("owner_tracker");
+  const { user } = useAuth();
+  const isClient = user?.role === "KLIEN_MAKLON";
+  const persona: AssistantPersona = isClient ? "client_assistant" : "owner_tracker";
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
       sender: "ai",
-      text: "Halo! Saya adalah AI Assistant Lukla Operations Engine yang ditenagai oleh Amazon Bedrock RAG. Silakan pilih persona yang ingin Anda ajak diskusi atau tanyakan seputar SOP operasional dan layanan kami.",
+      text: "Halo! Saya AI Assistant Lukla Operations Engine. Silakan tanyakan hal yang ingin Anda ketahui.",
       persona: "owner_tracker",
       timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
     },
@@ -118,7 +121,7 @@ export default function AiAssistantPage() {
       >
         <div>
           <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-            Pilih Mode Persona AI:
+            Mode Asisten:
           </div>
           <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>
             {persona === "owner_tracker"
@@ -127,20 +130,6 @@ export default function AiAssistantPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", background: "var(--bg-secondary)", padding: 4, borderRadius: "var(--radius-md)" }}>
-          <button
-            onClick={() => setPersona("owner_tracker")}
-            className={`btn btn-sm ${persona === "owner_tracker" ? "btn-primary" : "btn-ghost"}`}
-          >
-            👔 Owner Tracker
-          </button>
-          <button
-            onClick={() => setPersona("client_assistant")}
-            className={`btn btn-sm ${persona === "client_assistant" ? "btn-primary" : "btn-ghost"}`}
-          >
-            🤝 Asisten Calon Klien
-          </button>
-        </div>
       </div>
 
       {/* Chat Window */}

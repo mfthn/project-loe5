@@ -133,3 +133,27 @@ class OrderOutputSummary(BaseModel):
     total_completed: int
     verified_completed: int
     completion_pct: float
+
+
+class WorkerDashboardOrderResponse(BaseModel):
+    order_id: uuid.UUID
+    order_number: str
+    status: OrderStatus
+    target_quantity: int
+    start_date: datetime | None
+    deadline: datetime | None
+    own_output_qty: int
+    own_verified_qty: int
+    qc_passed_qty: int
+    qc_repair_qty: int
+    qc_defect_qty: int
+
+
+class WorkerDashboardResponse(BaseModel):
+    total_output_qty: int
+    verified_output_qty: int
+    qc_passed_qty: int
+    qc_repair_qty: int
+    qc_defect_qty: int
+    unattributed_qc_inspections: int
+    orders: list[WorkerDashboardOrderResponse]

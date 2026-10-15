@@ -29,11 +29,14 @@ from app.modules.produksi.models import (
     ProductionOutput,
     RateCard,
 )
+from app.modules.qc.models import QCInspection, QCStatus
 from app.modules.produksi.schemas import (
     OrderComponentCreate,
     OrderCreate,
     OrderFromSampleCreate,
     ProductionOutputCreate,
+    WorkerDashboardOrderResponse,
+    WorkerDashboardResponse,
 )
 from app.modules.sample.models import SampleComponent, SampleStatus, SampleVersion
 
@@ -107,6 +110,40 @@ def list_orders(
     if status is not None:
         stmt = stmt.where(Order.status == status)
     return list(db.scalars(stmt).all())
+
+
+def list_worker_orders(
+    db: Session,
+    operator_user_id: uuid.UUID,
+    status: OrderStatus | None = None,
+) -> list[Order]:
+    """Ambil hanya order yang pernah memiliki output dari Penjahit."""
+    stmt = (
+        select(Order)
+        .join(ProductionOutput, ProductionOutput.order_id == Order.id)
+        .options(selectinload(Order.components).selectinload(OrderComponent.rate_card))
+        .where(ProductionOutput.operator_user_id == operator_user_id)
+        .distinct()
+        .order_by(Order.created_at.desc())
+    )
+    if status is not None:
+        stmt = stmt.where(Order.status == status)
+    return list(db.scalars(stmt).all())
+
+
+def worker_has_output_for_order(
+    db: Session,
+    operator_user_id: uuid.UUID,
+    order_id: uuid.UUID,
+) -> bool:
+    return db.scalar(
+        select(ProductionOutput.id)
+        .where(
+            ProductionOutput.operator_user_id == operator_user_id,
+            ProductionOutput.order_id == order_id,
+        )
+        .limit(1)
+    ) is not None
 
 
 def get_order(db: Session, order_id: uuid.UUID) -> Order:
@@ -257,6 +294,109 @@ def list_outputs(
     if is_verified is not None:
         stmt = stmt.where(ProductionOutput.is_verified == is_verified)
     return list(db.scalars(stmt).all())
+
+
+def get_worker_dashboard_summary(
+    db: Session,
+    operator_user_id: uuid.UUID,
+) -> WorkerDashboardResponse:
+    """Ringkasan order aktif, output, dan hasil QC yang bisa diatribusikan ke Penjahit."""
+    outputs = list(
+        db.scalars(
+            select(ProductionOutput)
+            .join(Order, Order.id == ProductionOutput.order_id)
+            .options(selectinload(ProductionOutput.order))
+            .where(
+                ProductionOutput.operator_user_id == operator_user_id,
+                Order.status != OrderStatus.COMPLETED,
+            )
+            .order_by(Order.order_number, ProductionOutput.time_window.desc())
+        ).all()
+    )
+
+    order_summaries: dict[uuid.UUID, dict] = {}
+    output_ids = []
+    for output in outputs:
+        output_ids.append(output.id)
+        order = output.order
+        summary = order_summaries.setdefault(
+            order.id,
+            {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
+                "target_quantity": order.target_quantity,
+                "start_date": order.start_date,
+                "deadline": order.deadline,
+                "own_output_qty": 0,
+                "own_verified_qty": 0,
+                "qc_passed_qty": 0,
+                "qc_repair_qty": 0,
+                "qc_defect_qty": 0,
+            },
+        )
+        summary["own_output_qty"] += output.qty_completed
+        if output.is_verified:
+            summary["own_verified_qty"] += output.qty_completed
+
+    unattributed_qc_inspections = 0
+    if order_summaries:
+        unattributed_qc_inspections = int(
+            db.scalar(
+                select(sa_func.count(QCInspection.id)).where(
+                    QCInspection.order_id.in_(list(order_summaries)),
+                    QCInspection.production_output_id.is_(None),
+                )
+            )
+            or 0
+        )
+
+    if output_ids:
+        inspections = db.scalars(
+            select(QCInspection)
+            .where(QCInspection.production_output_id.in_(output_ids))
+            .order_by(QCInspection.inspected_at.desc(), QCInspection.id.desc())
+        ).all()
+
+        latest_inspected_outputs: set[uuid.UUID] = set()
+        qc_field_by_status = {
+            QCStatus.LOLOS: "qc_passed_qty",
+            QCStatus.REPAIR: "qc_repair_qty",
+            QCStatus.DEFECT: "qc_defect_qty",
+        }
+        summaries_by_output_id = {
+            output.id: order_summaries[output.order_id] for output in outputs
+        }
+        order_id_by_output_id = {
+            output.id: output.order_id for output in outputs
+        }
+        for inspection in inspections:
+            output_id = inspection.production_output_id
+            if (
+                output_id not in order_id_by_output_id
+                or inspection.order_id != order_id_by_output_id[output_id]
+            ):
+                continue
+            if output_id in latest_inspected_outputs:
+                continue
+            latest_inspected_outputs.add(output_id)
+            field = qc_field_by_status.get(inspection.status)
+            if field:
+                summaries_by_output_id[output_id][field] += inspection.qty_inspected
+
+    orders = [
+        WorkerDashboardOrderResponse(**summary)
+        for summary in sorted(order_summaries.values(), key=lambda item: item["order_number"])
+    ]
+    return WorkerDashboardResponse(
+        total_output_qty=sum(order.own_output_qty for order in orders),
+        verified_output_qty=sum(order.own_verified_qty for order in orders),
+        qc_passed_qty=sum(order.qc_passed_qty for order in orders),
+        qc_repair_qty=sum(order.qc_repair_qty for order in orders),
+        qc_defect_qty=sum(order.qc_defect_qty for order in orders),
+        unattributed_qc_inspections=unattributed_qc_inspections,
+        orders=orders,
+    )
 
 
 def record_output(

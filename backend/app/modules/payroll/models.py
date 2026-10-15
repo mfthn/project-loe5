@@ -3,11 +3,12 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.modules.auth.models import User
 
 
 class PayrollRun(Base):
@@ -30,6 +31,15 @@ class PayrollRun(Base):
     )
     # is_locked = True: data terkunci permanen, tidak dapat diubah oleh peran apa pun (termasuk Owner)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    funding_status: Mapped[str] = mapped_column(
+        String(20), default="PENDING", nullable=False
+    )
+    available_funds: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -74,6 +84,64 @@ class PayrollDetail(Base):
 
     # Relasi
     payroll_run: Mapped[PayrollRun] = relationship("PayrollRun", back_populates="details")
+    user: Mapped["User"] = relationship("User")
+    payment: Mapped["PayrollPayment | None"] = relationship(
+        "PayrollPayment", back_populates="payroll_detail", uselist=False
+    )
+
+
+class PayrollPayment(Base):
+    """Catatan pembayaran aktual yang terpisah dari slip payroll terkunci."""
+    __tablename__ = "payroll_payments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    payroll_detail_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payroll_details.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    paid_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    paid_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    payroll_detail: Mapped[PayrollDetail] = relationship(
+        "PayrollDetail", back_populates="payment"
+    )
+    paid_by: Mapped["User"] = relationship("User")
+
+
+class PayrollNotification(Base):
+    """Notifikasi payroll yang ditujukan ke satu user operasional."""
+    __tablename__ = "payroll_notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    payroll_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payroll_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    recipient_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class BatchFinancial(Base):

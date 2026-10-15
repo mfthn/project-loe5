@@ -41,6 +41,7 @@ function PlusGrid({ className = "" }: { className?: string }) {
 
 export default function LandingPage() {
   const { user } = useAuth();
+  const canUseAssistant = user?.role === "OWNER" || user?.role === "KLIEN_MAKLON";
   const [activeService, setActiveService] = useState<number>(0);
 
   const services = [
@@ -146,16 +147,18 @@ export default function LandingPage() {
           <a href="#workflow" style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-text)" }}>
             Alur 3 Langkah
           </a>
-          <Link href="/ai-assistant" style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-purple)" }}>
-            AI Assistant ✨
-          </Link>
+          {canUseAssistant && (
+            <Link href="/ai-assistant" style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--jadoo-purple)" }}>
+              AI Assistant ✨
+            </Link>
+          )}
         </div>
 
         {/* Right CTA */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {user ? (
-            <Link href="/dashboard" className="btn btn-primary">
-              Buka Dashboard ({user.role}) →
+            <Link href="/login" className="btn btn-primary">
+              Login →
             </Link>
           ) : (
             <>
@@ -244,9 +247,11 @@ export default function LandingPage() {
             <Link href="/login" className="btn btn-primary btn-lg">
               Buka Dashboard Operasional →
             </Link>
-            <Link href="/ai-assistant" className="btn btn-secondary btn-lg" style={{ borderColor: "#ffdcd5" }}>
-              💬 Tanya AI Konsultan Maklon
-            </Link>
+            {canUseAssistant && (
+              <Link href="/ai-assistant" className="btn btn-secondary btn-lg" style={{ borderColor: "#ffdcd5" }}>
+                💬 Tanya AI Konsultan Maklon
+              </Link>
+            )}
           </div>
 
           {/* Quick Metrics Under CTA */}
@@ -670,46 +675,47 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Right Interactive AI Demo Teaser */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #181e4b 0%, #14183e 100%)",
-            borderRadius: "var(--radius-xl)",
-            padding: 36,
-            color: "#ffffff",
-            boxShadow: "0 25px 60px -15px rgba(24, 30, 75, 0.3)",
-          }}
-        >
-          <span className="badge badge-purple" style={{ marginBottom: 12 }}>
-            Amazon Bedrock Titan & Nova Lite
-          </span>
-          <h3 style={{ fontSize: "1.6rem", color: "#ffffff", marginBottom: 14 }}>
-            AI Dual-Assistant Bertenaga RAG
-          </h3>
-          <p style={{ fontSize: "0.92rem", color: "#94a3b8", lineHeight: 1.6, marginBottom: 24 }}>
-            Dilatih langsung dari dokumen SOP manufaktur kami untuk menjawab pertanyaan operasional pabrik atau konsultasi maklon B2B secara instan.
-          </p>
-
+        {canUseAssistant && (
           <div
             style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              borderRadius: "var(--radius-md)",
-              padding: 18,
-              marginBottom: 24,
+              background: "linear-gradient(135deg, #181e4b 0%, #14183e 100%)",
+              borderRadius: "var(--radius-xl)",
+              padding: 36,
+              color: "#ffffff",
+              boxShadow: "0 25px 60px -15px rgba(24, 30, 75, 0.3)",
             }}
           >
-            <div style={{ fontSize: "0.8rem", color: "var(--jadoo-coral)", fontWeight: 700, marginBottom: 6 }}>
-              Contoh Pertanyaan Konsultasi:
-            </div>
-            <div style={{ fontSize: "0.92rem", color: "#f8fafc" }}>
-              "Berapa minimal pemesanan (MOQ) untuk pembuatan hoodie fleece dengan skema CMT?"
-            </div>
-          </div>
+            <span className="badge badge-purple" style={{ marginBottom: 12 }}>
+              Amazon Bedrock Titan & Nova Lite
+            </span>
+            <h3 style={{ fontSize: "1.6rem", color: "#ffffff", marginBottom: 14 }}>
+              AI Dual-Assistant Bertenaga RAG
+            </h3>
+            <p style={{ fontSize: "0.92rem", color: "#94a3b8", lineHeight: 1.6, marginBottom: 24 }}>
+              Dilatih langsung dari dokumen SOP manufaktur kami untuk menjawab pertanyaan operasional pabrik atau konsultasi maklon B2B secara instan.
+            </p>
 
-          <Link href="/ai-assistant" className="btn btn-primary" style={{ width: "100%" }}>
-            Mulai Percakapan dengan AI →
-          </Link>
-        </div>
+            <div
+              style={{
+                background: "rgba(255, 255, 255, 0.08)",
+                borderRadius: "var(--radius-md)",
+                padding: 18,
+                marginBottom: 24,
+              }}
+            >
+              <div style={{ fontSize: "0.8rem", color: "var(--jadoo-coral)", fontWeight: 700, marginBottom: 6 }}>
+                Contoh Pertanyaan Konsultasi:
+              </div>
+              <div style={{ fontSize: "0.92rem", color: "#f8fafc" }}>
+                "Berapa minimal pemesanan (MOQ) untuk pembuatan hoodie fleece dengan skema CMT?"
+              </div>
+            </div>
+
+            <Link href="/ai-assistant" className="btn btn-primary" style={{ width: "100%" }}>
+              Mulai Percakapan dengan AI →
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* Footer */}
@@ -754,7 +760,7 @@ export default function LandingPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: "0.9rem", color: "var(--jadoo-text)" }}>
               <Link href="/login">Masuk Akun Sistem</Link>
               <Link href="/portal-klien">Portal Klien Maklon</Link>
-              <Link href="/ai-assistant">AI Dual-Assistant</Link>
+              {canUseAssistant && <Link href="/ai-assistant">AI Dual-Assistant</Link>}
               <a href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API Documentation</a>
             </div>
           </div>

@@ -16,7 +16,7 @@ Pengujian mencakup Skenario 2 (P0):
 import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,16 +26,20 @@ from app.main import app
 from app.modules.auth.models import User, UserRole
 from app.modules.payroll.errors import (
     NoOutputsForPeriodError,
+    PayrollDetailNotFoundError,
+    PayrollPaymentAlreadyRecordedError,
     PayrollPeriodOverlapError,
-    PayrollRunLockedError,
+    PayrollRunNotLockedError,
     PayrollRunNotFoundError,
 )
-from app.modules.payroll.models import PayrollDetail, PayrollRun
+from app.modules.payroll.models import PayrollDetail, PayrollPayment, PayrollRun
 from app.modules.payroll.schemas import PayrollRunCreate
 from app.modules.payroll.service import (
-    _calculate_slips,
+    _period_datetimes,
     _round2,
-    lock_payroll_run,
+    review_payroll_funding,
+    list_worker_payroll_summaries,
+    mark_payroll_detail_paid,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,8 +55,8 @@ _USER_MANDOR_1 = uuid.uuid4()
 _USER_MANDOR_2 = uuid.uuid4()
 _USER_KAOPS = uuid.uuid4()
 
-_PERIOD_START = date(2026, 10, 6)   # Senin
-_PERIOD_END = date(2026, 10, 11)    # Sabtu
+_PERIOD_START = date(2026, 10, 5)   # Senin
+_PERIOD_END = date(2026, 10, 10)   # Sabtu
 
 
 def _mock_run(locked: bool = False) -> MagicMock:
@@ -64,6 +68,11 @@ def _mock_run(locked: bool = False) -> MagicMock:
     run.qc_bonus_rate_per_pcs = Decimal("500.00")
     run.total_qc_bonus_pool = Decimal("50000.00")
     run.is_locked = locked
+    run.funding_status = "PENDING"
+    run.available_funds = None
+    run.reviewed_by_user_id = None
+    run.reviewed_at = None
+    run.review_note = None
     run.created_at = _NOW
     run.details = []
     return run
@@ -90,35 +99,161 @@ class TestRoundHelper:
     def test_rounds_standard(self) -> None:
         assert _round2(Decimal("100.005")) == Decimal("100.01")
 
+    def test_payroll_datetime_bounds_use_jakarta_calendar_dates(self) -> None:
+        start, end = _period_datetimes(_PERIOD_START, _PERIOD_END)
+        assert start.isoformat() == "2026-10-05T00:00:00+07:00"
+        assert end.isoformat() == "2026-10-10T23:59:59.999999+07:00"
+
+    def test_payroll_period_requires_monday_through_saturday(self) -> None:
+        PayrollRunCreate(period_start=_PERIOD_START, period_end=_PERIOD_END)
+        with pytest.raises(ValueError):
+            PayrollRunCreate(
+                period_start=date(2026, 10, 6),
+                period_end=date(2026, 10, 11),
+            )
+
 
 # ===========================================================================
 # SERVICE LAYER TESTS
 # ===========================================================================
 
-class TestLockPayrollRun:
-    def test_locks_unlocked_run(self) -> None:
+class TestMarkPayrollDetailPaid:
+    def test_marks_locked_run_detail_paid(self) -> None:
         db = MagicMock(spec=Session)
-        run = _mock_run(locked=False)
-        db.scalar.return_value = run
+        detail = MagicMock(spec=PayrollDetail)
+        detail.id = uuid.uuid4()
+        detail.payment = None
+        detail.payroll_run = _mock_run(locked=True)
+        db.scalar.return_value = detail
 
-        result = lock_payroll_run(db, _RUN_ID)
-        assert result.is_locked is True
+        payment = mark_payroll_detail_paid(
+            db, _RUN_ID, detail.id, _MOCK_FINANCE.id
+        )
 
-    def test_already_locked_raises_error(self) -> None:
-        """FR-10: Payroll yang sudah terkunci tidak bisa dikunci ulang."""
+        assert isinstance(payment, PayrollPayment)
+        assert payment.payroll_detail_id == detail.id
+        assert payment.paid_by_user_id == _MOCK_FINANCE.id
+        assert payment.paid_at.tzinfo == timezone.utc
+        db.add.assert_called_once_with(payment)
+        db.commit.assert_called_once()
+
+    def test_rejects_payment_before_run_is_locked(self) -> None:
         db = MagicMock(spec=Session)
-        run = _mock_run(locked=True)
-        db.scalar.return_value = run
+        detail = MagicMock(spec=PayrollDetail)
+        detail.id = uuid.uuid4()
+        detail.payment = None
+        detail.payroll_run = _mock_run(locked=False)
+        db.scalar.return_value = detail
 
-        with pytest.raises(PayrollRunLockedError):
-            lock_payroll_run(db, _RUN_ID)
+        with pytest.raises(PayrollRunNotLockedError):
+            mark_payroll_detail_paid(db, _RUN_ID, detail.id, _MOCK_FINANCE.id)
 
-    def test_not_found_raises_error(self) -> None:
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_rejects_duplicate_payment(self) -> None:
+        db = MagicMock(spec=Session)
+        detail = MagicMock(spec=PayrollDetail)
+        detail.id = uuid.uuid4()
+        detail.payment = MagicMock(spec=PayrollPayment)
+        detail.payroll_run = _mock_run(locked=True)
+        db.scalar.return_value = detail
+
+        with pytest.raises(PayrollPaymentAlreadyRecordedError):
+            mark_payroll_detail_paid(db, _RUN_ID, detail.id, _MOCK_FINANCE.id)
+
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_rejects_unknown_run_detail_pair(self) -> None:
         db = MagicMock(spec=Session)
         db.scalar.return_value = None
+        detail_id = uuid.uuid4()
 
-        with pytest.raises(PayrollRunNotFoundError):
-            lock_payroll_run(db, uuid.uuid4())
+        with pytest.raises(PayrollDetailNotFoundError):
+            mark_payroll_detail_paid(db, _RUN_ID, detail_id, _MOCK_FINANCE.id)
+
+        db.add.assert_not_called()
+
+
+class TestReviewPayrollFunding:
+    def test_sufficient_funds_lock_run(self) -> None:
+        db = MagicMock(spec=Session)
+        run = _mock_run(locked=False)
+        detail = MagicMock()
+        detail.net_salary = Decimal("125000.00")
+        run.details = [detail]
+        db.scalar.return_value = run
+
+        result = review_payroll_funding(
+            db, _RUN_ID, Decimal("200000.00"), _MOCK_FINANCE.id
+        )
+
+        assert result.is_locked is True
+        assert result.funding_status == "SUFFICIENT"
+        assert result.available_funds == Decimal("200000.00")
+        assert result.reviewed_by_user_id == _MOCK_FINANCE.id
+        db.commit.assert_called_once()
+        db.add.assert_not_called()
+
+    def test_insufficient_funds_leave_run_unlocked_and_notify_mandors(self) -> None:
+        db = MagicMock(spec=Session)
+        run = _mock_run(locked=False)
+        detail = MagicMock()
+        detail.net_salary = Decimal("125000.00")
+        run.details = [detail]
+        db.scalar.return_value = run
+        mandor_id = uuid.uuid4()
+        db.scalars.return_value.all.return_value = [mandor_id]
+
+        result = review_payroll_funding(
+            db, _RUN_ID, Decimal("100000.00"), _MOCK_FINANCE.id
+        )
+
+        assert result.is_locked is False
+        assert result.funding_status == "INSUFFICIENT"
+        db.add.assert_called_once()
+        assert db.add.call_args.args[0].recipient_user_id == mandor_id
+        assert "25,000.00" in db.add.call_args.args[0].message
+        db.commit.assert_called_once()
+
+
+class TestListWorkerPayrollSummaries:
+    def test_lists_only_locked_runs_with_saturday_due_date(self) -> None:
+        db = MagicMock(spec=Session)
+        detail = MagicMock(spec=PayrollDetail)
+        detail.user_id = _USER_PENJAHIT_1
+        detail.net_salary = Decimal("125000.00")
+        detail.payment = None
+        run = _mock_run(locked=True)
+        run.details = [detail]
+        db.scalars.return_value.unique.return_value.all.return_value = [run]
+        db.execute.return_value.all.return_value = []
+
+        summaries = list_worker_payroll_summaries(db, _USER_PENJAHIT_1)
+
+        assert len(summaries) == 1
+        assert summaries[0]["payment_status"] == "SCHEDULED"
+        assert summaries[0]["scheduled_payment_date"] == date(2026, 10, 10)
+        assert summaries[0]["net_salary"] == Decimal("125000.00")
+        assert summaries[0]["production_notes"] == []
+
+    def test_reports_paid_status_from_recorded_payment(self) -> None:
+        db = MagicMock(spec=Session)
+        detail = MagicMock(spec=PayrollDetail)
+        detail.user_id = _USER_PENJAHIT_1
+        detail.net_salary = Decimal("125000.00")
+        detail.payment = MagicMock(spec=PayrollPayment)
+        detail.payment.paid_at = _NOW
+        run = _mock_run(locked=True)
+        run.details = [detail]
+        db.scalars.return_value.unique.return_value.all.return_value = [run]
+        db.execute.return_value.all.return_value = []
+
+        summaries = list_worker_payroll_summaries(db, _USER_PENJAHIT_1)
+
+        assert summaries[0]["payment_status"] == "PAID"
+        assert summaries[0]["paid_at"] == _NOW
 
 
 class TestPayrollCalculation:
@@ -242,21 +377,144 @@ class TestPayrollEndpoints:
         )
         assert resp.status_code == 422
 
-    @patch("app.modules.payroll.router.lock_payroll_run")
-    def test_lock_run_returns_200(self, mock_lock: MagicMock) -> None:
+    @patch("app.modules.payroll.router.review_payroll_funding")
+    def test_finance_review_locks_when_funds_are_sufficient(
+        self, mock_review: MagicMock
+    ) -> None:
         run = _mock_run(locked=True)
-        mock_lock.return_value = run
-        resp = self._client().post(f"/api/v1/payroll/runs/{_RUN_ID}/lock")
+        run.funding_status = "SUFFICIENT"
+        run.available_funds = Decimal("250000.00")
+        mock_review.return_value = run
+        resp = self._client().post(
+            f"/api/v1/payroll/runs/{_RUN_ID}/finance-review",
+            json={"available_funds": "250000.00"},
+        )
         assert resp.status_code == 200
-        data = resp.json()
-        assert data["is_locked"] is True
+        assert resp.json()["is_locked"] is True
+        assert resp.json()["funding_status"] == "SUFFICIENT"
+        mock_review.assert_called_once_with(
+            ANY, _RUN_ID, Decimal("250000.00"), _MOCK_FINANCE.id, None
+        )
 
-    @patch("app.modules.payroll.router.lock_payroll_run")
-    def test_lock_already_locked_returns_409(self, mock_lock: MagicMock) -> None:
-        """Mengunci ulang payroll yang sudah terkunci harus HTTP 409."""
-        mock_lock.side_effect = PayrollRunLockedError(_RUN_ID)
-        resp = self._client().post(f"/api/v1/payroll/runs/{_RUN_ID}/lock")
+    @patch("app.modules.payroll.router.review_payroll_funding")
+    def test_finance_review_keeps_run_open_when_funds_are_insufficient(
+        self, mock_review: MagicMock
+    ) -> None:
+        run = _mock_run(locked=False)
+        run.funding_status = "INSUFFICIENT"
+        run.available_funds = Decimal("100000.00")
+        mock_review.return_value = run
+        response = self._client().post(
+            f"/api/v1/payroll/runs/{_RUN_ID}/finance-review",
+            json={"available_funds": "100000.00", "review_note": "Dana kurang"},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_locked"] is False
+        assert response.json()["funding_status"] == "INSUFFICIENT"
+
+    @patch("app.modules.payroll.router.review_payroll_funding")
+    def test_owner_cannot_finalize_payroll(
+        self, mock_review: MagicMock
+    ) -> None:
+        response = self._client(user_fn=lambda: _MOCK_OWNER).post(
+            f"/api/v1/payroll/runs/{_RUN_ID}/finance-review",
+            json={"available_funds": "250000.00"},
+        )
+        assert response.status_code == 403
+        mock_review.assert_not_called()
+
+    @patch("app.modules.payroll.router.mark_payroll_detail_paid")
+    def test_finance_can_confirm_payment(self, mock_mark_paid: MagicMock) -> None:
+        payment = MagicMock(spec=PayrollPayment)
+        payment.id = uuid.uuid4()
+        payment.payroll_detail_id = uuid.uuid4()
+        payment.paid_by_user_id = _MOCK_FINANCE.id
+        payment.paid_at = _NOW
+        mock_mark_paid.return_value = payment
+
+        resp = self._client().post(
+            f"/api/v1/payroll/runs/{_RUN_ID}/details/{payment.payroll_detail_id}/payment"
+        )
+
+        assert resp.status_code == 201
+        assert resp.json()["paid_by_user_id"] == str(_MOCK_FINANCE.id)
+        mock_mark_paid.assert_called_once_with(
+            ANY,
+            run_id=_RUN_ID,
+            detail_id=payment.payroll_detail_id,
+            paid_by_user_id=_MOCK_FINANCE.id,
+        )
+
+    @patch("app.modules.payroll.router.mark_payroll_detail_paid")
+    def test_payment_for_unlocked_run_returns_409(self, mock_mark_paid: MagicMock) -> None:
+        mock_mark_paid.side_effect = PayrollRunNotLockedError(_RUN_ID)
+
+        resp = self._client().post(
+            f"/api/v1/payroll/runs/{_RUN_ID}/details/{uuid.uuid4()}/payment"
+        )
+
         assert resp.status_code == 409
+
+    @patch("app.modules.payroll.router.mark_payroll_detail_paid")
+    def test_mandor_cannot_confirm_payments(self, mock_mark_paid: MagicMock) -> None:
+        mandor = User(
+            id=uuid.uuid4(),
+            username="mandor_agus",
+            role=UserRole.MANDOR,
+            client_id=None,
+            hashed_password="x",
+            name="Agus",
+        )
+
+        resp = self._client(user_fn=lambda: mandor).post(
+            f"/api/v1/payroll/runs/{_RUN_ID}/details/{uuid.uuid4()}/payment"
+        )
+
+        assert resp.status_code == 403
+        mock_mark_paid.assert_not_called()
+
+    @patch("app.modules.payroll.router.list_worker_payroll_summaries")
+    def test_penjahit_receives_only_personal_payroll_summary(
+        self, mock_summary: MagicMock
+    ) -> None:
+        penjahit = User(
+            id=uuid.uuid4(),
+            username="penjahit_siti",
+            role=UserRole.PENJAHIT,
+            client_id=None,
+            hashed_password="x",
+            name="Siti",
+        )
+        mock_summary.return_value = [
+            {
+                "run_id": _RUN_ID,
+                "period_start": _PERIOD_START,
+                "period_end": _PERIOD_END,
+                "net_salary": Decimal("125000.00"),
+                "payment_status": "SCHEDULED",
+                "scheduled_payment_date": _PERIOD_END,
+                "paid_at": None,
+                "production_notes": [],
+            }
+        ]
+
+        resp = self._client(user_fn=lambda: penjahit).get(
+            "/api/v1/payroll/my-summary"
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()[0]["net_salary"] == "125000.00"
+        assert resp.json()[0]["payment_status"] == "SCHEDULED"
+        mock_summary.assert_called_once_with(ANY, penjahit.id)
+
+    @patch("app.modules.payroll.router.list_worker_payroll_summaries")
+    def test_finance_cannot_read_penjahit_personal_summary(
+        self, mock_summary: MagicMock
+    ) -> None:
+        resp = self._client().get("/api/v1/payroll/my-summary")
+
+        assert resp.status_code == 403
+        mock_summary.assert_not_called()
 
     @patch("app.modules.payroll.router.preview_payroll")
     def test_preview_no_outputs_returns_422(self, mock_preview: MagicMock) -> None:

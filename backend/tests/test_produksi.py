@@ -16,6 +16,7 @@ Pengujian mencakup:
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -48,11 +49,13 @@ from app.modules.produksi.schemas import (
 from app.modules.produksi.service import (
     create_order,
     create_order_from_sample,
+    get_worker_dashboard_summary,
     get_order_output_summary,
     record_output,
     update_order_status,
     verify_output,
 )
+from app.modules.qc.models import QCStatus
 from app.modules.sample.models import SampleStatus, SampleVersion
 
 
@@ -318,6 +321,78 @@ class TestGetOrderOutputSummary:
         assert summary["completion_pct"] == 0.0
 
 
+class TestWorkerDashboardSummary:
+    def test_only_counts_latest_qc_result_per_worker_output(self) -> None:
+        db = MagicMock(spec=Session)
+        second_output_id = uuid.uuid4()
+        order = SimpleNamespace(
+            id=_ORDER_ID,
+            order_number="ORD-2026-001",
+            status=OrderStatus.SEWING,
+            target_quantity=100,
+            start_date=_NOW,
+            deadline=None,
+        )
+        outputs = [
+            SimpleNamespace(
+                id=_COMP_ID,
+                order_id=_ORDER_ID,
+                order=order,
+                qty_completed=10,
+                is_verified=True,
+            ),
+            SimpleNamespace(
+                id=second_output_id,
+                order_id=_ORDER_ID,
+                order=order,
+                qty_completed=5,
+                is_verified=False,
+            ),
+        ]
+        inspections = [
+            SimpleNamespace(
+                production_output_id=_COMP_ID,
+                order_id=uuid.uuid4(),
+                status=QCStatus.LOLOS,
+                qty_inspected=99,
+            ),
+            SimpleNamespace(
+                production_output_id=_COMP_ID,
+                order_id=_ORDER_ID,
+                status=QCStatus.DEFECT,
+                qty_inspected=2,
+            ),
+            SimpleNamespace(
+                production_output_id=_COMP_ID,
+                order_id=_ORDER_ID,
+                status=QCStatus.LOLOS,
+                qty_inspected=10,
+            ),
+            SimpleNamespace(
+                production_output_id=second_output_id,
+                order_id=_ORDER_ID,
+                status=QCStatus.REPAIR,
+                qty_inspected=3,
+            ),
+        ]
+        output_result = MagicMock()
+        output_result.all.return_value = outputs
+        inspection_result = MagicMock()
+        inspection_result.all.return_value = inspections
+        db.scalars.side_effect = [output_result, inspection_result]
+        db.scalar.return_value = 0
+
+        summary = get_worker_dashboard_summary(db, _USER_ID)
+
+        assert summary.total_output_qty == 15
+        assert summary.verified_output_qty == 10
+        assert summary.qc_passed_qty == 0
+        assert summary.qc_repair_qty == 3
+        assert summary.qc_defect_qty == 2
+        assert summary.unattributed_qc_inspections == 0
+        assert len(summary.orders) == 1
+
+
 # ===========================================================================
 # HTTP / ENDPOINT TESTS
 # ===========================================================================
@@ -363,6 +438,63 @@ class TestProduksiEndpoints:
         resp = client.get("/api/v1/produksi/orders")
         assert resp.status_code == 200
         assert resp.json() == []
+
+    @patch("app.modules.produksi.router.list_worker_orders")
+    def test_tailor_order_list_is_scoped_to_own_outputs(self, mock_list: MagicMock) -> None:
+        mock_list.return_value = []
+        client = self._client_with_overrides(user_fn=lambda: _MOCK_PENJAHIT)
+
+        response = client.get("/api/v1/produksi/orders")
+
+        assert response.status_code == 200
+        mock_list.assert_called_once()
+
+    @patch("app.modules.produksi.router.worker_has_output_for_order", return_value=False)
+    def test_tailor_cannot_read_unassigned_order(self, _mock_has_output: MagicMock) -> None:
+        client = self._client_with_overrides(user_fn=lambda: _MOCK_PENJAHIT)
+
+        response = client.get(f"/api/v1/produksi/orders/{_ORDER_ID}")
+
+        assert response.status_code == 404
+
+    @patch("app.modules.produksi.router.worker_has_output_for_order", return_value=False)
+    def test_tailor_cannot_read_unassigned_order_summary(self, _mock_has_output: MagicMock) -> None:
+        client = self._client_with_overrides(user_fn=lambda: _MOCK_PENJAHIT)
+
+        response = client.get(f"/api/v1/produksi/orders/{_ORDER_ID}/summary")
+
+        assert response.status_code == 404
+
+    @patch("app.modules.produksi.router.get_worker_dashboard_summary")
+    def test_worker_dashboard_is_available_to_seamstress(
+        self, mock_dashboard: MagicMock
+    ) -> None:
+        mock_dashboard.return_value = {
+            "total_output_qty": 0,
+            "verified_output_qty": 0,
+            "qc_passed_qty": 0,
+            "qc_repair_qty": 0,
+            "qc_defect_qty": 0,
+            "unattributed_qc_inspections": 0,
+            "orders": [],
+        }
+        client = self._client_with_overrides(user_fn=lambda: _MOCK_PENJAHIT)
+
+        response = client.get("/api/v1/produksi/my-dashboard")
+
+        assert response.status_code == 200
+        assert response.json()["orders"] == []
+        mock_dashboard.assert_called_once()
+
+    def test_worker_dashboard_rejects_other_roles(self) -> None:
+        from app.modules.auth.dependencies import get_current_user
+
+        app.dependency_overrides[get_current_user] = _mandor_user
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/api/v1/produksi/my-dashboard")
+
+        assert response.status_code == 403
 
     @patch("app.modules.produksi.router.create_order")
     def test_post_order_returns_201(self, mock_create: MagicMock) -> None:
