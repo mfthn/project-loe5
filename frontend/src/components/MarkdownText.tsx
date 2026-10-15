@@ -73,6 +73,12 @@ export function MarkdownText({ text }: { text: string }) {
       flushList();
       continue;
     }
+    // Garis pemisah --- / *** / ___ dirender sebagai <hr/>, bukan teks mentah.
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      flushList();
+      blocks.push(<hr key={`b${key++}`} className="md-hr" />);
+      continue;
+    }
     const heading = trimmed.match(/^(#{1,4})\s+(.*)$/);
     if (heading) {
       flushList();

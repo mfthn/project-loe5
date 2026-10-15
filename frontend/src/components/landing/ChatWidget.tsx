@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import { MarkdownText } from "../MarkdownText";
 import { aiApi } from "../../lib/api";
 import type { DualAskResponse, SourceDocument } from "../../types/api";
 
@@ -287,7 +288,11 @@ export function ChatWidget() {
                     lineHeight: 1.5,
                   }}
                 >
-                  <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                  {isUser ? (
+                    <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                  ) : (
+                    <MarkdownText text={m.text} />
+                  )}
 
                   {/* Sources citation if any */}
                   {m.sources && m.sources.length > 0 && (

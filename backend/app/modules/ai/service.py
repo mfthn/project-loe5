@@ -40,7 +40,12 @@ CLIENT_ASSISTANT_PROMPT = (
     "Gunakan bahasa yang ramah, profesional, dan bersahabat. "
     "Jawab berdasarkan konteks SOP yang diberikan. Jika tidak ada di konteks, sampaikan secara jujur tanpa mengarang angka harga pasti. "
     "Jika calon klien ingin melakukan pemesanan, membuat sample, atau berdiskusi lebih lanjut mengenai kebutuhan produksi, "
-    "selalu arahkan mereka untuk menghubungi tim kami melalui kontak pemesanan (WhatsApp/Telegram tim sample)."
+    "selalu arahkan mereka untuk menghubungi tim kami melalui kontak pemesanan (WhatsApp/Telegram tim sample). "
+    "Aturan format jawaban (wajib): tulis teks rapi berbahasa Indonesia. "
+    "Boleh memakai **teks tebal** untuk penekanan penting, pastikan setiap ** selalu dibuka dan ditutup. "
+    "Jangan memakai emoji. Jangan menulis link, URL, atau nomor WhatsApp di dalam teks jawaban "
+    "(tombol WhatsApp sudah ditampilkan otomatis oleh aplikasi). "
+    "Jangan memakai garis pemisah seperti ---."
 )
 
 # Kontak handoff WhatsApp dengan template chat untuk tim sample
@@ -58,9 +63,11 @@ SAMPLE_HANDOFF_TEXT = (
 WHATSAPP_HANDOFF_URL = (
     "https://wa.me/6281234567890?text=" + urllib.parse.quote(SAMPLE_HANDOFF_TEXT)
 )
+# Pesan handoff teks polos (tanpa emoji, tanpa **, tanpa link markdown, tanpa ---):
+# frontend me-render markdown dan menampilkan tombol WhatsApp terpisah.
 WHATSAPP_HANDOFF_MSG = (
-    "\n\n---\n📞 **Ingin memesan atau membuat sampel?** "
-    "Silakan hubungi tim kami via kontak pemesanan atau langsung chat [WhatsApp Tim Sample](https://wa.me/6281234567890)."
+    "\n\nTertarik bekerja sama? Hubungi tim kami langsung via WhatsApp "
+    "untuk konsultasi dan penawaran harga."
 )
 
 

@@ -653,6 +653,117 @@ a {
   color: var(--jadoo-muted);
 }
 
+/* Markdown rendering di bubble AI (tebal / judul / list tanpa simbol mentah) */
+.md-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.md-p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.md-h,
+.md-h3,
+.md-h4 {
+  font-weight: 800;
+  color: var(--jadoo-navy);
+  line-height: 1.4;
+  margin: 6px 0 2px;
+}
+
+.md-h {
+  font-size: 1.08rem;
+}
+
+.md-h3 {
+  font-size: 1rem;
+}
+
+.md-h4 {
+  font-size: 0.94rem;
+}
+
+.md-ul,
+.md-ol {
+  margin: 4px 0 4px 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.6;
+}
+
+.md-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.md-link {
+  color: var(--jadoo-purple);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.md-link-placeholder {
+  font-weight: 600;
+}
+
+.md-hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 6px 0;
+}
+
+/* Bubble bantuan AI melayang */
+.ai-bubble-root {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ai-chat-window {
+  width: 380px;
+  max-width: calc(100vw - 48px);
+  height: 520px;
+  max-height: calc(100vh - 140px);
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px -12px rgba(24, 30, 75, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ai-bubble-btn {
+  transition: transform 0.2s ease;
+  animation: ai-bubble-pulse 2.4s infinite;
+}
+
+.ai-bubble-btn:hover {
+  transform: scale(1.08);
+}
+
+@keyframes ai-bubble-pulse {
+  0%, 100% {
+    box-shadow: 0 10px 28px rgba(219, 39, 119, 0.4);
+  }
+  50% {
+    box-shadow: 0 10px 34px rgba(219, 39, 119, 0.6), 0 0 0 10px rgba(219, 39, 119, 0.08);
+  }
+}
+
 /* Decorative Plus Grid (from design reference) */
 .plus-grid {
   display: grid;

@@ -1,11 +1,13 @@
-"""Bridge Telegram <-> AI Dual-Assistant Lukla.
+"""Bridge Telegram <-> AI Lukla.
 
-Alur: Telegram user -> bot ini (polling) -> POST /api/v1/ai/assistant -> Bedrock RAG.
-Publik hanya memakai persona `client_assistant`. Persona `owner_tracker`
-dibatasi ke TELEGRAM_ALLOWED_IDS via perintah /owner.
+Alur: Telegram user -> bot ini (polling) -> backend -> Bedrock RAG.
+- Chat biasa -> POST /api/v1/ai/rag (publik, SOP + handoff WhatsApp, tanpa auth).
+- /owner      -> POST /api/v1/ai/ask-agent (SOP + data live DB, tanpa auth di sisi
+  backend; akses dibatasi ke TELEGRAM_ALLOWED_IDS di bot ini).
 
-Jalankan dari folder backend:
-    export TELEGRAM_BOT_TOKEN=8762315066:AAFjkrAuNEg8SzAYB-oguLx5Pp0TZzpLezU
+Jalankan dari folder backend (token dibaca dari env / backend/.env):
+    export TELEGRAM_BOT_TOKEN=...   # token BotFather
+    export TELEGRAM_ALLOWED_IDS=123456789,namapengguna   # opsional, untuk /owner
     python scripts/telegram_bot.py
 """
 import logging
@@ -20,7 +22,8 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("telegram_bot")
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-ASSISTANT_URL = f"{API_BASE_URL}/ai/assistant"
+RAG_URL = f"{API_BASE_URL}/ai/rag"  # publik: SOP + WhatsApp handoff
+AGENT_URL = f"{API_BASE_URL}/ai/ask-agent"  # internal: SOP + data live database
 # Daftar Telegram user id ATAU username yang boleh memakai /owner, pisahkan koma.
 # Contoh: TELEGRAM_ALLOWED_IDS=123456789,Andrez238. Username tanpa @, case-insensitive.
 ALLOWED_IDS = {
@@ -36,10 +39,10 @@ def _split(text: str) -> list[str]:
     return [text[i : i + MAX_TG_LEN] for i in range(0, len(text), MAX_TG_LEN)] or ["(kosong)"]
 
 
-async def _ask_backend(question: str, persona: str) -> str:
+async def _ask_backend(question: str, url: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=90) as cli:
-            r = await cli.post(ASSISTANT_URL, json={"question": question, "persona": persona})
+            r = await cli.post(url, json={"question": question})
     except httpx.ConnectError:
         return "Backend mati. Nyalakan dulu: `uvicorn app.main:app --reload` di folder backend."
     if r.status_code == 422:
@@ -73,7 +76,7 @@ async def handle_public(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not q:
         return
     await update.message.chat.send_action(ChatAction.TYPING)
-    answer = await _ask_backend(q, "client_assistant")
+    answer = await _ask_backend(q, RAG_URL)
     for part in _split(answer):
         await update.message.reply_text(part)
 
@@ -90,7 +93,7 @@ async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Pakai: /owner <pertanyaan>, contoh: /owner ringkas output sewing minggu ini")
         return
     await update.message.chat.send_action(ChatAction.TYPING)
-    answer = await _ask_backend(q, "owner_tracker")
+    answer = await _ask_backend(q, AGENT_URL)
     for part in _split(answer):
         await update.message.reply_text(part)
 
@@ -99,7 +102,7 @@ def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     if not token:
         raise SystemExit("TELEGRAM_BOT_TOKEN belum diisi. export TELEGRAM_BOT_TOKEN=... dulu.")
-    log.info("Menghubungi %s (persona default: client_assistant)", ASSISTANT_URL)
+    log.info("RAG publik: %s | Owner agent: %s", RAG_URL, AGENT_URL)
     app = ApplicationBuilder().token(token).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))

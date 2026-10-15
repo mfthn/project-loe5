@@ -20,7 +20,7 @@ def gudang_auth_headers(http_client):
     """Login sebagai Petugas Gudang dan mengembalikan Authorization header."""
     res = http_client.post(
         "/api/v1/auth/login",
-        json={"username": "gudang_budi", "password": "gudang123"},
+        json={"username": "budi_gudang", "password": "Lukla@Gudang2026"},
     )
     assert res.status_code == 200
     token = res.json()["access_token"]

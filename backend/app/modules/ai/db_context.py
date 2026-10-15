@@ -20,7 +20,7 @@ from app.modules.gudang.models import InventoryItem, InventoryTransaction
 from app.modules.payroll.models import BatchFinancial, PayrollDetail, PayrollRun
 from app.modules.produksi.models import Order, OrderStatus, ProductionOutput
 from app.modules.qc.models import QCInspection, QCStatus
-from app.modules.sample.models import Sample, SampleStatus
+from app.modules.sample.models import Sample, SampleStatus, SampleVersion
 
 # Jumlah hari ke belakang untuk ringkasan "recent"
 _RECENT_DAYS = 30
@@ -45,13 +45,13 @@ def _orders_summary(db: Session) -> str:
 
     active_orders = (
         db.query(Order)
-        .filter(Order.status.notin_([OrderStatus.SELESAI, OrderStatus.DIBATALKAN]))
-        .order_by(Order.order_date.desc())
+        .filter(Order.status.notin_([OrderStatus.COMPLETED]))
+        .order_by(Order.created_at.desc())
         .limit(_TOP_N)
         .all()
     )
     active_lines = "\n".join(
-        f"  [{o.id}] {o.client_name} | {o.product_name} | {o.quantity} pcs | {o.status} | deadline: {o.deadline}"
+        f"  [{o.order_number}] {o.target_quantity} pcs | {o.status} | deadline: {o.deadline}"
         for o in active_orders
     ) or "  (tidak ada order aktif)"
 
@@ -67,8 +67,8 @@ def _production_summary(db: Session) -> str:
     since = _recent_date()
     rows = (
         db.query(ProductionOutput)
-        .filter(ProductionOutput.output_date >= since)
-        .order_by(ProductionOutput.output_date.desc())
+        .filter(ProductionOutput.time_window >= since)
+        .order_by(ProductionOutput.time_window.desc())
         .limit(_TOP_N)
         .all()
     )
@@ -76,14 +76,14 @@ def _production_summary(db: Session) -> str:
         return "=== OUTPUT PRODUKSI ===\nTidak ada data output produksi dalam 30 hari terakhir."
 
     lines = "\n".join(
-        f"  {r.output_date} | Order #{r.order_id} | {r.quantity_produced} pcs diproduksi | reject: {r.quantity_rejected}"
+        f"  {r.time_window} | Order #{r.order_id} | {r.qty_completed} pcs "
+        f"| line {r.line_number} | {'terverifikasi' if r.is_verified else 'belum verifikasi'}"
         for r in rows
     )
-    total_produced = sum(r.quantity_produced for r in rows)
-    total_rejected = sum(r.quantity_rejected for r in rows)
+    total_completed = sum(r.qty_completed for r in rows)
     return (
         f"=== OUTPUT PRODUKSI (30 hari terakhir — {len(rows)} record) ===\n"
-        f"Total diproduksi: {total_produced} pcs | Total reject: {total_rejected} pcs\n"
+        f"Total diselesaikan: {total_completed} pcs\n"
         f"Detail:\n{lines}"
     )
 
@@ -97,7 +97,7 @@ def _payroll_summary(db: Session) -> str:
         return "=== PAYROLL ===\nBelum ada data payroll."
 
     total_net = (
-        db.query(func.sum(PayrollDetail.net_pay))
+        db.query(func.sum(PayrollDetail.net_salary))
         .filter(PayrollDetail.payroll_run_id == latest_run.id)
         .scalar()
         or 0
@@ -108,30 +108,29 @@ def _payroll_summary(db: Session) -> str:
         .scalar()
         or 0
     )
+    lock_label = "TERKUNCI (audit lock)" if latest_run.is_locked else "terbuka"
     return (
         f"=== PAYROLL TERBARU ===\n"
         f"  Periode: {latest_run.period_start} s/d {latest_run.period_end}\n"
-        f"  Status: {latest_run.status}\n"
+        f"  Status: {lock_label}\n"
         f"  Jumlah karyawan: {detail_count}\n"
         f"  Total net pay: Rp {total_net:,.0f}"
     )
 
 
 def _inventory_summary(db: Session) -> str:
-    """Item inventaris yang stoknya menipis (<= 20% dari stok minimum) atau habis."""
-    items = db.query(InventoryItem).order_by(InventoryItem.stock_quantity.asc()).limit(10).all()
+    """Item inventaris dengan stok terendah (10 terbawah)."""
+    items = db.query(InventoryItem).order_by(InventoryItem.current_stock.asc()).limit(10).all()
     if not items:
         return "=== INVENTARIS ===\nBelum ada data inventaris."
 
-    low_stock = [i for i in items if i.stock_quantity <= i.minimum_stock]
-    low_lines = "\n".join(
-        f"  [{i.sku}] {i.name}: stok {i.stock_quantity} {i.unit} (min: {i.minimum_stock})"
-        for i in low_stock
-    ) or "  Semua stok dalam kondisi aman."
+    lines = "\n".join(
+        f"  [{i.material_code}] {i.material_name}: stok {i.current_stock} {i.unit_measure}"
+        for i in items
+    )
 
     return (
-        f"=== INVENTARIS ===\n"
-        f"Item dengan stok rendah / di bawah minimum ({len(low_stock)} item):\n{low_lines}"
+        f"=== INVENTARIS (10 stok terendah) ===\n{lines}"
     )
 
 
@@ -139,17 +138,17 @@ def _qc_summary(db: Session) -> str:
     """Ringkasan hasil QC 30 hari terakhir."""
     since = _recent_date()
     rows = (
-        db.query(QCInspection.result, func.count(QCInspection.id).label("cnt"))
+        db.query(QCInspection.status, func.count(QCInspection.id).label("cnt"))
         .filter(QCInspection.inspected_at >= since)
-        .group_by(QCInspection.result)
+        .group_by(QCInspection.status)
         .all()
     )
     if not rows:
         return "=== QC ===\nTidak ada data QC dalam 30 hari terakhir."
 
-    lines = "\n".join(f"  - {r.result}: {r.cnt} inspeksi" for r in rows)
+    lines = "\n".join(f"  - {r.status}: {r.cnt} inspeksi" for r in rows)
     total = sum(r.cnt for r in rows)
-    passed = next((r.cnt for r in rows if r.result == QCStatus.PASSED), 0)
+    passed = next((r.cnt for r in rows if r.status == QCStatus.LOLOS), 0)
     pass_rate = (passed / total * 100) if total else 0
     return (
         f"=== QC (30 hari terakhir) ===\n"
@@ -159,16 +158,16 @@ def _qc_summary(db: Session) -> str:
 
 
 def _sample_summary(db: Session) -> str:
-    """Status sample aktif."""
+    """Status versi sample (DRAFT/REVISION/APPROVED)."""
     rows = (
-        db.query(Sample.status, func.count(Sample.id).label("cnt"))
-        .group_by(Sample.status)
+        db.query(SampleVersion.status, func.count(SampleVersion.id).label("cnt"))
+        .group_by(SampleVersion.status)
         .all()
     )
     if not rows:
         return "=== SAMPLE ===\nBelum ada data sample."
 
-    lines = "\n".join(f"  - {r.status}: {r.cnt} sample" for r in rows)
+    lines = "\n".join(f"  - {r.status}: {r.cnt} versi sample" for r in rows)
     return f"=== STATUS SAMPLE ===\n{lines}"
 
 
