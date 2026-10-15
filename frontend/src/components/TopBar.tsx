@@ -207,6 +207,7 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
             </div>
             <span className="topbar-user-name" style={{ color: "#84829a", fontWeight: 500 }}>{user.name}</span>
             <span
+              className="topbar-user-role"
               style={{
                 background: "#7C3AED",
                 color: "#fff",

@@ -929,11 +929,14 @@ a {
     height: auto;
     min-height: 60px;
   }
-  /* Sisakan dot status + badge peran; teks disembunyikan agar muat */
+  /* Sisakan dot status + ikon profil; teks disembunyikan agar muat */
   .topbar-ai-text {
     display: none;
   }
   .topbar-user-name {
+    display: none;
+  }
+  .topbar-user-role {
     display: none;
   }
   .page-body {
