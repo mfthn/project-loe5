@@ -2,11 +2,14 @@
 
 Alur: Telegram user -> bot ini (polling) -> backend -> Bedrock RAG.
 - Chat biasa -> POST /api/v1/ai/rag (publik, SOP + handoff WhatsApp, tanpa auth).
-- /owner      -> POST /api/v1/ai/ask-agent (SOP + data live DB, tanpa auth di sisi
-  backend; akses dibatasi ke TELEGRAM_ALLOWED_IDS di bot ini).
+- /owner      -> POST /api/v1/ai/ask-agent (SOP + data live DB, butuh role
+  OWNER/MANDOR; bot login otomatis sebagai service account, lalu akses
+  dibatasi ke TELEGRAM_ALLOWED_IDS di bot ini).
 
-Jalankan dari folder backend (token dibaca dari env / backend/.env):
-    export TELEGRAM_BOT_TOKEN=...   # token BotFather
+Jalankan dari folder backend:
+    export TELEGRAM_BOT_TOKEN=...       # token BotFather
+    export TELEGRAM_API_USER=hendra_owner
+    export TELEGRAM_API_PASSWORD=...    # password akun service (untuk /owner)
     export TELEGRAM_ALLOWED_IDS=123456789,namapengguna   # opsional, untuk /owner
     python scripts/telegram_bot.py
 """
@@ -24,6 +27,10 @@ log = logging.getLogger("telegram_bot")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 RAG_URL = f"{API_BASE_URL}/ai/rag"  # publik: SOP + WhatsApp handoff
 AGENT_URL = f"{API_BASE_URL}/ai/ask-agent"  # internal: SOP + data live database
+LOGIN_URL = f"{API_BASE_URL}/auth/login"
+# Service account untuk endpoint internal (/owner). Harus ber-role OWNER/MANDOR.
+API_USER = os.getenv("TELEGRAM_API_USER", "hendra_owner")
+API_PASSWORD = os.getenv("TELEGRAM_API_PASSWORD", "")
 # Daftar Telegram user id ATAU username yang boleh memakai /owner, pisahkan koma.
 # Contoh: TELEGRAM_ALLOWED_IDS=123456789,Andrez238. Username tanpa @, case-insensitive.
 ALLOWED_IDS = {
@@ -32,6 +39,26 @@ ALLOWED_IDS = {
     if s.strip()
 }
 
+_bearer: str | None = None
+
+
+async def _login() -> str | None:
+    """Login sebagai service account, kembalikan Bearer token (di-cache)."""
+    global _bearer
+    if not API_PASSWORD:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30) as cli:
+            r = await cli.post(LOGIN_URL, json={"username": API_USER, "password": API_PASSWORD})
+    except httpx.ConnectError:
+        return None
+    if not r.is_success:
+        log.warning("Login service account gagal: %s", r.status_code)
+        _bearer = None
+        return None
+    _bearer = r.json().get("access_token")
+    return _bearer
+
 MAX_TG_LEN = 4000
 
 
@@ -39,14 +66,28 @@ def _split(text: str) -> list[str]:
     return [text[i : i + MAX_TG_LEN] for i in range(0, len(text), MAX_TG_LEN)] or ["(kosong)"]
 
 
-async def _ask_backend(question: str, url: str) -> str:
-    try:
+async def _ask_backend(question: str, url: str, need_auth: bool = False) -> str:
+    async def _post(token: str | None):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
         async with httpx.AsyncClient(timeout=90) as cli:
-            r = await cli.post(url, json={"question": question})
+            return await cli.post(url, json={"question": question}, headers=headers)
+
+    try:
+        if need_auth and not _bearer:
+            await _login()
+        r = await _post(_bearer if need_auth else None)
+        if r.status_code == 401 and need_auth:
+            # Token kedaluwarsa/invalid -> login ulang sekali lalu coba lagi.
+            await _login()
+            r = await _post(_bearer)
     except httpx.ConnectError:
         return "Backend mati. Nyalakan dulu: `uvicorn app.main:app --reload` di folder backend."
     if r.status_code == 422:
         return "Pertanyaan kosong / terlalu panjang (maks 2000 karakter)."
+    if r.status_code in (401, 403):
+        if need_auth and not API_PASSWORD:
+            return "Perintah /owner belum bisa dipakai: TELEGRAM_API_PASSWORD belum diisi di server bot."
+        return "Akses ditolak backend (butuh role OWNER/MANDOR). Hubungi admin."
     if r.status_code in (502, 503):
         try:
             return f"Layanan AI belum siap: {r.json().get('detail', '')}".strip()
@@ -93,7 +134,7 @@ async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Pakai: /owner <pertanyaan>, contoh: /owner ringkas output sewing minggu ini")
         return
     await update.message.chat.send_action(ChatAction.TYPING)
-    answer = await _ask_backend(q, AGENT_URL)
+    answer = await _ask_backend(q, AGENT_URL, need_auth=True)
     for part in _split(answer):
         await update.message.reply_text(part)
 
