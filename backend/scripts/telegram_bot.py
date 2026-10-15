@@ -13,6 +13,7 @@ Jalankan dari folder backend:
     export TELEGRAM_ALLOWED_IDS=123456789,namapengguna   # opsional, untuk /owner
     python scripts/telegram_bot.py
 """
+import html
 import logging
 import os
 from pathlib import Path
@@ -74,6 +75,55 @@ def _split(text: str) -> list[str]:
     return [text[i : i + MAX_TG_LEN] for i in range(0, len(text), MAX_TG_LEN)] or ["(kosong)"]
 
 
+def _to_telegram_html(text: str) -> str:
+    """Ubah markdown ringan model (**tebal**, ### judul) menjadi HTML Telegram.
+
+    Urutan penting: escape dulu, baru pasang tag. List (- / 1.) dibiarkan
+    sebagai teks biasa agar tidak perlu escaping MarkdownV2 yang rewel.
+    """
+    import re
+
+    out_lines = []
+    for ln in text.split("\n"):
+        m = re.match(r"^(#{1,4})\s+(.*)$", ln.strip())
+        if m:
+            # Baris judul -> tebal penuh
+            out_lines.append(f"<b>{html.escape(m.group(2))}</b>")
+            continue
+        esc = html.escape(ln)
+        # **tebal** -> <b>tebal</b> (non-greedy, hanya pasangan sebaris)
+        esc = re.sub(r"\*\*([^\n*]+)\*\*", r"<b>\1</b>", esc)
+        out_lines.append(esc)
+    out = "\n".join(out_lines)
+    # Link handoff WhatsApp dijadikan tautan klik
+    out = re.sub(
+        r"Lanjut via WhatsApp: (https?://\S+)",
+        r'Lanjut via WhatsApp: <a href="\1">Chat WhatsApp</a>',
+        out,
+    )
+    return out
+
+
+def _strip_markdown(text: str) -> str:
+    """Fallback teks polos bila HTML ditolak Telegram: buang semua simbol mentah."""
+    import re
+
+    text = re.sub(r"^#{1,4}\s+", "", text, flags=re.MULTILINE)
+    text = text.replace("**", "")
+    return text
+
+
+async def _reply_chunks(message, text: str) -> None:
+    """Kirim per potongan; coba HTML dulu, jatuh ke teks polos bila ditolak."""
+    from telegram.error import BadRequest
+
+    for part in _split(text):
+        try:
+            await message.reply_text(_to_telegram_html(part), parse_mode="HTML")
+        except BadRequest:
+            await message.reply_text(_strip_markdown(part))
+
+
 async def _ask_backend(question: str, url: str, need_auth: bool = False) -> str:
     async def _post(token: str | None):
         headers = {"Authorization": f"Bearer {token}"} if token else {}
@@ -126,8 +176,7 @@ async def handle_public(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     await update.message.chat.send_action(ChatAction.TYPING)
     answer = await _ask_backend(q, RAG_URL)
-    for part in _split(answer):
-        await update.message.reply_text(part)
+    await _reply_chunks(update.message, answer)
 
 
 async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -144,8 +193,7 @@ async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     await update.message.chat.send_action(ChatAction.TYPING)
     answer = await _ask_backend(q, AGENT_URL, need_auth=True)
-    for part in _split(answer):
-        await update.message.reply_text(part)
+    await _reply_chunks(update.message, answer)
 
 
 def main() -> None:
