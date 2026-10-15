@@ -28,6 +28,21 @@ export type TokenResponse = {
   user: User;
 };
 
+export type RegisterClientRequest = {
+  username: string;
+  password: string;
+  email: string;
+  company_name: string;
+  contact_person: string;
+  phone_number: string;
+};
+
+export type RegisterClientResponse = {
+  message: string;
+  client_id: string;
+  user: User;
+};
+
 export type Client = {
   id: string;
   company_name: string;

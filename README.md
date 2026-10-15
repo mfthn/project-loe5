@@ -166,24 +166,29 @@ Buka **http://localhost:3000** di browser.
 
 ---
 
-## Akun Demo Pengujian (Seed Users)
 
-Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasional:
+## Akun Sistem per Role (Internal Pabrik)
 
-| Peran (Role) | Username | Password | Deskripsi / Kewenangan |
-|---|---|---|---|
-| **OWNER** | `owner` | `owner123` | Akses eksekutif, analitik pabrik, AI tracker |
-| **TIM_SAMPLE** | `adis_sample` | `sample123` | Stopwatch time study, revisi sample, approval |
-| **GUDANG** | `gudang_budi` | `gudang123` | Penerimaan bahan, pengeluaran ke cutting, anti-kontaminasi |
-| **MANDOR** | `mandor_agus` | `mandor123` | Mandor Line 1, alokasi penjahit, verifikasi output 30 menit |
-| **MANDOR** | `mandor_joko` | `mandor123` | Mandor Line 2, alokasi penjahit, penerima pool bonus QC |
-| **MANDOR** | `ka_ops` | `kaops123` | Kepala Operasional, penerima pool bonus QC |
-| **PENJAHIT** | `penjahit_siti` | `jahit123` | Operator jahit Line 1 (upah borongan) |
-| **PENJAHIT** | `penjahit_rini` | `jahit123` | Operator jahit Line 2 (upah borongan) |
-| **QC_INSPECTOR** | `qc_dewi` | `qc123` | Pemeriksaan produk (Lolos, Repair, Defect) |
-| **FINANCE_PAYROLL**| `finance_rina`| `finance123`| Perhitungan upah borongan Sabtu, bonus QC, uang makan % |
-| **KLIEN_MAKLON** | `klien_a` | `klien123` | Portal B2B PT Tekstil Maju (hanya data miliknya) |
-| **KLIEN_MAKLON** | `klien_b` | `klien123` | Portal B2B CV Busana Prima (hanya data miliknya) |
+> ⚠️ **Penting**: Akun-akun di bawah ini adalah akun resmi sistem. Jangan bagikan ke pihak luar. Akun **KLIEN_MAKLON** dibuat mandiri oleh klien lewat halaman **Daftar Klien** di `/login`.
+
+| Role | Username | Password | Nama | Akses Modul |
+|---|---|---|---|---|
+| **OWNER** | `hendra_owner` | `Lukla@Owner2026` | Hendra Lukla (Owner/CEO) | Dashboard, Gudang, Sample, Produksi, QC, Payroll, Portal Klien, AI |
+| **FINANCE_PAYROLL** | `rina_finance` | `Lukla@Finance2026` | Rina Lestari (Finance) | Dashboard, Payroll Engine |
+| **MANDOR** | `agus_mandor` | `Lukla@Mandor2026` | Agus Santoso (Mandor Line 1) | Dashboard, Produksi, QC |
+| **PENJAHIT** | `siti_jahit` | `Lukla@Jahit2026` | Siti Rahayu (Penjahit) | Dashboard (Rekap Gaji) |
+| **GUDANG** | `budi_gudang` | `Lukla@Gudang2026` | Budi Santoso (Gudang) | Dashboard, Gudang |
+| **TIM_SAMPLE** | `adis_sample` | `Lukla@Sample2026` | Adis Purnama (Tim Sample) | Dashboard, Sample & Stopwatch |
+| **QC_INSPECTOR** | `dewi_qc` | `Lukla@QC2026` | Dewi Anggraini (QC) | Dashboard, QC, Gudang |
+
+### Akun Klien (Dibuat Mandiri via Halaman Register)
+
+Klien maklon **mendaftar sendiri** di halaman `/login` → tab **Daftar Klien**. Sistem akan otomatis:
+1. Membuat record `Client` (perusahaan) dengan UUID unik sebagai **Client ID**.
+2. Membuat `User` dengan role `KLIEN_MAKLON` yang terikat ke Client ID tersebut.
+3. Client ID digunakan sebagai PK di seluruh proses: gudang, order produksi, QC, dan portal klien.
+
+Akses modul KLIEN_MAKLON: **Dashboard**, **Portal Klien Maklon**, **AI Konsultan Maklon**.
 
 ---
 
@@ -191,6 +196,7 @@ Seluruh akun demo telah disiapkan untuk pengujian masing-masing peran operasiona
 
 ### Autentikasi (`/api/v1/auth`)
 - `POST /api/v1/auth/login` — Login pengguna, menghasilkan JWT & HttpOnly cookie.
+- `POST /api/v1/auth/register` — **Registrasi mandiri klien maklon baru**: buat Client + User KLIEN_MAKLON sekaligus, mengembalikan `client_id` (UUID).
 - `POST /api/v1/auth/logout` — Logout dan membersihkan cookie sesi.
 - `GET /api/v1/auth/me` — Mengambil data profil dan peran pengguna yang sedang login.
 

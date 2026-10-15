@@ -1,44 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useAuth, DEMO_ACCOUNTS } from "../lib/auth-context";
+import { useAuth } from "../lib/auth-context";
 import { getAllowedModules } from "../lib/rbac";
 
-// Icon warna per role dari DESIGN.md (purple brand primary)
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "#7C3AED",
   FINANCE_PAYROLL: "#059669",
-  MANDOR_LINE: "#d97706",
-  MANDOR_QC: "#0284c7",
-  MANDOR_GUDANG: "#BE185D",
-  OPERATOR_GUDANG: "#EC4899",
-  KLIEN: "#6D28D9",
-  KLIEN_INTERNAL: "#2E1065",
+  MANDOR: "#d97706",
+  GUDANG: "#BE185D",
+  PENJAHIT: "#0284c7",
+  TIM_SAMPLE: "#D97706",
+  QC_INSPECTOR: "#0891b2",
+  KLIEN_MAKLON: "#6D28D9",
 };
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const { user, quickLogin, logout } = useAuth();
-  const [switching, setSwitching] = useState(false);
+  const { user, logout } = useAuth();
 
   const modules = getAllowedModules(user?.role);
-
-  const handleRoleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedUsername = e.target.value;
-    if (!selectedUsername) return;
-    try {
-      setSwitching(true);
-      await quickLogin(selectedUsername);
-    } catch (err) {
-      console.error("Gagal beralih peran:", err);
-    } finally {
-      setSwitching(false);
-    }
-  };
-
   const roleColor = ROLE_COLORS[user?.role || ""] || "#7C3AED";
   const userInitial = user?.name?.charAt(0)?.toUpperCase() || "?";
 
@@ -56,7 +40,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         }}
       >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          {/* Icon L5 (icon.jpeg) */}
           <div
             style={{
               width: 38,
@@ -205,7 +188,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         </nav>
       </div>
 
-      {/* ── Bottom: Demo Switcher & User Card ── */}
+      {/* ── Bottom: User Card ── */}
       <div
         style={{
           padding: "14px 14px 16px",
@@ -213,45 +196,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           background: "#FAF8FF",
         }}
       >
-        {/* Quick Role Switcher (hackathon demo) */}
-        <div style={{ marginBottom: 10 }}>
-          <label
-            style={{
-              fontSize: "0.65rem",
-              fontWeight: 800,
-              textTransform: "uppercase",
-              color: "#84829a",
-              display: "block",
-              marginBottom: 4,
-              letterSpacing: "0.06em",
-            }}
-          >
-            ⚡ Demo RBAC — Ganti Peran:
-          </label>
-          <select
-            className="form-select"
-            value={user?.username || ""}
-            onChange={handleRoleChange}
-            disabled={switching}
-            style={{
-              padding: "7px 10px",
-              fontSize: "0.78rem",
-              background: "#ffffff",
-              borderColor: "#EDE9FE",
-              borderRadius: 10,
-              color: "#2E1065",
-              fontWeight: 600,
-            }}
-          >
-            {DEMO_ACCOUNTS.map((acc) => (
-              <option key={acc.username} value={acc.username}>
-                {acc.name} — {acc.role}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* User Card */}
         <div
           style={{
             display: "flex",
@@ -332,12 +276,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               transition: "all 0.15s ease",
               flexShrink: 0,
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#fef2f2";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#fef2f2"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             🚪
           </button>
