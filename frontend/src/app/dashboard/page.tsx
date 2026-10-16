@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
@@ -104,20 +104,226 @@ function formatDate(dateValue: string | null): string {
   });
 }
 
-function getPayrollWeeksForMonth(monthValue: string): { start: string; end: string }[] {
-  if (!/^\d{4}-\d{2}$/.test(monthValue)) return [];
-  const [year, month] = monthValue.split("-").map(Number);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const weeks: { start: string; end: string }[] = [];
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const saturday = new Date(year, month - 1, day);
-    if (saturday.getDay() !== 6) continue;
-    const monday = new Date(year, month - 1, day - 5);
-    const toIsoDate = (date: Date) =>
-      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    weeks.push({ start: toIsoDate(monday), end: toIsoDate(saturday) });
-  }
-  return weeks;
+function toLocalDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getWeekStart(dateValue: string): string {
+  const date = new Date(`${dateValue}T12:00:00`);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return toLocalDateString(date);
+}
+
+function getCalendarDates(month: Date): Date[] {
+  const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
+  const firstCalendarDay = new Date(firstOfMonth);
+  firstCalendarDay.setDate(firstCalendarDay.getDate() - ((firstCalendarDay.getDay() + 6) % 7));
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(firstCalendarDay);
+    date.setDate(firstCalendarDay.getDate() + index);
+    return date;
+  });
+}
+
+function WeeklyPayrollDatePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (date: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [displayedMonth, setDisplayedMonth] = useState(() => new Date(`${value}T12:00:00`));
+  const [hoveredWeekStart, setHoveredWeekStart] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const selectedWeekStart = getWeekStart(value);
+  const calendarDates = getCalendarDates(displayedMonth);
+  const yearOptions = Array.from({ length: 131 }, (_, index) => 1970 + index);
+  const monthOptions = Array.from({ length: 12 }, (_, month) =>
+    new Date(2000, month, 1).toLocaleDateString("id-ID", { month: "long" }),
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (event.target instanceof Node && !pickerRef.current?.contains(event.target)) {
+        setIsOpen(false);
+        setHoveredWeekStart(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        setHoveredWeekStart(null);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const changeMonth = (offset: number) => {
+    setDisplayedMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  };
+
+  const weekLabel = (() => {
+    const start = new Date(`${selectedWeekStart}T12:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const format = (date: Date) =>
+      date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    return `${format(start)} – ${format(end)}`;
+  })();
+
+  return (
+    <div ref={pickerRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+        Minggu {weekLabel}
+      </span>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-label="Pilih tanggal rekap gaji"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        style={{ width: 38, height: 38, padding: 0, borderRadius: "var(--radius-md)" }}
+      >
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M16 3v4M8 3v4M3 10h18" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-label="Pilih minggu rekap gaji"
+          onMouseLeave={() => setHoveredWeekStart(null)}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            zIndex: 50,
+            width: "min(320px, calc(100vw - 48px))",
+            padding: 16,
+            border: "1px solid var(--color-purple-300)",
+            borderRadius: "var(--radius-lg)",
+            background: "var(--bg-surface)",
+            boxShadow: "var(--shadow-hover)",
+          }}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "32px minmax(0, 1fr) minmax(0, 1fr) 32px", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              aria-label="Bulan sebelumnya"
+              onClick={() => changeMonth(-1)}
+              style={{ width: 32, height: 32, padding: 0 }}
+            >
+              ‹
+            </button>
+            <select
+              aria-label="Pilih bulan"
+              className="form-select"
+              value={displayedMonth.getMonth()}
+              onChange={(event) =>
+                setDisplayedMonth((current) => new Date(current.getFullYear(), Number(event.target.value), 1))
+              }
+              style={{ minWidth: 0, padding: "7px 8px", fontSize: "0.82rem" }}
+            >
+              {monthOptions.map((month, index) => (
+                <option key={month} value={index}>{month}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Pilih tahun"
+              className="form-select"
+              value={displayedMonth.getFullYear()}
+              onChange={(event) =>
+                setDisplayedMonth((current) => new Date(Number(event.target.value), current.getMonth(), 1))
+              }
+              style={{ minWidth: 0, padding: "7px 8px", fontSize: "0.82rem" }}
+            >
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              aria-label="Bulan berikutnya"
+              onClick={() => changeMonth(1)}
+              style={{ width: 32, height: 32, padding: 0 }}
+            >
+              ›
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", textAlign: "center", fontSize: "0.72rem", fontWeight: 700, color: "var(--text-muted)" }}>
+            {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((day) => (
+              <span key={day} style={{ padding: "5px 0" }}>{day}</span>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 2 }}>
+            {calendarDates.map((date) => {
+              const dateValue = toLocalDateString(date);
+              const weekStart = getWeekStart(dateValue);
+              const isSelectedDate = dateValue === value;
+              const isInDisplayedMonth = date.getMonth() === displayedMonth.getMonth();
+              const isActiveWeek = hoveredWeekStart
+                ? hoveredWeekStart === weekStart
+                : selectedWeekStart === weekStart;
+              return (
+                <button
+                  key={dateValue}
+                  type="button"
+                  aria-label={date.toLocaleDateString("id-ID", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                  aria-pressed={isSelectedDate}
+                  onMouseEnter={() => setHoveredWeekStart(weekStart)}
+                  onClick={() => {
+                    onChange(dateValue);
+                    setDisplayedMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+                    setHoveredWeekStart(null);
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    height: 36,
+                    padding: 0,
+                    border: isSelectedDate ? "1px solid var(--color-purple-600)" : "1px solid transparent",
+                    borderRadius: "var(--radius-sm)",
+                    background: isSelectedDate
+                      ? "var(--color-purple-600)"
+                      : isActiveWeek
+                      ? "var(--color-purple-100)"
+                      : "transparent",
+                    color: isSelectedDate
+                      ? "#ffffff"
+                      : isInDisplayedMonth
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "0.82rem",
+                    fontWeight: isSelectedDate ? 700 : 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  {date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DonutChart({ segments, size = 150 }: { segments: { label: string; value: number; color: string }[]; size?: number }) {
@@ -255,7 +461,7 @@ export default function DashboardPage() {
   const [outputByLine, setOutputByLine] = useState<{ line: number; qty: number }[]>([]);
   const [workerDashboard, setWorkerDashboard] = useState<WorkerDashboardSummary | null>(null);
   const [workerPayroll, setWorkerPayroll] = useState<WorkerPayrollSummary[]>([]);
-  const [selectedPayrollWeek, setSelectedPayrollWeek] = useState("all");
+  const [selectedPayrollDate, setSelectedPayrollDate] = useState(() => toLocalDateString(new Date()));
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -542,10 +748,9 @@ export default function DashboardPage() {
   }, [user, selectedMonth]);
 
   const dashboard = user ? DASHBOARD_BY_ROLE[user.role] : null;
-  const payrollWeeks = getPayrollWeeksForMonth(selectedMonth);
+  const selectedPayrollWeek = getWeekStart(selectedPayrollDate);
   const visibleWorkerPayroll = workerPayroll
-    .filter((summary) => summary.period_end.slice(0, 7) === selectedMonth)
-    .filter((summary) => selectedPayrollWeek === "all" || summary.period_start === selectedPayrollWeek);
+    .filter((summary) => summary.period_start === selectedPayrollWeek);
   const qcTotal =
     (workerDashboard?.qc_passed_qty || 0) +
     (workerDashboard?.qc_repair_qty || 0) +
@@ -898,34 +1103,7 @@ export default function DashboardPage() {
                 <span className="badge badge-purple">Data Resmi Finance</span>
                 <h2 style={{ margin: "8px 0 0", fontSize: "1.15rem" }}>Rekap Gaji Mingguan</h2>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <label>
-                  <span className="sr-only">Pilih bulan</span>
-                  <input
-                    aria-label="Pilih bulan payroll"
-                    type="month"
-                    className="form-input font-mono"
-                    value={selectedMonth}
-                    onChange={(event) => {
-                      setSelectedMonth(event.target.value);
-                      setSelectedPayrollWeek("all");
-                    }}
-                  />
-                </label>
-                <select
-                  aria-label="Pilih minggu payroll"
-                  className="form-select"
-                  value={selectedPayrollWeek}
-                  onChange={(event) => setSelectedPayrollWeek(event.target.value)}
-                >
-                  <option value="all">Semua minggu dalam bulan</option>
-                  {payrollWeeks.map((week) => (
-                    <option key={week.start} value={week.start}>
-                      {formatDate(week.start)} – {formatDate(week.end)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <WeeklyPayrollDatePicker value={selectedPayrollDate} onChange={setSelectedPayrollDate} />
             </div>
             {visibleWorkerPayroll.length === 0 ? (
               <div className="notice notice-info">
