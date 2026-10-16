@@ -215,14 +215,7 @@ export default function PayrollPage() {
 
       {isFinance && <div className="card" style={{ marginBottom: 28 }}>
         <h3 style={{ fontSize: "1.05rem", marginBottom: 16 }}>Parameter Periode Penggajian</h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 16,
-            alignItems: "flex-end",
-          }}
-        >
+        <div className="payroll-parameters-grid">
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Tanggal Mulai Periode</label>
             <input
@@ -250,10 +243,6 @@ export default function PayrollPage() {
               }}
             />
           </div>
-          <p style={{ gridColumn: "1 / -1", margin: "-6px 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            Periode payroll harus satu pekan kerja penuh, Senin sampai Sabtu.
-          </p>
-
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Uang Makan (%)</label>
             <input
@@ -286,6 +275,9 @@ export default function PayrollPage() {
             {loading ? "Menghitung..." : "📊 Preview Kalkulasi"}
           </button>
         </div>
+        <p style={{ margin: "10px 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>
+          Periode payroll harus satu pekan kerja penuh, Senin sampai Sabtu.
+        </p>
       </div>}
 
       {/* Live Preview Result (If calculated) */}

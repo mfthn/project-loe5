@@ -509,6 +509,13 @@ a {
   gap: 16px;
 }
 
+.payroll-parameters-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  align-items: flex-end;
+}
+
 /* Tables */
 .table-wrap {
   width: 100%;
@@ -809,6 +816,10 @@ a {
 
 /* Responsive */
 @media (max-width: 900px) {
+  .payroll-parameters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sidebar {
     transform: translateX(-100%);
   }
