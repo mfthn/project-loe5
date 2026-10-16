@@ -106,7 +106,7 @@ export const LANDING_CONTENT = {
         type: "pink-soft",
         title: "Payroll borongan otomatis setiap Sabtu",
         desc: "Upah dihitung dari output terverifikasi ditambah uang makan 10–15% dan pool bonus QC dibagi rata 2 Mandor + 1 Kepala Ops.",
-        meta: "Audit Lock Permanen (FR-10)",
+        meta: "Audit Lock Permanen",
         linkText: "Pelajari skema payroll",
         linkHref: "#skema",
       },
@@ -208,7 +208,7 @@ export const LANDING_CONTENT = {
     {
       id: "kontaminasi",
       reverse: false,
-      badge: "Skenario 1 (P0)",
+      badge: "Keamanan Bahan",
       title: "Proteksi Anti-Kontaminasi Silang Multi-Klien",
       desc: "Gudang konveksi kami melayani beberapa brand secara bersamaan. Sistem kami mencegah kelalaian manusia dengan mewajibkan validasi barcode tag klien sebelum bahan dapat dipindahkan ke meja potong.",
       highlights: [
@@ -222,7 +222,7 @@ export const LANDING_CONTENT = {
     {
       id: "terminal-30m",
       reverse: true,
-      badge: "Skenario 2 & 4 (P0)",
+      badge: "Produksi Real-time",
       title: "Terminal 30 Menit & Pemantauan Ritme Pabrik",
       desc: "Setiap 30 menit, penjahit dan mandor mendokumentasikan progres output komponen. Data langsung menyegarkan dashboard operasional tanpa perlu menunggu rekap kertas di akhir hari.",
       highlights: [
@@ -236,7 +236,7 @@ export const LANDING_CONTENT = {
     {
       id: "payroll-audit",
       reverse: false,
-      badge: "Skenario 3 (P0)",
+      badge: "Upah Transparan",
       title: "Transparansi Upah Borongan & Kunci Audit Sabtu",
       desc: "Kesejahteraan penjahit dan ketenangan pemilik brand dibangun dari keadilan hitungan. Seluruh upah borongan berasal dari data output yang telah lolos QC, dilengkapi insentif mutu 3-arah.",
       highlights: [

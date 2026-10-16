@@ -201,7 +201,7 @@ export function BentoGrid() {
                   marginBottom: 16,
                 }}
               >
-                *standar interval mandor di floor produksi (SRS FR-7.3)
+                *standar interval mandor di floor produksi
               </div>
 
               <h4 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#2E1065", margin: "0 0 8px 0" }}>

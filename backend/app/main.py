@@ -28,11 +28,12 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
-    # Origin harus disebut eksplisit karena frontend mengirim cookie (allow_credentials)
+    # Origin harus disebut eksplisit karena frontend mengirim cookie (allow_credentials).
+    # Regex mencakup IP publik EC2 agar frontend di http://<IP>:3000 bisa memanggil API.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?",
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

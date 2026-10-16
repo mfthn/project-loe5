@@ -5,7 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
-import { gudangApi, produksiApi, authApi, financeApi } from "../../lib/api";
+import { gudangApi, produksiApi, authApi, financeApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
 import type { CuttingResult, InventoryItem, InventoryTransaction, MaterialHandover, MaterialRequest, Order, PurchaseOrder } from "../../types/api";
 
 type NeedRow = {
@@ -147,6 +147,7 @@ export default function GudangPage() {
 
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       const created = await gudangApi.createItem({
         client_id: newMatClientId,
@@ -166,12 +167,14 @@ export default function GudangPage() {
       setNewMatLocation("");
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal mendaftarkan material." });
     }
   };
 
   const handleReceive = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await gudangApi.receiveMaterial({
         inventory_item_id: receiveItemId,
@@ -184,12 +187,14 @@ export default function GudangPage() {
       setReceiveModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal menerima bahan." });
     }
   };
 
   const handleIssue = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await gudangApi.issueMaterial({
         inventory_item_id: issueItemId,
@@ -201,6 +206,7 @@ export default function GudangPage() {
       setIssueModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({
         type: "danger",
         message: `⛔ Proteksi Anti-Kontaminasi: ${err.message || "Bahan ditolak."}`,
@@ -210,6 +216,7 @@ export default function GudangPage() {
 
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await gudangApi.createRequest({
         order_id: reqOrderId,
@@ -221,6 +228,7 @@ export default function GudangPage() {
       setRequestModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal mengajukan bahan." });
     }
   };
@@ -240,6 +248,7 @@ export default function GudangPage() {
 
   const handleHandover = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await gudangApi.createHandover({
         order_id: hoOrderId,
@@ -252,6 +261,7 @@ export default function GudangPage() {
       setHandoverModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal serah terima bahan." });
     }
   };
@@ -294,6 +304,7 @@ export default function GudangPage() {
 
   const handleCutting = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await gudangApi.createCutting({
         order_id: cutOrderId,
@@ -308,6 +319,7 @@ export default function GudangPage() {
       setCuttingModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal mencatat cutting." });
     }
   };

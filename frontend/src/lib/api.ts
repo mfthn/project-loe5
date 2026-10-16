@@ -1,3 +1,4 @@
+import type React from "react";
 import { API_BASE_URL } from "./config";
 import type {
   BatchFinancial,
@@ -845,10 +846,45 @@ export function friendlyAiError(raw?: string): string {
   return raw || "Layanan AI tidak menjawab. Coba lagi beberapa saat.";
 }
 
-export async function fetchAiStatus(): Promise<{ httpStatus: number; ok: boolean }> {  try {
-    const res = await fetch(`${API_BASE_URL}/ai/status`, { cache: "no-store" });
-    return { httpStatus: res.status, ok: res.ok };
-  } catch {
-    return { httpStatus: 0, ok: false };
+/**
+ * Kunci anti-spam form: nonaktifkan tombol submit saat request berjalan.
+ * Pakai di awal onSubmit (jika false → batalkan), dan buka lagi di catch.
+ * Saat sukses modal ditutup sehingga tidak perlu dibuka manual.
+ */
+export function lockFormSubmit(e: React.FormEvent): boolean {
+  const btn = (e.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  );
+  if (!btn || btn.disabled) return false;
+  btn.disabled = true;
+  btn.dataset.locked = "1";
+  return true;
+}
+
+export function unlockFormSubmit(e: React.FormEvent): void {
+  const btn = (e.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  );
+  if (btn) {
+    btn.disabled = false;
+    delete btn.dataset.locked;
+  }
+}
+
+export type AiStatus = {
+  httpStatus: number;
+  ok: boolean;
+  indexReady: boolean;
+  chunks: number;
+};
+
+export async function fetchAiStatus(): Promise<AiStatus> {
+  const none = { httpStatus: 0, ok: false, indexReady: false, chunks: 0 };
+  try {
+    const res = await apiFetch<{ index_ready: boolean; chunks: number }>("/ai/status");
+    return { httpStatus: 200, ok: true, indexReady: !!res.index_ready, chunks: res.chunks || 0 };
+  } catch (err: any) {
+    const status = err instanceof ApiError ? err.status : 0;
+    return { ...none, httpStatus: status };
   }
 }

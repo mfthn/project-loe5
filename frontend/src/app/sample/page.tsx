@@ -5,7 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
-import { sampleApi, qcApi, authApi, produksiApi } from "../../lib/api";
+import { sampleApi, qcApi, authApi, produksiApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
 import type { Sample, SampleVersion, GarmentComponent, QCInspection, ClientProfile, Order } from "../../types/api";
 
 export default function SamplePage() {
@@ -381,8 +381,11 @@ export default function SamplePage() {
                       textAlign: "left",
                       padding: "12px 14px",
                       borderRadius: "var(--radius-md)",
-                      background: isSelected ? "var(--bg-surface-elevated)" : "var(--bg-secondary)",
-                      border: `1px solid ${isSelected ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                      background: isSelected
+                        ? "linear-gradient(135deg, #EDE9FE 0%, #FAF8FF 100%)"
+                        : "var(--bg-secondary)",
+                      border: `2px solid ${isSelected ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                      boxShadow: isSelected ? "0 6px 16px rgba(124, 58, 237, 0.18)" : "none",
                       color: "inherit",
                       cursor: "pointer",
                       transition: "all var(--transition-fast)",
@@ -776,6 +779,7 @@ export default function SamplePage() {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            
             if (!activeVersion) return;
             try {
               await sampleApi.addComponent(activeVersion.id, {
@@ -787,6 +791,7 @@ export default function SamplePage() {
               setComponentName("");
               if (selectedSample) handleSelectSample(selectedSample.id);
             } catch (err: any) {
+            unlockFormSubmit(e); // gagal → izinkan coba lagi
               setNotice({ type: "danger", message: err.message || "Gagal menambah komponen." });
             }
           }}
@@ -835,6 +840,7 @@ export default function SamplePage() {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            
             try {
               // Klien pemilik sample wajib dipilih (Tag ID Klien anti-kontaminasi)
               const category = sampleCategory === "LAINNYA" ? sampleCategoryCustom : sampleCategory;
@@ -848,6 +854,7 @@ export default function SamplePage() {
               setSampleItemName("");
               loadSamples();
             } catch (err: any) {
+            unlockFormSubmit(e); // gagal → izinkan coba lagi
               setNotice({ type: "danger", message: err.message || "Gagal membuat sampel." });
             }
           }}
@@ -936,6 +943,7 @@ export default function SamplePage() {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            
             if (!selectedSample) return;
             try {
               const rev = await sampleApi.createVersion(selectedSample.id, {
@@ -946,6 +954,7 @@ export default function SamplePage() {
               setNewVersionModal(false);
               handleSelectSample(selectedSample.id);
             } catch (err: any) {
+            unlockFormSubmit(e); // gagal → izinkan coba lagi
               setNotice({ type: "danger", message: err.message || "Gagal membuat revisi." });
             }
           }}

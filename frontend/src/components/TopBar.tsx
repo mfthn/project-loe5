@@ -16,11 +16,21 @@ interface TopBarProps {
 export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) {
   const { user } = useAuth();
   const [aiOnline, setAiOnline] = useState<boolean | null>(null);
+  const [aiChunks, setAiChunks] = useState(0);
   const [timeStr, setTimeStr] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>("");
 
   useEffect(() => {
-    fetchAiStatus().then((res) => setAiOnline(res.ok));
+    let alive = true;
+    const checkAi = () => {
+      fetchAiStatus().then((res) => {
+        if (!alive) return;
+        setAiOnline(res.ok && res.indexReady);
+        setAiChunks(res.chunks);
+      });
+    };
+    checkAi();
+    const aiTimer = setInterval(checkAi, 60000);
 
     const updateClock = () => {
       const now = new Date();
@@ -41,7 +51,11 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
     };
     updateClock();
     const interval = setInterval(updateClock, 1000);
-    return () => clearInterval(interval);
+    return () => {
+      alive = false;
+      clearInterval(aiTimer);
+      clearInterval(interval);
+    };
   }, []);
 
   return (
@@ -174,7 +188,7 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
             }}
           />
           <span className="topbar-ai-text">
-            {aiOnline ? "AI Aktif" : aiOnline === false ? "AI Offline" : "AI Sync..."}
+            {aiOnline ? `AI Aktif • ${aiChunks} chunk` : aiOnline === false ? "AI Offline" : "AI Sync..."}
           </span>
         </div>
 

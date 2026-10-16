@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
-import { authApi } from "../../lib/api";
+import { authApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
 import type { User, UserRole } from "../../types/api";
 
 const ROLES: UserRole[] = [
@@ -71,6 +71,7 @@ export default function PenggunaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       if (editId) {
         await authApi.updateUser(editId, {
@@ -87,6 +88,7 @@ export default function PenggunaPage() {
       setModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal menyimpan akun." });
     }
   };
