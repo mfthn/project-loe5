@@ -120,10 +120,10 @@ export default function PortalKlienPage() {
                   ? { label: "Production — sedang diproduksi", cls: "badge-info" }
                   : { label: "Pending — masih di gudang", cls: "badge-warning" };
               return (
-              <div key={ord.id} className="card-elevated">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <span className="badge badge-purple">{ord.scheme}</span>
-                  <span className={`badge ${tag.cls}`}>
+              <div key={ord.id} className="card-elevated" style={{ borderRadius: 24, overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
+                  <span className="badge badge-purple" style={{ flexShrink: 0 }}>{ord.scheme}</span>
+                  <span className={`badge ${tag.cls}`} style={{ fontSize: "0.7rem", whiteSpace: "normal", textAlign: "right", lineHeight: 1.4 }}>
                     {tag.label}
                   </span>
                 </div>

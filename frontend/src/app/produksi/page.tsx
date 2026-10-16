@@ -664,25 +664,28 @@ export default function ProduksiPage() {
                 style={{
                   border: "1px solid rgba(124, 58, 237, 0.35)",
                   background: "linear-gradient(160deg, #2E1065 0%, #1E0A45 100%)",
+                  borderRadius: 32,
+                  overflow: "hidden",
+                  padding: 24,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                  <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                  <div style={{ minWidth: 0, flex: "1 1 260px" }}>
                     <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8, color: "#ffffff", margin: 0 }}>
                       🖥️ Terminal Touchscreen Lantai Produksi
                     </h3>
-                    <div style={{ fontSize: "0.8rem", color: "#C4B5FD", marginTop: 4 }}>
-                      {selectedOrder.order_number} •{" "}
-                      <span className="badge badge-info">{selectedOrder.status}</span>{" "}
-                      • Interval {(() => {
+                    <div style={{ fontSize: "0.8rem", color: "#C4B5FD", marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span className="font-mono">{selectedOrder.order_number}</span>
+                      <span className="badge badge-info">{selectedOrder.status}</span>
+                      <span>• Interval {(() => {
                         const now = new Date();
                         const slot = Math.floor((now.getHours() * 60 + now.getMinutes()) / 30);
                         const h = String(Math.floor(slot / 2)).padStart(2, "0");
                         return `${h}:${slot % 2 === 0 ? "00" : "30"}`;
-                      })()}
+                      })()}</span>
                     </div>
                   </div>
-                  <span className="badge badge-success">Touch UI Enabled</span>
+                  <span className="badge badge-success" style={{ flexShrink: 0 }}>Touch UI Enabled</span>
                 </div>
 
                 {(selectedOrder.components?.length || 0) === 0 ? (
@@ -713,7 +716,8 @@ export default function ProduksiPage() {
                   style={{
                     background: "#ffffff",
                     padding: 20,
-                    borderRadius: "var(--radius-lg)",
+                    paddingBottom: 24,
+                    borderRadius: 22,
                     border: "1px solid var(--border-subtle)",
                   }}
                 >
@@ -786,7 +790,7 @@ export default function ProduksiPage() {
                     )}
                   </div>
                   {selectedOrder.status !== "SEWING" ? (
-                    <div style={{ fontSize: "0.78rem", color: "var(--color-warning)", marginTop: 8 }}>
+                    <div style={{ fontSize: "0.78rem", color: "#92400E", marginTop: 10, background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "8px 12px" }}>
                       ⚠️ Terminal hanya menerima input saat status pesanan berada di <strong>SEWING</strong> (kini: {selectedOrder.status}).
                     </div>
                   ) : !terminalComponentId ? (

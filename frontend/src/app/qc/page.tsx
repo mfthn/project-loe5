@@ -113,43 +113,45 @@ export default function QCPage() {
         className="card-elevated"
         style={{
           marginBottom: 28,
-          background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)",
+          background: "linear-gradient(135deg, #ECFDF5 0%, #ffffff 100%)",
           border: "1px solid var(--color-success-border)",
+          borderRadius: 24,
+          overflow: "hidden",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
-          <div>
+          <div style={{ minWidth: 0, flex: "1 1 280px" }}>
             <span className="badge badge-success" style={{ marginBottom: 6 }}>
               Skenario 3: Pool Bonus Kualitas
             </span>
-            <h2 style={{ fontSize: "1.35rem", margin: "4px 0" }}>
+            <h2 style={{ fontSize: "1.35rem", margin: "4px 0", color: "#2E1065" }}>
               Pool Bonus QC Mandor Line
             </h2>
-            <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "0.82rem", color: "#5B5870", lineHeight: 1.6 }}>
               Rumus: <strong>Qty Lolos × Rp 150/pcs</strong>, dibagi rata secara adil ke seluruh Mandor Line + Kepala Operasional.
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
+              <div style={{ fontSize: "0.72rem", color: "#84829a", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Total Pool Bonus Terkumpul
               </div>
-              <div className="font-mono" style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--color-success)" }}>
+              <div className="font-mono" style={{ fontSize: "1.8rem", fontWeight: 800, color: "#059669" }}>
                 Rp {bonusPool?.total_pool ? Number(bonusPool.total_pool).toLocaleString("id-ID") : "0"}
               </div>
             </div>
 
             <div
               style={{
-                background: "var(--bg-surface)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-subtle)",
+                background: "#ffffff",
+                padding: "10px 16px",
+                borderRadius: 16,
+                border: "1px solid #BAE6FD",
               }}
             >
-              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Per Mandor:</div>
-              <div className="font-mono" style={{ fontWeight: 700, color: "var(--color-info)", fontSize: "1.1rem" }}>
+              <div style={{ fontSize: "0.72rem", color: "#84829a" }}>Per Mandor:</div>
+              <div className="font-mono" style={{ fontWeight: 700, color: "#0284C7", fontSize: "1.1rem" }}>
                 Rp {bonusPool?.bonus_per_recipient ? Number(bonusPool.bonus_per_recipient).toLocaleString("id-ID") : "0"}
               </div>
             </div>
