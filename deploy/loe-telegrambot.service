@@ -1,0 +1,18 @@
+[Unit]
+Description=Lukla Ops Telegram Bot (polling)
+After=network-online.target loe-backend.service
+Wants=network-online.target
+Requires=loe-backend.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/project-loe5/backend
+# .env dibaca otomatis oleh scripts/telegram_bot.py (python-dotenv):
+# TELEGRAM_BOT_TOKEN, TELEGRAM_API_USER, TELEGRAM_API_PASSWORD, TELEGRAM_ALLOWED_IDS
+ExecStart=/home/ubuntu/project-loe5/backend/.venv/bin/python scripts/telegram_bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
