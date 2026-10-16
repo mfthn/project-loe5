@@ -263,6 +263,15 @@ Akses modul KLIEN_MAKLON: **Dashboard Klien**, **Portal Klien Maklon B2B**, dan 
 
 ---
 
+## Hasil Pengujian QA (16 Oktober 2026)
+
+Laporan lengkap (PDF): [qa/reports/qa-report-2026-10-16.pdf](qa/reports/qa-report-2026-10-16.pdf)
+
+- **Automation UI — Selenium** (`qa/selenium/test_web.py`, headless Chromium): **7/7 skenario PASS** — landing + widget chat, login OWNER → dashboard, password salah ditolak, portal klien terisolasi, guard auth tanpa login.
+- **Performance — k6** (`qa/k6/load.js`, ramp 10 VU + spike 30 VU, 736 iterasi / 4.446 request): **0,00% gagal**, latensi **p95 845 ms** (ambang 1.500 ms). Endpoint RAG/Bedrock sengaja tidak di-load-test (hemat biaya AWS).
+
+---
+
 ## Perintah Harian Pengembang
 
 | Tujuan | Perintah | Folder |
