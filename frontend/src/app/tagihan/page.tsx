@@ -4,10 +4,14 @@ import React, { useEffect, useState } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
+import { useAuth } from "../../lib/auth-context";
 import { financeApi, gudangApi, produksiApi } from "../../lib/api";
 import type { HPPRealized, InventoryItem, Invoice, Order, PurchaseOrder } from "../../types/api";
 
 export default function KeuanganPage() {
+  const { user } = useAuth();
+  const isFinance = user?.role === "FINANCE_PAYROLL";
+  const isOwner = user?.role === "OWNER";
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -230,12 +234,16 @@ export default function KeuanganPage() {
       {notice && <Notice type={notice.type} message={notice.message} onClose={() => setNotice(null)} />}
 
       <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
-        <button onClick={() => setPoModalOpen(true)} className="btn btn-primary">
-          📋 Buat PO Bahan
-        </button>
-        <button onClick={() => setInvModalOpen(true)} className="btn btn-secondary">
-          🧾 Terbitkan Invoice
-        </button>
+        {isFinance && (
+          <>
+            <button onClick={() => setPoModalOpen(true)} className="btn btn-primary">
+              📋 Buat PO Bahan
+            </button>
+            <button onClick={() => setInvModalOpen(true)} className="btn btn-secondary">
+              🧾 Terbitkan Invoice
+            </button>
+          </>
+        )}
         <button onClick={loadData} className="btn btn-ghost btn-sm">
           🔄 Muat Ulang
         </button>
@@ -282,7 +290,7 @@ export default function KeuanganPage() {
                             <button onClick={() => handleReviewPO(po.id, false)} className="btn btn-secondary btn-sm">
                               Tolak
                             </button>
-                            {po.status === "DRAFT" && (
+                            {po.status === "DRAFT" && isFinance && (
                               <button onClick={() => handleEditPO(po)} className="btn btn-ghost btn-sm">
                                 Lengkapi Harga
                               </button>
@@ -335,7 +343,7 @@ export default function KeuanganPage() {
                     <td><span className="badge badge-purple">{inv.status}</span></td>
                     <td>
                       <div style={{ display: "flex", gap: 8 }}>
-                        {inv.status === "DRAFT" && (
+                        {inv.status === "DRAFT" && isOwner && (
                           <button onClick={() => handleApproveInvoice(inv.id)} className="btn btn-primary btn-sm">
                             Approve Owner
                           </button>
@@ -403,6 +411,7 @@ export default function KeuanganPage() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+              if (!isFinance) return;
               try {
                 await financeApi.addOverhead({
                   year: Number(ohYear), month: Number(ohMonth),
@@ -446,7 +455,9 @@ export default function KeuanganPage() {
             >
               Tampilkan
             </button>
-            <button type="submit" className="btn btn-primary">Catat Tagihan</button>
+            <button type="submit" className="btn btn-primary" disabled={!isFinance} title={isFinance ? undefined : "Hanya Finance"}>
+              Catat Tagihan
+            </button>
           </form>
           {ohList.length > 0 && (
             <div className="table-wrap" style={{ marginTop: 14 }}>
@@ -466,16 +477,20 @@ export default function KeuanganPage() {
                       <td className="font-mono">Rp {Number(o.amount).toLocaleString("id-ID")}</td>
                       <td style={{ fontSize: "0.82rem" }}>{o.notes || "-"}</td>
                       <td>
-                        <button
-                          onClick={() => {
-                            financeApi.deleteOverhead(o.id)
-                              .then(() => loadOverhead(Number(ohYear), Number(ohMonth)))
-                              .catch((err: any) => setNotice({ type: "danger", message: err.message }));
-                          }}
-                          className="btn btn-ghost btn-sm"
-                        >
-                          Hapus
-                        </button>
+                        {isFinance ? (
+                          <button
+                            onClick={() => {
+                              financeApi.deleteOverhead(o.id)
+                                .then(() => loadOverhead(Number(ohYear), Number(ohMonth)))
+                                .catch((err: any) => setNotice({ type: "danger", message: err.message }));
+                            }}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            Hapus
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

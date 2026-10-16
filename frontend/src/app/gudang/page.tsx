@@ -338,7 +338,7 @@ export default function GudangPage() {
         }}
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {!isOwner && !isMandor ? (
+          {canManageStock && (
             <>
               <button onClick={() => setItemModalOpen(true)} className="btn btn-primary">
                 📦 Daftarkan Material
@@ -356,17 +356,19 @@ export default function GudangPage() {
                 ✂️ Catat Hasil Cutting
               </button>
             </>
-          ) : null}
-          {!isOwner && (
+          )}
+          {isMandor && (
             <button onClick={() => setRequestModalOpen(true)} className="btn btn-secondary">
               🧾 Pengajuan Bahan (Mandor)
             </button>
           )}
-          {(isOwner || isMandor) && (
+          {(isOwner || isMandor || (!canManageStock && !isMandor && !isOwner)) && (
             <span className="badge badge-info">
               {isOwner
                 ? "Mode pantau — Owner hanya melihat & memverifikasi pengajuan"
-                : "Akses Mandor: pengajuan bahan, serah terima, dan daftar stok"}
+                : isMandor
+                ? "Akses Mandor: pengajuan bahan, serah terima, dan daftar stok"
+                : "Mode pantau — read-only untuk peran Anda"}
             </span>
           )}
         </div>
@@ -657,7 +659,7 @@ export default function GudangPage() {
                       </span>
                     </td>
                     <td>
-                      {n.need_status === "BELUM" && !isOwner && !isMandor && (
+                      {n.need_status === "BELUM" && canManageStock && (
                         <button onClick={() => handleRequestPurchase(n)} className="btn btn-primary btn-sm">
                           Minta Finance Belikan
                         </button>

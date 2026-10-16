@@ -279,7 +279,7 @@ export default function ProduksiPage() {
         }}
       >
         <div style={{ display: "flex", gap: 10 }}>
-          {!isOwner && (
+          {user?.role === "MANDOR" && (
             <button onClick={() => setNewOrderModal(true)} className="btn btn-primary">
               ➕ Buat Order Produksi Baru
             </button>
@@ -391,7 +391,7 @@ export default function ProduksiPage() {
                       }`}>
                         {selectedOrder.selling_price_status && selectedOrder.selling_price_status !== "-" ? selectedOrder.selling_price_status : "BELUM DIAJUKAN"}
                       </span>
-                      {!isOwner && (
+                      {user?.role === "MANDOR" && (
                         <button
                           onClick={() => {
                             const v = window.prompt("Usulan harga jual keseluruhan order (Rp):", selectedOrder.selling_price != null ? String(selectedOrder.selling_price) : "5000000");

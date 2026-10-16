@@ -25,7 +25,7 @@ function isMondayToSaturday(start: string, end: string): boolean {
 
 export default function PayrollPage() {
   const { user } = useAuth();
-  const isFinance = user?.role === "FINANCE_PAYROLL";
+  const isFinance = user?.role === "FINANCE_PAYROLL" || user?.role === "OWNER";
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [preview, setPreview] = useState<PayrollPreview | null>(null);
