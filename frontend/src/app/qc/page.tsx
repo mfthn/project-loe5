@@ -5,7 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
-import { qcApi, produksiApi } from "../../lib/api";
+import { qcApi, produksiApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
 import type { Order, QCInspection, QCBatchSummary, BonusPoolPreview } from "../../types/api";
 
 export default function QCPage() {
@@ -64,6 +64,7 @@ export default function QCPage() {
 
   const handleRecordInspection = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     if (!selectedOrderId) return;
     try {
       await qcApi.recordInspection({
@@ -90,6 +91,7 @@ export default function QCPage() {
         .catch(() => null);
       setBonusPool(updatedPool);
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal mencatat inspeksi QC." });
     }
   };

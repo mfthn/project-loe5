@@ -226,7 +226,7 @@ export function FeaturesSection() {
                           REKAP BORONGAN MINGGUAN (SABTU)
                         </span>
                         <span style={{ background: "#EDE9FE", color: "#6D28D9", padding: "4px 10px", borderRadius: 9999, fontSize: "0.75rem", fontWeight: 700 }}>
-                          🔒 Status: Locked (FR-10.1)
+                          🔒 Status: Terkunci
                         </span>
                       </div>
 
@@ -236,11 +236,11 @@ export function FeaturesSection() {
                           <span style={{ fontWeight: 700, color: "#2E1065" }}>Pcs Lolos × Rate Komponen</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#ffffff", borderRadius: 10, border: "1px solid #EDE9FE" }}>
-                          <span style={{ color: "#5B5870" }}>Uang Makan (FR-10.2 Fleksibel)</span>
+                          <span style={{ color: "#5B5870" }}>Uang Makan Fleksibel</span>
                           <span style={{ fontWeight: 700, color: "#7C3AED" }}>10–15% dari Total Ongkos Jahit</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#FAF5FF", borderRadius: 10, border: "1px solid #FBCFE8" }}>
-                          <span style={{ color: "#5B5870" }}>Pool Bonus QC 3-Arah (FR-10.3)</span>
+                          <span style={{ color: "#5B5870" }}>Pool Bonus QC 3-Arah</span>
                           <span style={{ fontWeight: 700, color: "#EC4899" }}>Dibagi Rata 2 Mandor + 1 Kepala Ops</span>
                         </div>
                       </div>

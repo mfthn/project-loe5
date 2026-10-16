@@ -5,7 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
-import { produksiApi, authApi } from "../../lib/api";
+import { produksiApi, authApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
 import type { Order, ProductionOutput, OrderSummary, OrderStatus } from "../../types/api";
 
 const STATUS_STEPS: OrderStatus[] = [
@@ -183,6 +183,7 @@ export default function ProduksiPage() {
   // Tambah komponen + rate ke order berjalan
   const handleAddComponent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     if (!selectedOrder) return;
     try {
       const updated = await produksiApi.addComponent(selectedOrder.id, {
@@ -199,6 +200,8 @@ export default function ProduksiPage() {
       }
       loadOrders();
     } catch (err: any) {
+            unlockFormSubmit(e); // gagal → izinkan coba lagi
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal menambah komponen." });
     }
   };
@@ -206,6 +209,7 @@ export default function ProduksiPage() {
   // Check-in / checkout penjahit (Mandor)
   const handleCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await produksiApi.checkinWorker({
         user_id: ciUserId,
@@ -217,6 +221,7 @@ export default function ProduksiPage() {
       const ci = await produksiApi.getCheckins(true).catch(() => []);
       setCheckins(ci);
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal check-in." });
     }
   };
@@ -321,8 +326,11 @@ export default function ProduksiPage() {
                       textAlign: "left",
                       padding: "12px 14px",
                       borderRadius: "var(--radius-md)",
-                      background: isSelected ? "var(--bg-surface-elevated)" : "var(--bg-secondary)",
-                      border: `1px solid ${isSelected ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                      background: isSelected
+                        ? "linear-gradient(135deg, #EDE9FE 0%, #FAF8FF 100%)"
+                        : "var(--bg-secondary)",
+                      border: `2px solid ${isSelected ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                      boxShadow: isSelected ? "0 6px 16px rgba(124, 58, 237, 0.18)" : "none",
                       color: "inherit",
                       cursor: "pointer",
                       transition: "all var(--transition-fast)",
@@ -890,6 +898,7 @@ export default function ProduksiPage() {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            if (!lockFormSubmit(e)) return;
             try {
               await produksiApi.createOrder({
                 client_id: newOrderClientId,

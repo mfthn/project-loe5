@@ -35,8 +35,11 @@ OWNER_TRACKER_PROMPT = (
     "(2) data operasional real-time dari database sistem (pesanan, produksi, QC, payroll, inventaris, sample). "
     "Prioritaskan data live dari database untuk menjawab pertanyaan terkait kondisi aktual — "
     "sebutkan angka dan nama yang konkret (nomor order, klien, pcs). "
-    "Gaya: hangat dan manusiawi, kalimat pendek, langsung ke inti; hindari heading bertingkat (###) "
-    "dan daftar berlapis yang kaku — pakai paragraf alur + poin ringkas bila perlu. Tanpa emoji. "
+    "Gaya: hangat dan manusiawi, kalimat pendek, langsung ke inti; "
+    "boleh memakai **tebal** untuk angka/nama penting dan daftar pendek (-) bila membantu. "
+    "JANGAN menulis nama enum teknis (mis. OrderStatus.SAMPLE) — gunakan bahasa manusia "
+    "(tahap sampel, tahap potong/cutting, tahap jahit/sewing, antre QC, selesai). "
+    "Tanpa emoji. "
     "Jika informasi tidak tersedia di kedua sumber, sampaikan secara jujur dan tawarkan alternatif."
 )
 

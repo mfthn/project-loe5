@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "../../components/AppLayout";
+import { MarkdownText } from "../../components/MarkdownText";
 import { Notice } from "../../components/Notice";
 import { aiApi, friendlyAiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
@@ -188,34 +189,9 @@ export default function AiAssistantPage() {
                 <span>{msg.sender === "user" ? "Anda" : msg.mode === "owner_agent" ? "AI Owner Tracker (/ask-agent)" : "AI Asisten Maklon (/rag)"}</span>
                 <span>{msg.timestamp}</span>
               </div>
-              <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
-
-              {/* RAG Document Sources Citation */}
-              {msg.sources && msg.sources.length > 0 && (
-                <div className="chat-sources">
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>📚 Rujukan SOP (RAG Bedrock):</div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {msg.sources.map((s, idx) => {
-                      const label = s.source_file
-                        ? s.source_file.split("/").pop()
-                        : s.chunk_index !== undefined
-                        ? `Chunk #${s.chunk_index + 1}`
-                        : `Kutipan #${idx + 1}`;
-                      const scoreText = s.score !== undefined ? ` (${Math.round(s.score * 100)}%)` : "";
-                      return (
-                        <span
-                          key={idx}
-                          className="badge badge-neutral"
-                          style={{ fontSize: "0.68rem" }}
-                          title={s.text || undefined}
-                        >
-                          📄 {label}{scoreText}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div style={{ whiteSpace: "pre-wrap" }}>
+                <MarkdownText text={msg.text} />
+              </div>
 
               {/* Kontak Pemesanan & Chat Template untuk Tim Sample */}
               {msg.showContactCard && (

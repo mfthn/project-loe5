@@ -34,7 +34,7 @@ export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
   MANDOR: ["dashboard", "gudang", "produksi", "qc"],
   PENJAHIT: ["dashboard", "produksi", "rekap-gaji"],
   QC_INSPECTOR: ["dashboard", "qc", "gudang"],
-  FINANCE_PAYROLL: ["dashboard", "payroll", "ai-assistant"],
+  FINANCE_PAYROLL: ["dashboard", "payroll"],
   KLIEN_MAKLON: ["dashboard", "portal-klien", "konsultasi"],
 };
 

@@ -5,7 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
-import { financeApi, gudangApi, produksiApi } from "../../lib/api";
+import { financeApi, gudangApi, produksiApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
 import type { HPPRealized, InventoryItem, Invoice, Order, PurchaseOrder } from "../../types/api";
 
 export default function KeuanganPage() {
@@ -89,6 +89,7 @@ export default function KeuanganPage() {
 
   const handleCreatePO = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await financeApi.createPO({
         po_number: poNumber,
@@ -101,6 +102,8 @@ export default function KeuanganPage() {
       setPoNumber("");
       loadData();
     } catch (err: any) {
+            unlockFormSubmit(e); // gagal → izinkan coba lagi
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal membuat PO." });
     }
   };
@@ -159,6 +162,7 @@ export default function KeuanganPage() {
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await financeApi.createInvoice({
         invoice_number: invNumber,
@@ -171,6 +175,7 @@ export default function KeuanganPage() {
       setInvAmount("");
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal menerbitkan invoice." });
     }
   };
@@ -187,12 +192,14 @@ export default function KeuanganPage() {
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lockFormSubmit(e)) return; // cegah spam klik ganda
     try {
       await financeApi.recordPayment(payInvoiceId, { amount: Number(payAmount) });
       setNotice({ type: "success", message: "Pembayaran tercatat." });
       setPayModalOpen(false);
       loadData();
     } catch (err: any) {
+      unlockFormSubmit(e); // gagal → izinkan coba lagi
       setNotice({ type: "danger", message: err.message || "Gagal mencatat pembayaran." });
     }
   };
