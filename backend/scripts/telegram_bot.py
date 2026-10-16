@@ -2,9 +2,8 @@
 
 Alur: Telegram user -> bot ini (polling) -> backend -> Bedrock RAG.
 - Chat biasa -> POST /api/v1/ai/rag (publik, SOP + handoff WhatsApp, tanpa auth).
-- /owner      -> POST /api/v1/ai/ask-agent (SOP + data live DB, butuh role
-  OWNER/MANDOR; bot login otomatis sebagai service account, lalu akses
-  dibatasi ke TELEGRAM_ALLOWED_IDS di bot ini).
+- /owner      -> POST /api/v1/ai/ask-agent (SOP + data live DB, bot login otomatis
+  sebagai service account). Terbuka untuk semua pengguna Telegram.
 
 Jalankan dari folder backend:
     export TELEGRAM_BOT_TOKEN=...       # token BotFather
@@ -197,12 +196,7 @@ async def handle_public(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    uid = str(user.id)
-    username = (user.username or "").lower()
-    if uid.lower() not in ALLOWED_IDS and username not in ALLOWED_IDS:
-        log.info("/owner ditolak: id=%s username=%s", uid, username or "-")
-        await update.message.reply_text("Maaf, perintah /owner hanya untuk internal yang terdaftar.")
-        return
+    log.info("/owner dipakai: id=%s username=%s", user.id, (user.username or "-").lower())
     q = " ".join(context.args).strip()
     if not q:
         await update.message.reply_text("Pakai: /owner <pertanyaan>, contoh: /owner ringkas output sewing minggu ini")
