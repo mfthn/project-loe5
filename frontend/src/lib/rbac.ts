@@ -27,7 +27,6 @@ export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
     "payroll",
     "portal-klien",
     "ai-assistant",
-    "analisis",
     "pengguna",
   ],
   TIM_SAMPLE: ["dashboard", "sample"],

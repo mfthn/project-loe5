@@ -189,24 +189,25 @@ export default function PayrollPage() {
         className="card-elevated"
         style={{
           marginBottom: 28,
-          background: "linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%)",
+          background: "linear-gradient(135deg, #FFFBEB 0%, #ffffff 100%)",
           border: "1px solid var(--color-warning-border)",
+          borderRadius: 24,
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
-          <div>
+          <div style={{ minWidth: 0, flex: "1 1 280px" }}>
             <span className="badge badge-warning" style={{ marginBottom: 6 }}>
               Skenario 2: Kunci Audit Permanen (FR-10)
             </span>
-            <h2 style={{ fontSize: "1.35rem", margin: "4px 0" }}>
+            <h2 style={{ fontSize: "1.35rem", margin: "4px 0", color: "#2E1065" }}>
               Mesin Penggajian Sabtu & Headcount Dinamis
             </h2>
-            <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "0.82rem", color: "#5B5870", lineHeight: 1.6 }}>
               Hanya Finance yang dapat mengonfirmasi kecukupan dana. Payroll terkunci final hanya setelah saldo yang dikonfirmasi mencukupi total gaji.
             </div>
           </div>
 
-          <span className="badge badge-purple font-mono" style={{ fontSize: "0.85rem", padding: "6px 14px" }}>
+          <span className="badge badge-purple font-mono" style={{ fontSize: "0.85rem", padding: "6px 14px", flexShrink: 0 }}>
             🔒 Immutable Audit Trail
           </span>
         </div>

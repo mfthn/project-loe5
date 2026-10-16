@@ -528,9 +528,12 @@ export default function SamplePage() {
                 style={{
                   border: "1px solid rgba(124, 58, 237, 0.35)",
                   background: "linear-gradient(160deg, #2E1065 0%, #1E0A45 100%)",
+                  borderRadius: 32,
+                  overflow: "hidden",
+                  padding: 24,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
                   <div>
                     <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8, color: "#ffffff", margin: 0 }}>
                       ⏱️ Stopwatch Digital Time Study (Detik)
@@ -612,11 +615,11 @@ export default function SamplePage() {
                 {/* Save Time Study to Component */}
                 <div
                   style={{
-                    background: "var(--bg-surface)",
-                    padding: 18,
-                    borderRadius: "var(--radius-md)",
+                    background: "#ffffff",
+                    padding: 20,
+                    borderRadius: 22,
                     border: "1px solid var(--border-subtle)",
-                    marginTop: 10,
+                    marginTop: 12,
                   }}
                 >
                   <div className="form-row">
@@ -651,7 +654,7 @@ export default function SamplePage() {
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
                     <button
                       onClick={handleSaveTimeStudy}
-                      className="btn btn-success"
+                      className="btn btn-primary btn-lg"
                       disabled={elapsedMs === 0 || !selectedComponentId}
                     >
                       💾 Simpan Rekam Time Study (

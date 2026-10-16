@@ -382,18 +382,19 @@ export default function GudangPage() {
       <div
         className="card"
         style={{
-          background: "rgba(30, 41, 59, 0.4)",
-          border: "1px solid var(--border-default)",
+          background: "linear-gradient(135deg, #FFFBEB 0%, #ffffff 100%)",
+          border: "1px solid var(--color-warning-border)",
+          borderRadius: 24,
           marginBottom: 28,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
           <span className="badge badge-warning">Skenario 1 Proteksi P0</span>
-          <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>
+          <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#2E1065" }}>
             Guard Anti-Kontaminasi Bahan Silang
           </span>
         </div>
-        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: 0 }}>
+        <p style={{ fontSize: "0.85rem", color: "#5B5870", margin: 0, lineHeight: 1.6 }}>
           Kain yang terdaftar dengan Tag ID Klien tertentu (misal: PT Tekstil Maju) <strong>secara absolut tidak dapat</strong> dikeluarkan untuk pesanan milik Klien lain (misal: CV Busana Prima / Snøhund). Sistem backend akan otomatis menolak transaksi (HTTP 400) dan stok bahan tidak akan berkurang.
         </p>
       </div>
