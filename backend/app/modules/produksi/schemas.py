@@ -50,6 +50,15 @@ class OrderStatusUpdate(BaseModel):
     status: OrderStatus = Field(..., description="Status baru order")
 
 
+class SellingPricePropose(BaseModel):
+    """Tim sample/mandor mengusulkan harga jual per order."""
+    selling_price: Decimal = Field(..., gt=0, description="Harga jual keseluruhan order (Rp)")
+
+
+class SellingPriceReview(BaseModel):
+    approve: bool
+
+
 class RateCardResponse(BaseModel):
     id: uuid.UUID
     order_component_id: uuid.UUID
@@ -96,6 +105,30 @@ class AssemblyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CheckinCreate(BaseModel):
+    """Mandor check-in-kan penjahit ke line + tugas."""
+    user_id: uuid.UUID = Field(..., description="ID penjahit yang di-check-in")
+    order_id: uuid.UUID | None = Field(None, description="Order yang ditugaskan (opsional)")
+    line_number: int = Field(default=1, ge=1)
+    task_category: str | None = Field(None, max_length=100, description="Kategori yang dikerjakan")
+    notes: str | None = None
+
+
+class CheckinResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    user_name: str | None = None
+    order_id: uuid.UUID | None
+    line_number: int
+    task_category: str | None
+    checked_in_by_user_id: uuid.UUID | None
+    checkin_at: datetime
+    checkout_at: datetime | None
+    notes: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderComponentResponse(BaseModel):
     id: uuid.UUID
     order_id: uuid.UUID
@@ -114,6 +147,8 @@ class OrderResponse(BaseModel):
     scheme: MaklonScheme
     target_quantity: int
     status: OrderStatus
+    selling_price: Decimal | None = None
+    selling_price_status: str = "-"
     start_date: datetime | None
     deadline: datetime | None
     created_at: datetime
@@ -139,6 +174,10 @@ class ProductionOutputCreate(BaseModel):
     line_number: int = Field(..., ge=1, description="Nomor line jahit (1–10)")
     qty_completed: int = Field(..., gt=0, description="Jumlah pcs selesai di interval ini")
     time_window: datetime = Field(..., description="Timestamp awal interval 30 menit (contoh: 08:00, 08:30, 09:00)")
+    operator_user_id: uuid.UUID | None = Field(
+        None,
+        description="ID penjahit pelaksana (wajib diisi Mandor dari daftar check-in; Penjahit otomatis dirinya)",
+    )
 
 
 class ProductionOutputVerify(BaseModel):

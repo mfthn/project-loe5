@@ -38,9 +38,10 @@ from app.modules.qc.service import (
 
 router = APIRouter(prefix="/qc", tags=["qc"])
 
-_INSPECTOR_ROLES = [UserRole.QC_INSPECTOR, UserRole.OWNER]
+_INSPECTOR_ROLES = [UserRole.QC_INSPECTOR]
 # Formula bonus milik Owner & Finance — Mandor tidak dapat mengubah formula gaji.
 _BONUS_ROLES = [UserRole.OWNER, UserRole.FINANCE_PAYROLL]
+_PREVIEW_ROLES = [UserRole.OWNER, UserRole.FINANCE_PAYROLL, UserRole.MANDOR, UserRole.QC_INSPECTOR]
 _ESCALATION_ROLES = [UserRole.OWNER, UserRole.TIM_SAMPLE, UserRole.QC_INSPECTOR, UserRole.MANDOR]
 
 
@@ -205,5 +206,22 @@ def calculate_bonus_pool(
     """
     try:
         return calculate_qc_bonus_pool(db, order_id, payload.bonus_rate_per_pcs)
+    except (QCBonusPoolEmptyError, NoBonusRecipientsError, ValueError) as e:
+        raise _handle_error(e) from e
+
+
+@router.get(
+    "/bonus-preview",
+    response_model=QCBonusPoolResponse,
+    dependencies=[Depends(require_roles(_PREVIEW_ROLES))],
+)
+def preview_bonus_pool(
+    order_id: uuid.UUID = Query(..., description="ID Order"),
+    bonus_rate_per_pcs: Decimal = Query(..., gt=0, description="Rate bonus per pcs (Rp)"),
+    db: Session = Depends(get_db),
+) -> QCBonusPoolResponse:
+    """Pratinjau pool bonus QC per order (baca saja, untuk kalkulator halaman QC)."""
+    try:
+        return calculate_qc_bonus_pool(db, order_id, bonus_rate_per_pcs)
     except (QCBonusPoolEmptyError, NoBonusRecipientsError, ValueError) as e:
         raise _handle_error(e) from e

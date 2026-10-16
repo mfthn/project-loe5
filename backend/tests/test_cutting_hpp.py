@@ -66,7 +66,7 @@ class TestCutting:
             "/api/v1/gudang/cutting",
             json={"order_id": cutting_setup["order_id"],
                   "inventory_item_id": cutting_setup["item_id"],
-                  "qty_lapis": 50.0, "qty_potong_hasil": 240, "waste_qty": 2.5,
+                  "qty_lapis": 50.0, "qty_potong_hasil": 240, "waste_category": "SISA_POTONG", "waste_qty": 2.5,
                   "notes": "Hamparan 1"},
             headers=headers["gudang"],
         )
@@ -84,7 +84,7 @@ class TestCutting:
         res = http_client.post(
             "/api/v1/gudang/cutting",
             json={"order_id": cutting_setup["order_id"], "qty_lapis": 10.0,
-                  "qty_potong_hasil": 40},
+                  "qty_potong_hasil": 40, "waste_category": "SISA_POTONG"},
             headers=headers["mandor"],
         )
         assert res.status_code == 422
@@ -93,7 +93,7 @@ class TestCutting:
         res = http_client.post(
             "/api/v1/gudang/cutting",
             json={"order_id": cutting_setup["order_id"], "qty_lapis": 10.0,
-                  "qty_potong_hasil": 40},
+                  "qty_potong_hasil": 40, "waste_category": "SISA_POTONG"},
             headers=headers["jahit"],
         )
         assert res.status_code == 403

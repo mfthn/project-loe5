@@ -121,11 +121,17 @@ class PayrollDetailResponse(BaseModel):
     total_sewing_fee: Decimal
     meal_allowance_amount: Decimal
     qc_bonus_share: Decimal
+    manual_adjustment: Decimal
     net_salary: Decimal
     user: PayrollUserResponse
     payment: PayrollPaymentResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PayrollAdjustment(BaseModel):
+    """Koreksi manual per slip oleh Finance (tercatat di audit, hanya saat run terbuka)."""
+    manual_adjustment: Decimal = Field(..., description="Koreksi +/- dalam Rp (boleh negatif)")
 
 
 class PayrollRunResponse(BaseModel):
@@ -208,5 +214,28 @@ class BatchFinancialResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OverheadExpenseCreate(BaseModel):
+    """Catat tagihan operasional bulanan (listrik, air, internet)."""
+
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    category: str = Field(..., min_length=2, max_length=100)
+    amount: Decimal = Field(..., gt=0)
+    notes: str | None = None
+
+
+class OverheadExpenseResponse(BaseModel):
+    id: uuid.UUID
+    year: int
+    month: int
+    category: str
+    amount: Decimal
+    recorded_by_user_id: uuid.UUID | None
+    notes: str | None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

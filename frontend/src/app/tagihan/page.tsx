@@ -37,6 +37,23 @@ export default function KeuanganPage() {
   const [hppRevenue, setHppRevenue] = useState("");
   const [hppOverhead, setHppOverhead] = useState("");
 
+  const [ohYear, setOhYear] = useState(() => new Date().getFullYear());
+  const [ohMonth, setOhMonth] = useState(() => new Date().getMonth() + 1);
+  const [ohList, setOhList] = useState<{
+    id: string; category: string; amount: number | string; notes: string | null;
+  }[]>([]);
+  const [ohCategory, setOhCategory] = useState("Listrik");
+  const [ohAmount, setOhAmount] = useState(0);
+  const [ohNotes, setOhNotes] = useState("");
+
+  const loadOverhead = async (year: number, month: number) => {
+    try {
+      setOhList(await financeApi.getOverhead(year, month));
+    } catch {
+      setOhList([]);
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -62,6 +79,7 @@ export default function KeuanganPage() {
 
   useEffect(() => {
     loadData();
+    loadOverhead(ohYear, ohMonth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -93,6 +111,45 @@ export default function KeuanganPage() {
       loadData();
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal mereview PO." });
+    }
+  };
+
+  const handleEditPO = async (po: PurchaseOrder) => {
+    const supplier = window.prompt("Nama supplier:", po.supplier_name);
+    if (supplier === null) return;
+    const prices: Record<string, number> = {};
+    for (const line of po.lines) {
+      const v = window.prompt(
+        `Harga satuan untuk ${line.inventory_item_id.slice(0, 8)} (kini ${line.unit_price}):`,
+        String(line.unit_price),
+      );
+      if (v === null) return;
+      prices[line.inventory_item_id] = Number(v);
+    }
+    try {
+      await financeApi.updatePO(po.id, {
+        supplier_name: supplier || undefined,
+        line_prices: prices,
+      });
+      setNotice({ type: "success", message: "PO dilengkapi — siap direview." });
+      loadData();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal melengkapi PO." });
+    }
+  };
+
+  const handlePaySupplier = async (poId: string) => {
+    const v = window.prompt("Nominal bayar supplier (Rp):", "100000");
+    if (v === null) return;
+    try {
+      const r = await financeApi.payPO(poId, { amount: Number(v) });
+      setNotice({
+        type: "success",
+        message: `Terbayar Rp ${Number(r.total_paid).toLocaleString("id-ID")} — sisa Rp ${Number(r.remaining).toLocaleString("id-ID")}${r.lunas ? " (LUNAS)" : ""}.`,
+      });
+      loadData();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal membayar supplier." });
     }
   };
 
@@ -217,17 +274,27 @@ export default function KeuanganPage() {
                       <td className="font-mono">{received} / {ordered}</td>
                       <td><span className="badge badge-info">{po.status}</span></td>
                       <td>
-                        {po.status === "DRAFT" ? (
-                          <div style={{ display: "flex", gap: 8 }}>
+                        {po.status === "DRAFT" || po.status === "TERKONFIRMASI" ? (
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                             <button onClick={() => handleReviewPO(po.id, true)} className="btn btn-primary btn-sm">
                               Setujui
                             </button>
                             <button onClick={() => handleReviewPO(po.id, false)} className="btn btn-secondary btn-sm">
                               Tolak
                             </button>
+                            {po.status === "DRAFT" && (
+                              <button onClick={() => handleEditPO(po)} className="btn btn-ghost btn-sm">
+                                Lengkapi Harga
+                              </button>
+                            )}
                           </div>
                         ) : (
-                          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Terverifikasi</span>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Terverifikasi</span>
+                            <button onClick={() => handlePaySupplier(po.id)} className="btn btn-secondary btn-sm">
+                              Bayar Supplier
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -325,6 +392,95 @@ export default function KeuanganPage() {
                 </div>
                 <button onClick={handleApplyHpp} className="btn btn-primary">Terapkan ke HPP</button>
               </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <h3 style={{ marginBottom: 14 }}>Tagihan Overhead Bulanan (FR-10.4: listrik, air, internet)</h3>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await financeApi.addOverhead({
+                  year: Number(ohYear), month: Number(ohMonth),
+                  category: ohCategory, amount: Number(ohAmount),
+                  notes: ohNotes || undefined,
+                });
+                setNotice({ type: "success", message: "Tagihan overhead tercatat." });
+                setOhAmount(0);
+                setOhNotes("");
+                loadOverhead(Number(ohYear), Number(ohMonth));
+              } catch (err: any) {
+                setNotice({ type: "danger", message: err.message || "Gagal mencatat tagihan." });
+              }
+            }}
+            style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}
+          >
+            <div className="form-group" style={{ margin: 0, maxWidth: 110 }}>
+              <label className="form-label">Tahun</label>
+              <input type="number" className="form-input" value={ohYear} onChange={(e) => setOhYear(Number(e.target.value))} required />
+            </div>
+            <div className="form-group" style={{ margin: 0, maxWidth: 100 }}>
+              <label className="form-label">Bulan</label>
+              <input type="number" className="form-input" value={ohMonth} onChange={(e) => { setOhMonth(Number(e.target.value)); }} min={1} max={12} required />
+            </div>
+            <div className="form-group" style={{ margin: 0, minWidth: 150 }}>
+              <label className="form-label">Kategori</label>
+              <select className="form-select" value={ohCategory} onChange={(e) => setOhCategory(e.target.value)}>
+                {["Listrik", "Air", "Internet", "Sewa", "Operasional"].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0, minWidth: 150 }}>
+              <label className="form-label">Nominal (Rp)</label>
+              <input type="number" className="form-input" value={ohAmount} onChange={(e) => setOhAmount(Number(e.target.value))} min={1} required />
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => loadOverhead(Number(ohYear), Number(ohMonth))}
+            >
+              Tampilkan
+            </button>
+            <button type="submit" className="btn btn-primary">Catat Tagihan</button>
+          </form>
+          {ohList.length > 0 && (
+            <div className="table-wrap" style={{ marginTop: 14 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Kategori</th>
+                    <th>Nominal</th>
+                    <th>Catatan</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ohList.map((o) => (
+                    <tr key={o.id}>
+                      <td style={{ fontWeight: 700 }}>{o.category}</td>
+                      <td className="font-mono">Rp {Number(o.amount).toLocaleString("id-ID")}</td>
+                      <td style={{ fontSize: "0.82rem" }}>{o.notes || "-"}</td>
+                      <td>
+                        <button
+                          onClick={() => {
+                            financeApi.deleteOverhead(o.id)
+                              .then(() => loadOverhead(Number(ohYear), Number(ohMonth)))
+                              .catch((err: any) => setNotice({ type: "danger", message: err.message }));
+                          }}
+                          className="btn btn-ghost btn-sm"
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

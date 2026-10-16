@@ -36,20 +36,45 @@ def headers(http_client):
 
 
 def _seed_ids():
-    from app.modules.produksi.models import OrderComponent
+    from app.modules.produksi.models import MaklonScheme, OrderComponent, OrderStatus
 
     db = SessionLocal()
     try:
+        klien_a = db.scalar(select(Client).where(Client.company_name.like("%Klien A%")))
+        klien_b = db.scalar(select(Client).where(Client.company_name.like("%Klien B%")))
+        assert klien_a is not None and klien_b is not None
         order_a = db.scalar(select(Order).where(Order.order_number == "ORD-MAKLON-A-001"))
+        if order_a is None:
+            order_a = Order(
+                client_id=klien_a.id, order_number="ORD-MAKLON-A-001",
+                scheme=MaklonScheme.CMT, target_quantity=500, status=OrderStatus.CUTTING,
+            )
+            db.add(order_a)
         order_b = db.scalar(select(Order).where(Order.order_number == "ORD-MAKLON-B-002"))
+        if order_b is None:
+            order_b = Order(
+                client_id=klien_b.id, order_number="ORD-MAKLON-B-002",
+                scheme=MaklonScheme.SEMI_CMT, target_quantity=300, status=OrderStatus.CUTTING,
+            )
+            db.add(order_b)
+        db.commit()
+        db.refresh(order_a)
+        db.refresh(order_b)
         comp = None
         for o in (order_a, order_b):
-            if o and o.components:
+            if o.components:
                 comp = o.components[0]
                 break
         if comp is None:
             comp = db.scalars(select(OrderComponent)).first()
         item = db.scalars(select(InventoryItem)).first()
+        if item is None:
+            item = InventoryItem(
+                client_id=klien_a.id, material_code="KAIN-RBAC-01",
+                material_name="Kain Uji RBAC", current_stock=100.0, unit_measure="METER",
+            )
+            db.add(item)
+            db.commit()
         return {
             "order_a": str(order_a.id) if order_a else None,
             "order_b": str(order_b.id) if order_b else None,

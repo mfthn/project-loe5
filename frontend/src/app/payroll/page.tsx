@@ -443,6 +443,7 @@ export default function PayrollPage() {
                   <th>Upah Borongan</th>
                   <th>Uang Makan</th>
                   <th>Bonus QC</th>
+                  <th>Koreksi Manual</th>
                   <th>Total</th>
                   <th>Status pembayaran</th>
                   <th>Tanggal pembayaran</th>
@@ -456,6 +457,32 @@ export default function PayrollPage() {
                     <td className="font-mono">Rp {Number(d.total_sewing_fee).toLocaleString("id-ID")}</td>
                     <td className="font-mono">Rp {Number(d.meal_allowance_amount).toLocaleString("id-ID")}</td>
                     <td className="font-mono">Rp {Number(d.qc_bonus_share).toLocaleString("id-ID")}</td>
+                    <td>
+                      {!selectedRun.is_locked && isFinance ? (
+                        <button
+                          onClick={() => {
+                            const v = window.prompt(
+                              `Koreksi manual untuk ${d.user.name} (Rp, boleh negatif):`,
+                              String((d as { manual_adjustment?: number }).manual_adjustment ?? 0),
+                            );
+                            if (v === null) return;
+                            payrollApi.adjustDetail(selectedRun.id, d.id, Number(v))
+                              .then(async () => {
+                                const updated = await payrollApi.getRunDetail(selectedRun.id);
+                                setSelectedRun(updated);
+                                setNotice({ type: "success", message: "Koreksi gaji tersimpan di audit." });
+                              })
+                              .catch((err: any) => setNotice({ type: "danger", message: err.message || "Gagal koreksi gaji." }));
+                          }}
+                          className="btn btn-ghost btn-sm font-mono"
+                          title="Ubah koreksi manual"
+                        >
+                          Rp {Number((d as { manual_adjustment?: number }).manual_adjustment ?? 0).toLocaleString("id-ID")} ✏️
+                        </button>
+                      ) : (
+                        <span className="font-mono">Rp {Number((d as { manual_adjustment?: number }).manual_adjustment ?? 0).toLocaleString("id-ID")}</span>
+                      )}
+                    </td>
                     <td className="font-mono" style={{ fontWeight: 700, color: "var(--color-success)" }}>
                       Rp {Number(d.net_salary).toLocaleString("id-ID")}
                     </td>

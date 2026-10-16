@@ -21,6 +21,10 @@ from app.modules.finance.models import InvoiceStatus, POStatus
 from app.modules.finance.schemas import (
     HPPApplyRequest,
     HPPRealizedResponse,
+    POPaymentCreate,
+    POPaymentResponse,
+    POUpdate,
+    ProductionNeedResponse,
     InvoiceCreate,
     InvoicePaymentCreate,
     InvoicePaymentResponse,
@@ -31,20 +35,25 @@ from app.modules.finance.schemas import (
 )
 from app.modules.finance.service import (
     approve_invoice,
+    confirm_po,
     create_invoice,
     create_po,
     list_invoices,
     list_pos,
+    production_needs,
     realized_material_cost,
+    record_po_payment,
     record_payment,
     reject_invoice,
     review_po,
+    update_po_draft,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
-_PO_CREATE_ROLES = [UserRole.TIM_SAMPLE, UserRole.FINANCE_PAYROLL, UserRole.OWNER]
+_PO_CREATE_ROLES = [UserRole.TIM_SAMPLE, UserRole.FINANCE_PAYROLL, UserRole.OWNER, UserRole.GUDANG]
 _PO_REVIEW_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER]
+_PO_CONFIRM_ROLES = [UserRole.GUDANG, UserRole.OWNER]
 _INVOICE_CREATE_ROLES = [UserRole.FINANCE_PAYROLL]
 _INVOICE_APPROVE_ROLES = [UserRole.OWNER]
 _PAYMENT_ROLES = [UserRole.FINANCE_PAYROLL, UserRole.OWNER]
@@ -307,3 +316,74 @@ def apply_realized_hpp(
         ),
     )
     return BatchFinancialResponse.model_validate(fin)
+
+
+@router.post(
+    "/pos/{po_id}/confirm",
+    response_model=POResponse,
+    dependencies=[Depends(require_roles(_PO_CONFIRM_ROLES))],
+)
+def confirm_po_entry(
+    po_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> POResponse:
+    """Gudang mengonfirmasi kebutuhan pengadaan (DRAFT → TERKONFIRMASI)."""
+    try:
+        po = confirm_po(db, po_id, confirmer_id=current_user.id)
+    except (PONotFoundError, POTransitionError) as e:
+        raise _handle_po_error(e) from e
+    return POResponse.model_validate(po)
+
+
+@router.patch(
+    "/pos/{po_id}",
+    response_model=POResponse,
+    dependencies=[Depends(require_roles(_PO_REVIEW_ROLES))],
+)
+def update_po_draft_entry(
+    po_id: uuid.UUID,
+    payload: POUpdate,
+    db: Session = Depends(get_db),
+) -> POResponse:
+    """Finance melengkapi PO DRAFT (supplier + harga) sebelum review."""
+    try:
+        po = update_po_draft(db, po_id, payload.supplier_name, payload.line_prices)
+    except (PONotFoundError, POTransitionError, ValueError) as e:
+        raise _handle_po_error(e) from e
+    return POResponse.model_validate(po)
+
+
+@router.post(
+    "/pos/{po_id}/payments",
+    response_model=POPaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(_PO_REVIEW_ROLES))],
+)
+def record_po_payment_entry(
+    po_id: uuid.UUID,
+    payload: POPaymentCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> POPaymentResponse:
+    """Finance membayar supplier bertahap (menolak kelebihan dari total PO)."""
+    try:
+        result = record_po_payment(
+            db, po_id, payload.amount,
+            recorder_id=current_user.id, notes=payload.notes,
+        )
+    except (PONotFoundError, POTransitionError, ValueError) as e:
+        raise _handle_po_error(e) from e
+    return POPaymentResponse(**result)
+
+
+@router.get("/needs", response_model=list[ProductionNeedResponse])
+def get_production_needs(
+    client_id: uuid.UUID | None = Query(None),
+    order_id: uuid.UUID | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ProductionNeedResponse]:
+    """Status kebutuhan produksi per pengajuan (TERPENUHI/BELUM). Klien hanya miliknya."""
+    client_id = _resolve_client(current_user, client_id)
+    return [ProductionNeedResponse(**n) for n in production_needs(db, client_id, order_id)]

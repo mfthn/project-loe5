@@ -65,7 +65,7 @@ class TestWasteCategory:
         res = http_client.post(
             "/api/v1/gudang/cutting",
             json={"order_id": adj_setup["order_id"], "inventory_item_id": adj_setup["item_id"],
-                  "qty_lapis": 20.0, "qty_potong_hasil": 90,
+                  "qty_lapis": 20.0, "qty_potong_hasil": 90, "waste_category": "SISA_POTONG",
                   "waste_qty": 3.0, "waste_category": "SCRAP"},
             headers=headers["gudang"],
         )
@@ -76,7 +76,7 @@ class TestWasteCategory:
         res = http_client.post(
             "/api/v1/gudang/cutting",
             json={"order_id": adj_setup["order_id"], "qty_lapis": 5.0,
-                  "qty_potong_hasil": 20, "waste_qty": 1.0, "waste_category": "SAMPAH"},
+                  "qty_potong_hasil": 20, "waste_category": "SISA_POTONG", "waste_qty": 1.0, "waste_category": "SAMPAH"},
             headers=headers["gudang"],
         )
         assert res.status_code == 422
@@ -233,3 +233,205 @@ class TestLeaderboard:
         jahit = _login(http_client, "siti_jahit", "Lukla@Jahit2026")
         res = http_client.get("/api/v1/produksi/leaderboard", headers=jahit)
         assert res.status_code == 403
+
+
+class TestSampleCategoryAutoCode:
+    def _login(self, http_client, username, password):
+        res = http_client.post("/api/v1/auth/login", json={"username": username, "password": password})
+        assert res.status_code == 200, res.text
+        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    def _client_a(self):
+        db = SessionLocal()
+        try:
+            from app.modules.auth.models import Client as _Client
+
+            return str(db.scalar(select(_Client).where(_Client.company_name.like("%Klien A%"))).id)
+        finally:
+            db.close()
+
+    def test_buat_sample_tanpa_kode_digenerate(self, http_client):
+        sample_h = self._login(http_client, "adis_sample", "Lukla@Sample2026")
+        r1 = http_client.post(
+            "/api/v1/sample/",
+            json={"client_id": self._client_a(), "article_name": "Hoodie Uji",
+                  "category": "HOODIE"},
+            headers=sample_h,
+        )
+        assert r1.status_code == 201, r1.text
+        body = r1.json()
+        code1 = body["sample_code"]
+        assert code1.startswith("SMP-HOODIE-")
+        assert body["versions"][0]["status"] == "DRAFT"
+
+        r2 = http_client.post(
+            "/api/v1/sample/",
+            json={"client_id": self._client_a(), "article_name": "Hoodie Uji 2",
+                  "category": "HOODIE"},
+            headers=sample_h,
+        )
+        assert r2.status_code == 201, r2.text
+        code2 = r2.json()["sample_code"]
+        seq1 = int(code1.rsplit("-", 1)[-1])
+        seq2 = int(code2.rsplit("-", 1)[-1])
+        assert seq2 == seq1 + 1
+
+    def test_kategori_baru_custom_diterima(self, http_client):
+        sample_h = self._login(http_client, "adis_sample", "Lukla@Sample2026")
+        res = http_client.post(
+            "/api/v1/sample/",
+            json={"client_id": self._client_a(), "article_name": "Topi Uji",
+                  "category": "TOPI"},
+            headers=sample_h,
+        )
+        assert res.status_code == 201, res.text
+        assert res.json()["sample_code"].startswith("SMP-TOPI-")
+
+    def test_revisi_tertaut_order(self, http_client):
+        sample_h = self._login(http_client, "adis_sample", "Lukla@Sample2026")
+        mandor_h = self._login(http_client, "agus_mandor", "Lukla@Mandor2026")
+        s = http_client.post(
+            "/api/v1/sample/",
+            json={"client_id": self._client_a(), "article_name": "Jaket Uji",
+                  "category": "JAKET"},
+            headers=sample_h,
+        ).json()
+        order = http_client.post(
+            "/api/v1/produksi/orders",
+            json={"client_id": self._client_a(), "order_number": f"ORD-REV-{s['sample_code'][-3:]}",
+                  "scheme": "CMT", "target_quantity": 50, "components": []},
+            headers=mandor_h,
+        )
+        assert order.status_code == 201, order.text
+        rev = http_client.post(
+            f"/api/v1/sample/{s['id']}/revisi",
+            json={"tech_pack_notes": "Ganti design kerah sesuai pemesan",
+                  "order_id": order.json()["id"]},
+            headers=sample_h,
+        )
+        assert rev.status_code == 201, rev.text
+        assert rev.json()["order_id"] == order.json()["id"]
+        assert rev.json()["status"] == "REVISION"
+
+
+class TestContractAlignment:
+    def test_auth_clients_terdaftar(self, http_client):
+        sample_h = _login(http_client, "adis_sample", "Lukla@Sample2026")
+        res = http_client.get("/api/v1/auth/clients", headers=sample_h)
+        assert res.status_code == 200, res.text
+        assert len(res.json()) >= 1
+
+    def test_klien_hanya_lihat_miliknya_di_clients(self, http_client):
+        klien = _login(http_client, "klien_a", "klien123")
+        res = http_client.get("/api/v1/auth/clients", headers=klien)
+        assert res.status_code == 200, res.text
+        assert len(res.json()) == 1
+
+    def test_bonus_preview_per_order(self, http_client, headers, adj_setup):
+        qc_h = _login(http_client, "dewi_qc", "Lukla@QC2026")
+        db = SessionLocal()
+        try:
+            order = db.scalar(select(Order).where(Order.id == adj_setup["order_id"]))
+            order.status = OrderStatus.MENUNGGU_QC
+            db.commit()
+        finally:
+            db.close()
+        http_client.post(
+            "/api/v1/qc/inspections",
+            json={"order_id": adj_setup["order_id"], "qty_inspected": 80, "status": "LOLOS"},
+            headers=qc_h,
+        )
+        res = http_client.get(
+            f"/api/v1/qc/bonus-preview?order_id={adj_setup['order_id']}&bonus_rate_per_pcs=150",
+            headers=headers["owner"],
+        )
+        assert res.status_code == 200, res.text
+        assert float(res.json()["total_pool"]) == 80 * 150
+
+
+class TestOrderComponents:
+    def test_mandor_tambah_komponen_ke_order(self, http_client, headers, adj_setup):
+        res = http_client.post(
+            f"/api/v1/produksi/orders/{adj_setup['order_id']}/components",
+            json={"component_name": "Lengan", "sequence_order": 1,
+                  "cutting_rate_per_pcs": "400.00", "sewing_rate_per_pcs": "1800.00"},
+            headers=headers["mandor"],
+        )
+        assert res.status_code == 201, res.text
+        comps = res.json()["components"]
+        assert any(c["component_name"] == "Lengan" for c in comps)
+        lengan = next(c for c in comps if c["component_name"] == "Lengan")
+        assert float(lengan["rate_card"]["sewing_rate_per_pcs"]) == 1800.0
+
+    def test_penjahit_diblokir_tambah_komponen(self, http_client, headers, adj_setup):
+        jahit = _login(http_client, "siti_jahit", "Lukla@Jahit2026")
+        res = http_client.post(
+            f"/api/v1/produksi/orders/{adj_setup['order_id']}/components",
+            json={"component_name": "X", "cutting_rate_per_pcs": "1.00",
+                  "sewing_rate_per_pcs": "1.00"},
+            headers=jahit,
+        )
+        assert res.status_code == 403
+
+
+class TestDesignImage:
+    def _login(self, http_client, username, password):
+        res = http_client.post("/api/v1/auth/login", json={"username": username, "password": password})
+        assert res.status_code == 200, res.text
+        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    def _client_a(self):
+        db = SessionLocal()
+        try:
+            from app.modules.auth.models import Client as _Client
+
+            return str(db.scalar(select(_Client).where(_Client.company_name.like("%Klien A%"))).id)
+        finally:
+            db.close()
+
+    def test_upload_tolak_bukan_gambar(self, http_client):
+        from unittest.mock import MagicMock, patch
+
+        sample_h = self._login(http_client, "adis_sample", "Lukla@Sample2026")
+        s = http_client.post(
+            "/api/v1/sample/",
+            json={"client_id": self._client_a(), "article_name": "Tas Uji",
+                  "category": "TAS"},
+            headers=sample_h,
+        ).json()
+        ver = s["versions"][0]["id"]
+        with patch("boto3.client") as mock_boto:
+            mock_boto.return_value.put_object.return_value = {}
+            res = http_client.post(
+                f"/api/v1/sample/versions/{ver}/design-image",
+                files={"file": ("notes.txt", b"hello", "text/plain")},
+                headers=sample_h,
+            )
+        assert res.status_code in (400, 422), res.text
+
+    def test_upload_gambar_ok_dan_masuk_detail(self, http_client):
+        from unittest.mock import MagicMock, patch
+
+        sample_h = self._login(http_client, "adis_sample", "Lukla@Sample2026")
+        s = http_client.post(
+            "/api/v1/sample/",
+            json={"client_id": self._client_a(), "article_name": "Tas Uji 2",
+                  "category": "TAS"},
+            headers=sample_h,
+        ).json()
+        ver = s["versions"][0]["id"]
+        tiny_png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+            b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        with patch("boto3.client") as mock_boto:
+            mock_boto.return_value.put_object.return_value = {}
+            mock_boto.return_value.generate_presigned_url.return_value = "https://cdn/contoh.png"
+            res = http_client.post(
+                f"/api/v1/sample/versions/{ver}/design-image",
+                files={"file": ("design.png", tiny_png, "image/png")},
+                headers=sample_h,
+            )
+        assert res.status_code == 201, res.text
+        assert res.json()["design_image_url"] == "https://cdn/contoh.png"

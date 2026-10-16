@@ -64,3 +64,26 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class UserCreateAdmin(BaseModel):
+    """Owner membuat akun pekerja: username + password + peran + otorisasi modul."""
+
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=100)
+    name: str = Field(..., min_length=2, max_length=255)
+    email: str | None = Field(None, max_length=255)
+    role: UserRole
+    client_id: uuid.UUID | None = Field(
+        None, description="Wajib jika role KLIEN_MAKLON"
+    )
+
+
+class UserUpdateAdmin(BaseModel):
+    """Owner mengedit akun: nama, peran, klien, status aktif."""
+
+    name: str | None = Field(None, min_length=2, max_length=255)
+    email: str | None = Field(None, max_length=255)
+    role: UserRole | None = None
+    client_id: uuid.UUID | None = None
+    is_active: bool | None = None

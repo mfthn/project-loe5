@@ -22,6 +22,7 @@ from app.modules.produksi.errors import (
     SampleVersionNotApprovedError,
 )
 from app.modules.produksi.models import (
+    AttendanceCheckin,
     MaklonScheme,
     Order,
     OrderComponent,
@@ -528,6 +529,7 @@ def record_output(
     db: Session,
     payload: ProductionOutputCreate,
     operator_user_id: uuid.UUID,
+    is_mandor: bool = False,
 ) -> ProductionOutput:
     """Mencatat output penjahit dari terminal tablet per interval 30 menit (FR-8).
 
@@ -535,7 +537,11 @@ def record_output(
     - Order harus ada dan statusnya SEWING.
     - Komponen harus milik order tersebut.
     - qty_completed > 0.
+    - Mandor wajib menunjuk id penjahit pelaksana (dari check-in);
+      Penjahit selalu tercatat atas dirinya sendiri.
     """
+    from app.modules.auth.models import User, UserRole
+
     order = _get_or_raise_order(db, payload.order_id)
     if order.status != OrderStatus.SEWING:
         raise OrderStatusTransitionError(
@@ -551,10 +557,19 @@ def record_output(
     if payload.qty_completed <= 0:
         raise InvalidOutputQuantityError(payload.qty_completed)
 
+    effective_operator = operator_user_id
+    if is_mandor:
+        if not payload.operator_user_id:
+            raise ValueError("Mandor wajib memilih id penjahit pelaksana.")
+        worker = db.scalar(select(User).where(User.id == payload.operator_user_id))
+        if worker is None or worker.role != UserRole.PENJAHIT:
+            raise ValueError("Pelaksana wajib akun ber peran PENJAHIT.")
+        effective_operator = worker.id
+
     output = ProductionOutput(
         order_id=payload.order_id,
         order_component_id=payload.order_component_id,
-        operator_user_id=operator_user_id,
+        operator_user_id=effective_operator,
         line_number=payload.line_number,
         qty_completed=payload.qty_completed,
         time_window=payload.time_window,
@@ -644,3 +659,169 @@ def get_operator_leaderboard(db: Session, limit: int = 20) -> list[dict]:
         )
     board.sort(key=lambda e: e["verified_qty"], reverse=True)
     return board
+
+
+def add_order_component(
+    db: Session,
+    order_id: uuid.UUID,
+    payload,
+    added_by_id: uuid.UUID | None = None,
+) -> Order:
+    """Tambah komponen + rate card ke order berjalan (khusus OWNER & MANDOR).
+
+    Hanya sebelum QC (SAMPLE/CUTTING/SEWING) agar formula upah stabil saat QC/payroll.
+    """
+    _ = added_by_id
+    order = _get_or_raise_order(db, order_id)
+    if order.status not in (OrderStatus.SAMPLE, OrderStatus.CUTTING, OrderStatus.SEWING):
+        raise OrderStatusTransitionError(
+            order.status.value, "tambah komponen (hanya saat SAMPLE/CUTTING/SEWING)"
+        )
+    existing = db.scalars(
+        select(OrderComponent).where(OrderComponent.order_id == order_id)
+    ).all()
+    next_seq = max([c.sequence_order for c in existing], default=0) + 1
+    comp = OrderComponent(
+        order_id=order.id,
+        component_name=payload.component_name.strip(),
+        sequence_order=next_seq,
+    )
+    db.add(comp)
+    db.flush()
+    db.add(
+        RateCard(
+            order_component_id=comp.id,
+            cutting_rate_per_pcs=payload.cutting_rate_per_pcs,
+            sewing_rate_per_pcs=payload.sewing_rate_per_pcs,
+        )
+    )
+    db.commit()
+    return get_order(db, order.id)
+
+
+def propose_selling_price(
+    db: Session,
+    order_id: uuid.UUID,
+    selling_price: Decimal,
+    proposer_id: uuid.UUID | None = None,
+) -> Order:
+    """Tim sample/mandor mengusulkan harga jual (jualan) per order."""
+    order = _get_or_raise_order(db, order_id)
+    if selling_price <= 0:
+        raise ValueError("Harga jual wajib lebih besar dari 0.")
+    order.selling_price = selling_price
+    order.selling_price_status = "DIAJUKAN"
+    order.selling_price_proposed_by = proposer_id
+    order.selling_price_approved_by = None
+    order.selling_price_approved_at = None
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+def review_selling_price(
+    db: Session,
+    order_id: uuid.UUID,
+    approve: bool,
+    reviewer_id: uuid.UUID | None = None,
+) -> Order:
+    """Owner menyetujui/menolak harga jual per order."""
+    from datetime import datetime, timezone
+
+    order = _get_or_raise_order(db, order_id)
+    if order.selling_price_status != "DIAJUKAN" or order.selling_price is None:
+        raise OrderStatusTransitionError(
+            order.selling_price_status, "review harga jual (perlu status DIAJUKAN)"
+        )
+    order.selling_price_status = "DISETUJUI" if approve else "DITOLAK"
+    order.selling_price_approved_by = reviewer_id
+    order.selling_price_approved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+def checkin_worker(
+    db: Session,
+    payload,
+    checked_in_by_id: uuid.UUID | None = None,
+) -> dict:
+    """Mandor check-in-kan penjahit ke line + tugas (satu sesi terbuka per penjahit)."""
+    from datetime import datetime, timezone
+
+    from app.modules.auth.models import User, UserRole
+
+    worker = db.scalar(select(User).where(User.id == payload.user_id))
+    if worker is None or worker.role != UserRole.PENJAHIT or not worker.is_active:
+        raise ValueError("Check-in hanya untuk akun PENJAHIT yang aktif.")
+    open_session = db.scalar(
+        select(AttendanceCheckin).where(
+            AttendanceCheckin.user_id == worker.id,
+            AttendanceCheckin.checkout_at.is_(None),
+        )
+    )
+    if open_session is not None:
+        raise ValueError(f"{worker.name} masih check-in (belum checkout).")
+    order_id = None
+    if payload.order_id is not None:
+        order = _get_or_raise_order(db, payload.order_id)
+        order_id = order.id
+    ci = AttendanceCheckin(
+        user_id=worker.id,
+        order_id=order_id,
+        line_number=payload.line_number,
+        task_category=payload.task_category,
+        checked_in_by_user_id=checked_in_by_id,
+        notes=payload.notes,
+    )
+    db.add(ci)
+    db.commit()
+    db.refresh(ci)
+    return _checkin_to_dict(db, ci)
+
+
+def checkout_worker(
+    db: Session, checkin_id: uuid.UUID
+):
+    """Mandor menutup sesi check-in penjahit."""
+    from datetime import datetime, timezone
+
+    ci = db.scalar(select(AttendanceCheckin).where(AttendanceCheckin.id == checkin_id))
+    if ci is None:
+        raise ValueError(f"Sesi check-in {checkin_id} tidak ditemukan.")
+    if ci.checkout_at is not None:
+        raise ValueError("Sesi sudah di-checkout sebelumnya.")
+    ci.checkout_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(ci)
+    return _checkin_to_dict(db, ci)
+
+
+def _checkin_to_dict(db: Session, ci) -> dict:
+    from app.modules.auth.models import User
+
+    user = db.scalar(select(User).where(User.id == ci.user_id))
+    return {
+        "id": ci.id,
+        "user_id": ci.user_id,
+        "user_name": user.name if user else None,
+        "order_id": ci.order_id,
+        "line_number": ci.line_number,
+        "task_category": ci.task_category,
+        "checked_in_by_user_id": ci.checked_in_by_user_id,
+        "checkin_at": ci.checkin_at,
+        "checkout_at": ci.checkout_at,
+        "notes": ci.notes,
+    }
+
+
+def list_checkins(
+    db: Session, only_open: bool = False, order_id: uuid.UUID | None = None
+) -> list[dict]:
+    """Daftar sesi check-in (terbaru dulu), opsional hanya yang terbuka / per order."""
+    stmt = select(AttendanceCheckin).order_by(AttendanceCheckin.checkin_at.desc())
+    if only_open:
+        stmt = stmt.where(AttendanceCheckin.checkout_at.is_(None))
+    if order_id is not None:
+        stmt = stmt.where(AttendanceCheckin.order_id == order_id)
+    return [_checkin_to_dict(db, ci) for ci in db.scalars(stmt).all()]

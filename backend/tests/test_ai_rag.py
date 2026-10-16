@@ -315,3 +315,41 @@ def test_dual_assistant_no_context_owner_response(use_service):
     svc = RS(make_settings(), EmptyFakeClients())
     with pytest.raises(RagUnavailableError):
         svc.ask_with_persona("Status produksi hari ini?", "owner_tracker")
+
+
+class FakeMultiClients(FakeClients):
+    def __init__(self, documents: dict) -> None:
+        super().__init__(document="")
+        self.documents = documents
+
+    def read_documents(self) -> dict:
+        if not self.documents:
+            from app.modules.ai.errors import RagUpstreamError as _Up
+
+            raise _Up("Tidak ada dokumen .md di bucket uji.")
+        return dict(self.documents)
+
+
+def test_build_index_menggabung_multi_dokumen():
+    from app.modules.ai.service import RagService
+
+    svc = RagService(
+        make_settings(similarity_threshold=0.0),
+        FakeMultiClients({"a.md": "skema maklon CMT tas", "b.md": "jadwal sampling hoodie"}),
+    )
+    n = svc.build_index()
+    assert n > 0 and svc.is_ready
+    hits = svc.retrieve("skema maklon")
+    assert len(hits) > 0
+
+
+def test_build_index_bucket_kosong_error_jelas():
+    from app.modules.ai.errors import RagUpstreamError
+    from app.modules.ai.service import RagService
+
+    svc = RagService(make_settings(), FakeMultiClients({}))
+    try:
+        svc.build_index()
+        raise AssertionError("seharusnya gagal")
+    except RagUpstreamError as e:
+        assert ".md" in str(e)

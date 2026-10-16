@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     # Chunking dan retrieval
     chunk_size: int = 800
     chunk_overlap: int = 100
-    top_k: int = 4
-    similarity_threshold: float = 0.3
+    top_k: int = 6
+    similarity_threshold: float = 0.15
 
     @model_validator(mode="before")
     @classmethod

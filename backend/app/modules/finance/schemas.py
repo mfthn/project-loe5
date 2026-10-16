@@ -27,6 +27,28 @@ class POReview(BaseModel):
     notes: str | None = None
 
 
+class POUpdate(BaseModel):
+    """Finance melengkapi PO DRAFT sebelum review."""
+    supplier_name: str | None = Field(None, min_length=2, max_length=255)
+    line_prices: dict[str, float] | None = Field(
+        None, description="Map inventory_item_id → harga satuan"
+    )
+
+
+class POPaymentCreate(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    notes: str | None = None
+
+
+class POPaymentResponse(BaseModel):
+    po_id: uuid.UUID
+    po_number: str
+    total_amount: float
+    total_paid: float
+    remaining: float
+    lunas: bool
+
+
 class POLineResponse(BaseModel):
     id: uuid.UUID
     inventory_item_id: uuid.UUID
@@ -111,3 +133,18 @@ class HPPRealizedResponse(BaseModel):
     realized_material_cost: float
     po_count: int
     breakdown: list[dict]
+
+
+class ProductionNeedResponse(BaseModel):
+    request_id: uuid.UUID
+    order_id: uuid.UUID
+    order_number: str
+    order_status: str
+    inventory_item_id: uuid.UUID
+    material_code: str
+    material_name: str
+    qty_requested: float
+    qty_fulfilled: float
+    current_stock: float
+    request_status: str
+    need_status: str

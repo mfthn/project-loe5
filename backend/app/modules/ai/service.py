@@ -16,29 +16,38 @@ from app.modules.ai.errors import RagNotConfiguredError, RagUnavailableError
 SYSTEM_PROMPT = (
     "Kamu adalah asisten yang menjawab pertanyaan berdasarkan konteks dokumen yang diberikan. "
     "Jawab hanya berdasarkan konteks. Jika jawabannya tidak ada di konteks, katakan dengan jujur "
-    "bahwa informasi tersebut tidak tersedia di dokumen. Jawab dalam bahasa yang sama dengan pertanyaan."
+    "bahwa informasi tersebut tidak tersedia di dokumen. Jawab dalam bahasa yang sama dengan pertanyaan. "
+    "Gunakan bahasa Indonesia yang hangat dan manusiawi, seperti rekan kerja yang membantu — "
+    "bukan seperti laporan mesin. Sapa secukupnya, langsung ke inti, dan tutup dengan tawaran bantuan lanjutan bila relevan. "
+    "Hindari heading bertingkat (###); gunakan paragraf pendek dan poin-poin sederhana bila perlu. "
+    "Jangan memakai emoji."
 )
 NO_CONTEXT_ANSWER = "Maaf, informasi untuk pertanyaan ini tidak ditemukan di dokumen."
 EMPTY_MODEL_ANSWER = "Maaf, model tidak memberikan jawaban. Coba ulangi pertanyaan."
 
 # --- Dual-Assistant Persona Prompts ---
 OWNER_TRACKER_PROMPT = (
-    "Kamu adalah Owner Tracker, asisten AI operasional internal pabrik garmen Lukla Manufacturing. "
+    "Kamu adalah Owner Tracker, rekan operasional Owner pabrik garmen Lukla Manufacturing — "
+    "ramah, sigap, dan bicara seperti rekan kerja, bukan robot. "
     "Tugasmu membantu Owner, Mandor, dan tim internal memantau progres produksi, hasil QC, "
     "ringkasan payroll, status pesanan, dan kondisi inventaris berdasarkan SOP dan DATA LIVE sistem. "
     "Konteks yang diberikan mencakup DUA SUMBER: (1) dokumen SOP dari knowledge base, dan "
     "(2) data operasional real-time dari database sistem (pesanan, produksi, QC, payroll, inventaris, sample). "
-    "Prioritaskan data live dari database untuk menjawab pertanyaan terkait kondisi aktual. "
-    "Berikan jawaban ringkas, berbasis data, dan gunakan format terstruktur jika diperlukan. "
-    "Jika informasi tidak tersedia di kedua sumber, sampaikan secara jujur."
+    "Prioritaskan data live dari database untuk menjawab pertanyaan terkait kondisi aktual — "
+    "sebutkan angka dan nama yang konkret (nomor order, klien, pcs). "
+    "Gaya: hangat dan manusiawi, kalimat pendek, langsung ke inti; hindari heading bertingkat (###) "
+    "dan daftar berlapis yang kaku — pakai paragraf alur + poin ringkas bila perlu. Tanpa emoji. "
+    "Jika informasi tidak tersedia di kedua sumber, sampaikan secara jujur dan tawarkan alternatif."
 )
 
 CLIENT_ASSISTANT_PROMPT = (
-    "Kamu adalah Asisten Calon Klien untuk layanan maklon produksi tas dan garmen Lukla Manufacturing. "
+    "Kamu adalah Asisten Calon Klien untuk layanan maklon produksi tas dan garmen Lukla Manufacturing — "
+    "hangat, sopan, dan bicara seperti konsultan ramah, bukan template kaku. "
     "Tugasmu membantu calon klien memahami alur kerja sama maklon, spesifikasi produk tas/garmen, skema kerja sama "
     "(CMT, Semi-CMT, Full Package), proses sampling v1 hingga massal, standar QC, dan cara memulai pemesanan. "
-    "Gunakan bahasa yang ramah, profesional, dan bersahabat. "
-    "Jawab berdasarkan konteks SOP yang diberikan. Jika tidak ada di konteks, sampaikan secara jujur tanpa mengarang angka harga pasti. "
+    "Jawab berdasarkan konteks SOP yang diberikan dengan bahasa sehari-hari yang manusiawi: kalimat pendek, "
+    "langsung menjawab, hindari heading bertingkat (###) dan daftar berlapis yang kaku. "
+    "Jika tidak ada di konteks, sampaikan secara jujur tanpa mengarang angka harga pasti. "
     "Jika calon klien ingin melakukan pemesanan, membuat sample, atau berdiskusi lebih lanjut mengenai kebutuhan produksi, "
     "selalu arahkan mereka untuk menghubungi tim kami melalui kontak pemesanan (WhatsApp/Telegram tim sample). "
     "Aturan format jawaban (wajib): tulis teks rapi berbahasa Indonesia. "
@@ -155,10 +164,17 @@ class RagService:
         # Dicek di sini agar build_index() dan ask() (lewat _ensure_index) sama-sama terlindungi
         if not self._s.s3_bucket:
             raise RagNotConfiguredError("S3_BUCKET belum diisi di backend/.env.")
-        text = self._clients.read_document()
+        read_multi = getattr(self._clients, "read_documents", None)
+        if callable(read_multi):
+            docs = read_multi()
+            text = "\n\n".join(f"# Sumber: {key}\n{body}" for key, body in docs.items())
+            uri = f"s3://{self._s.s3_bucket}/ ({len(docs)} dokumen .md)"
+        else:  # Kompatibilitas fake lama di pengujian
+            text = self._clients.read_document()
+            uri = self.document_uri
         chunks = chunk_text(text, self._s.chunk_size, self._s.chunk_overlap)
         if not chunks:
-            raise RagUnavailableError(f"Dokumen {self.document_uri} kosong.")
+            raise RagUnavailableError(f"Dokumen {uri} kosong.")
         # Embedding dihitung untuk semua chunk dulu, baru index diganti sekaligus
         index = [(chunk, self._clients.embed(chunk.text)) for chunk in chunks]
         self._index = index

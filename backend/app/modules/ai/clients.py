@@ -38,6 +38,54 @@ class AwsRagClients:
             logger.exception("Gagal membaca s3://%s/%s", self._s.s3_bucket, self._s.s3_document_key)
             raise RagUpstreamError(f"Gagal membaca dokumen dari S3. {_AWS_HINT}") from e
 
+    def list_md_documents(self) -> list[str]:
+        """Daftar semua key .md di bucket (tahan terhadap ganti-tambah dokumen)."""
+        try:
+            keys: list[str] = []
+            token = None
+            while True:
+                kwargs: dict = {"Bucket": self._s.s3_bucket, "MaxKeys": 1000}
+                if token:
+                    kwargs["ContinuationToken"] = token
+                resp = self._s3.list_objects_v2(**kwargs)
+                for obj in resp.get("Contents", []):
+                    if obj["Key"].endswith(".md"):
+                        keys.append(obj["Key"])
+                if resp.get("IsTruncated"):
+                    token = resp.get("NextContinuationToken")
+                else:
+                    break
+            return sorted(keys)
+        except (ClientError, BotoCoreError) as e:
+            logger.exception("Gagal membaca daftar isi s3://%s", self._s.s3_bucket)
+            raise RagUpstreamError(f"Gagal membaca daftar dokumen dari S3. {_AWS_HINT}") from e
+
+    def read_documents(self) -> dict[str, str]:
+        """Baca seluruh dokumen .md di bucket. Key → isi teks."""
+        keys = self.list_md_documents()
+        if not keys:
+            raise RagUpstreamError(
+                f"Tidak ada dokumen .md di bucket s3://{self._s.s3_bucket}. "
+                "Unggah dokumen SOP (.md) lalu sinkron ulang."
+            )
+        docs: dict[str, str] = {}
+        for key in keys:
+            try:
+                obj = self._s3.get_object(Bucket=self._s.s3_bucket, Key=key)
+                text = obj["Body"].read().decode("utf-8")
+                if text.strip():
+                    docs[key] = text
+            except (ClientError, BotoCoreError) as e:
+                logger.exception("Gagal membaca s3://%s/%s", self._s.s3_bucket, key)
+                raise RagUpstreamError(
+                    f"Gagal membaca dokumen {key} dari S3. {_AWS_HINT}"
+                ) from e
+        if not docs:
+            raise RagUpstreamError(
+                f"Seluruh dokumen di s3://{self._s.s3_bucket} kosong."
+            )
+        return docs
+
     def embed(self, text: str) -> list[float]:
         body = json.dumps({
             "inputText": text,

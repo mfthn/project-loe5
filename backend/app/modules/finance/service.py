@@ -121,13 +121,33 @@ def review_po(
     notes: str | None = None,
 ) -> PurchaseOrder:
     po = _get_po(db, po_id)
-    if po.status != POStatus.DRAFT:
+    if po.status not in (POStatus.DRAFT, POStatus.TERKONFIRMASI):
         raise POTransitionError(po.status.value, "direview")
     po.status = POStatus.DISETUJUI if approve else POStatus.DITOLAK
     po.reviewed_by_user_id = reviewer_id
     po.reviewed_at = datetime.now(timezone.utc)
     if notes:
         po.notes = notes
+    db.commit()
+    db.refresh(po)
+    return po
+
+
+def confirm_po(
+    db: Session,
+    po_id: uuid.UUID,
+    confirmer_id: uuid.UUID | None = None,
+) -> PurchaseOrder:
+    """Gudang mengonfirmasi kebutuhan pengadaan (DRAFT → TERKONFIRMASI).
+
+    Alur: Sample kirim kebutuhan (DRAFT) → Gudang konfirmasi → Finance setujui/bayar.
+    """
+    po = _get_po(db, po_id)
+    if po.status != POStatus.DRAFT:
+        raise POTransitionError(po.status.value, "dikonfirmasi gudang")
+    po.status = POStatus.TERKONFIRMASI
+    po.reviewed_by_user_id = confirmer_id
+    po.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(po)
     return po
@@ -166,6 +186,9 @@ def record_po_receipt(
 # ---------------------------------------------------------------------------
 
 def _suggested_amount(db: Session, order: Order) -> Decimal | None:
+    # Prioritas: harga jual disetujui owner; fallback agreed_price × target qty.
+    if order.selling_price_status == "DISETUJUI" and order.selling_price is not None:
+        return Decimal(str(order.selling_price))
     if order.sample_version_id is None:
         return None
     sv = db.scalar(select(SampleVersion).where(SampleVersion.id == order.sample_version_id))
@@ -343,3 +366,117 @@ def realized_material_cost(db: Session, order_id: uuid.UUID) -> dict:
         "po_count": counted,
         "breakdown": breakdown,
     }
+
+
+def update_po_draft(
+    db: Session,
+    po_id: uuid.UUID,
+    supplier_name: str | None = None,
+    line_prices: dict | None = None,
+) -> PurchaseOrder:
+    """Finance melengkapi PO DRAFT (supplier + harga satuan) sebelum review."""
+    po = _get_po(db, po_id)
+    if po.status != POStatus.DRAFT:
+        raise POTransitionError(po.status.value, "diubah (hanya DRAFT)")
+    if supplier_name:
+        po.supplier_name = supplier_name.strip()
+    if line_prices:
+        for line in po.lines:
+            key = str(line.inventory_item_id)
+            if key in line_prices:
+                price = Decimal(str(line_prices[key]))
+                if price < 0:
+                    raise ValueError("Harga satuan tidak boleh negatif.")
+                line.unit_price = price
+    db.commit()
+    db.refresh(po)
+    return po
+
+
+def record_po_payment(
+    db: Session,
+    po_id: uuid.UUID,
+    amount: Decimal,
+    recorder_id: uuid.UUID | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Finance membayar supplier bertahap. Menolak kelebihan dari total PO."""
+    from app.modules.finance.models import POPayment
+
+    po = _get_po(db, po_id)
+    if po.status in (POStatus.DRAFT, POStatus.DITOLAK):
+        raise POTransitionError(po.status.value, "dibayar (PO belum disetujui)")
+    amount = Decimal(str(amount))
+    if amount <= 0:
+        raise ValueError("Nominal pembayaran wajib lebih dari 0.")
+    paid = sum(
+        (Decimal(str(p.amount)) for p in db.scalars(
+            select(POPayment).where(POPayment.po_id == po.id)
+        ).all()),
+        start=Decimal("0"),
+    )
+    if amount - (po.total_amount - paid) > Decimal("0.001"):
+        raise ValueError(
+            f"Pembayaran Rp {amount:,.0f} melebihi sisa Rp {(po.total_amount - paid):,.0f}."
+        )
+    db.add(POPayment(
+        po_id=po.id, amount=amount, recorded_by_user_id=recorder_id, notes=notes,
+    ))
+    db.commit()
+    total_paid = paid + amount
+    return {
+        "po_id": str(po.id),
+        "po_number": po.po_number,
+        "total_amount": float(po.total_amount),
+        "total_paid": float(total_paid),
+        "remaining": float(po.total_amount - total_paid),
+        "lunas": total_paid >= po.total_amount - Decimal("0.001"),
+    }
+
+
+def production_needs(
+    db: Session,
+    client_id: uuid.UUID | None = None,
+    order_id: uuid.UUID | None = None,
+) -> list[dict]:
+    """Status kebutuhan produksi per (order, item): diminta vs terpenuhi + stok.
+
+    TERPENUHI bila qty_terpenuhi + stok_saat_ini >= qty_diminta pada order aktif.
+    """
+    reqs = list_material_requests_like(db, client_id, order_id)
+    out = []
+    for req, item, order in reqs:
+        need = req.qty_requested - req.qty_fulfilled
+        covered = (item.current_stock or 0.0) >= need - 1e-9
+        done = req.qty_fulfilled >= req.qty_requested - 1e-9
+        out.append({
+            "request_id": str(req.id),
+            "order_id": str(order.id),
+            "order_number": order.order_number,
+            "order_status": order.status.value,
+            "inventory_item_id": str(item.id),
+            "material_code": item.material_code,
+            "material_name": item.material_name,
+            "qty_requested": req.qty_requested,
+            "qty_fulfilled": req.qty_fulfilled,
+            "current_stock": item.current_stock,
+            "request_status": req.status.value,
+            "need_status": "TERPENUHI" if (done or covered) else "BELUM",
+        })
+    return out
+
+
+def list_material_requests_like(db: Session, client_id, order_id):
+    from app.modules.gudang.models import InventoryItem, MaterialRequest
+
+    stmt = (
+        select(MaterialRequest, InventoryItem, Order)
+        .join(InventoryItem, InventoryItem.id == MaterialRequest.inventory_item_id)
+        .join(Order, Order.id == MaterialRequest.order_id)
+        .order_by(MaterialRequest.created_at.desc())
+    )
+    if client_id is not None:
+        stmt = stmt.where(MaterialRequest.client_id == client_id)
+    if order_id is not None:
+        stmt = stmt.where(MaterialRequest.order_id == order_id)
+    return list(db.execute(stmt).all())

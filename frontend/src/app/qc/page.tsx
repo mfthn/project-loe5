@@ -4,10 +4,13 @@ import React, { useEffect, useState } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
+import { useAuth } from "../../lib/auth-context";
 import { qcApi, produksiApi } from "../../lib/api";
 import type { Order, QCInspection, QCBatchSummary, BonusPoolPreview } from "../../types/api";
 
 export default function QCPage() {
+  const { user } = useAuth();
+  const isOwner = user?.role === "OWNER";
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [inspections, setInspections] = useState<QCInspection[]>([]);
@@ -27,12 +30,8 @@ export default function QCPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [orderList, pool] = await Promise.all([
-        produksiApi.getOrders(),
-        qcApi.getBonusPoolPreview().catch(() => null),
-      ]);
+      const orderList = await produksiApi.getOrders();
       setOrders(orderList);
-      setBonusPool(pool);
       if (orderList.length > 0) {
         handleSelectOrder(orderList[0].id);
       }
@@ -46,12 +45,14 @@ export default function QCPage() {
   const handleSelectOrder = async (orderId: string) => {
     setSelectedOrderId(orderId);
     try {
-      const [insp, sum] = await Promise.all([
+      const [insp, sum, pool] = await Promise.all([
         qcApi.getInspections(orderId).catch(() => []),
         qcApi.getOrderSummary(orderId).catch(() => null),
+        qcApi.getBonusPoolPreview({ order_id: orderId, rate_per_pcs: 150 }).catch(() => null),
       ]);
       setInspections(insp);
       setSummary(sum);
+      setBonusPool(pool);
     } catch (err) {
       console.error(err);
     }
@@ -84,7 +85,9 @@ export default function QCPage() {
       setRepairCount(1);
       handleSelectOrder(selectedOrderId);
       // Refresh pool bonus preview
-      const updatedPool = await qcApi.getBonusPoolPreview();
+      const updatedPool = await qcApi
+        .getBonusPoolPreview({ order_id: selectedOrderId, rate_per_pcs: 150 })
+        .catch(() => null);
       setBonusPool(updatedPool);
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal mencatat inspeksi QC." });
@@ -133,7 +136,7 @@ export default function QCPage() {
                 Total Pool Bonus Terkumpul
               </div>
               <div className="font-mono" style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--color-success)" }}>
-                Rp {bonusPool?.total_bonus_pool ? bonusPool.total_bonus_pool.toLocaleString("id-ID") : "0"}
+                Rp {bonusPool?.total_pool ? Number(bonusPool.total_pool).toLocaleString("id-ID") : "0"}
               </div>
             </div>
 
@@ -147,7 +150,7 @@ export default function QCPage() {
             >
               <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Per Mandor:</div>
               <div className="font-mono" style={{ fontWeight: 700, color: "var(--color-info)", fontSize: "1.1rem" }}>
-                Rp {bonusPool?.bonus_per_mandor ? bonusPool.bonus_per_mandor.toLocaleString("id-ID") : "0"}
+                Rp {bonusPool?.bonus_per_recipient ? Number(bonusPool.bonus_per_recipient).toLocaleString("id-ID") : "0"}
               </div>
             </div>
           </div>
@@ -156,7 +159,6 @@ export default function QCPage() {
 
       {/* Main Grid: Orders & Inspections */}
       <div
-        className="split-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "300px 1fr",
@@ -234,12 +236,14 @@ export default function QCPage() {
                 </div>
               </div>
 
-              {/* Action Button */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <button onClick={() => setInspectModalOpen(true)} className="btn btn-primary">
-                  🔍 Catat Hasil Inspeksi Batch Baru
-                </button>
-              </div>
+              {/* Action Button (Owner hanya view) */}
+              {!isOwner && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <button onClick={() => setInspectModalOpen(true)} className="btn btn-primary">
+                    🔍 Catat Hasil Inspeksi Batch Baru
+                  </button>
+                </div>
+              )}
 
               {/* Inspection Records Table */}
               <div className="card">

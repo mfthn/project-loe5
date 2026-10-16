@@ -323,6 +323,7 @@ class TestSampleEndpoints:
         mock_sample.client_id = _CLIENT_ID
         mock_sample.sample_code = "SMP-001"
         mock_sample.article_name = "Kaos Polos Navy"
+        mock_sample.category = "UMUM"
         from datetime import datetime, timezone
         mock_sample.created_at = datetime.now(timezone.utc)
         mock_sample.versions = []

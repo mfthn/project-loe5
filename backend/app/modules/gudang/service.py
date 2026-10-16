@@ -49,7 +49,15 @@ def create_inventory_item(
     payload: InventoryItemCreate,
     user_id: uuid.UUID | None = None,
 ) -> InventoryItem:
-    """Mendaftarkan item bahan baku baru dan mengikat kepemilikannya ke client_id."""
+    """Mendaftarkan item bahan baku baru, terikat client_id + order_id (FR-6.1)."""
+    order = db.scalar(select(Order).where(Order.id == payload.order_id))
+    if order is None:
+        raise ValueError(f"Order dengan ID {payload.order_id} tidak ditemukan.")
+    if order.client_id != payload.client_id:
+        raise ValueError(
+            f"Bahan milik klien {payload.client_id} tidak boleh didaftarkan "
+            f"untuk pesanan {order.order_number} milik klien {order.client_id}."
+        )
     item = InventoryItem(
         client_id=payload.client_id,
         material_code=payload.material_code.strip().upper(),
@@ -60,12 +68,12 @@ def create_inventory_item(
     db.add(item)
     db.flush()
 
-    # Jika ada stok awal, catat sebagai transaksi IN perdana
+    # Jika ada stok awal, catat sebagai transaksi IN perdana terikat order
     if payload.initial_stock > 0:
         trx = InventoryTransaction(
             inventory_item_id=item.id,
             client_id=item.client_id,
-            order_id=None,
+            order_id=order.id,
             transaction_type=TransactionType.IN,
             quantity=payload.initial_stock,
             performed_by_user_id=user_id,
@@ -473,6 +481,8 @@ def record_cutting_result(
             raise ValueError(f"Item bahan dengan ID {payload.inventory_item_id} tidak ditemukan.")
         _assert_same_client(item, order)
     waste_category = None
+    if not payload.waste_category:
+        raise ValueError("Kategori waste wajib diisi: SISA_POTONG / SCRAP / BS_REJECT.")
     if payload.waste_category:
         from app.modules.gudang.models import WasteCategory as _WasteCategory
 

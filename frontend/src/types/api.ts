@@ -125,7 +125,7 @@ export type InventoryTransaction = {
 };
 
 // ================= Finance (PO & Invoice) =================
-export type POStatus = "DRAFT" | "DISETUJUI" | "DITOLAK" | "DITERIMA_SEBAGIAN" | "SELESAI";
+export type POStatus = "DRAFT" | "TERKONFIRMASI" | "DISETUJUI" | "DITOLAK" | "DITERIMA_SEBAGIAN" | "SELESAI";
 
 export type POLine = {
   id: string;
@@ -218,6 +218,9 @@ export type SampleVersion = {
   sample_id: string;
   version_number: number;
   status: VersionStatus;
+  order_id?: string | null;
+  design_image_key?: string | null;
+  design_image_url?: string | null;
   notes: string | null;
   tech_pack_notes?: string | null;
   agreed_price?: number | null;
@@ -238,6 +241,8 @@ export type Sample = {
   client_id: string;
   sample_code: string;
   item_name: string;
+  article_name?: string | null;
+  category?: string | null;
   created_at: string;
   client?: Client;
   versions?: SampleVersion[];
@@ -255,9 +260,9 @@ export type OrderStatus =
 
 export type RateCard = {
   id: string;
-  component_id: string;
-  sewing_rate: number;
-  cutting_rate: number;
+  order_component_id: string;
+  cutting_rate_per_pcs: number | string;
+  sewing_rate_per_pcs: number | string;
   effective_date: string;
 };
 
@@ -265,18 +270,20 @@ export type OrderComponent = {
   id: string;
   order_id: string;
   component_name: string;
-  quantity_target: number;
-  rate_cards?: RateCard[];
-  current_rate?: RateCard | null;
+  sequence_order: number;
+  rate_card?: RateCard | null;
 };
 
 export type ProductionOutput = {
   id: string;
   order_id: string;
-  component_id: string;
+  order_component_id: string;
+  component_id?: string;
   operator_user_id: string;
-  interval_start: string;
-  interval_end: string;
+  line_number?: number;
+  interval_start?: string;
+  interval_end?: string;
+  time_window?: string;
   qty_completed: number;
   is_verified: boolean;
   verified_by_user_id: string | null;
@@ -294,6 +301,8 @@ export type Order = {
   scheme: OrderScheme;
   target_quantity: number;
   status: OrderStatus;
+  selling_price?: number | string | null;
+  selling_price_status?: string;
   start_date: string | null;
   deadline: string | null;
   created_at: string;
@@ -370,11 +379,12 @@ export type QCBatchSummary = {
 };
 
 export type BonusPoolPreview = {
-  total_pcs_lolos: number;
-  rate_per_pcs: number;
-  total_bonus_pool: number;
-  num_mandors: number;
-  bonus_per_mandor: number;
+  order_id: string;
+  qty_lolos: number;
+  bonus_rate_per_pcs: number | string;
+  total_pool: number | string;
+  recipient_count: number;
+  bonus_per_recipient: number | string;
 };
 
 // ================= Payroll & Financials =================
@@ -415,6 +425,7 @@ export type PayrollDetail = {
   total_sewing_fee: MonetaryAmount;
   meal_allowance_amount: MonetaryAmount;
   qc_bonus_share: MonetaryAmount;
+  manual_adjustment?: MonetaryAmount;
   net_salary: MonetaryAmount;
   user: Pick<User, "id" | "name" | "role">;
   payment: PayrollPayment | null;

@@ -12,10 +12,14 @@ from app.modules.sample.models import SampleStatus
 # ---------------------------------------------------------------------------
 
 class SampleCreate(BaseModel):
-    """Membuat sample baru beserta versi pertama (v1 DRAFT)."""
+    """Membuat sample baru beserta versi pertama (v1 DRAFT). Kode digenerate otomatis."""
     client_id: uuid.UUID = Field(..., description="ID Klien pemilik sample")
-    sample_code: str = Field(..., min_length=2, max_length=100, description="Kode unik sample, misal: SMP-2026-001")
+    sample_code: str | None = Field(
+        None, min_length=2, max_length=100,
+        description="Opsional; jika kosong digenerate SMP-{KATEGORI}-{SEQ}",
+    )
     article_name: str = Field(..., min_length=2, max_length=255, description="Nama artikel garmen, misal: Kaos Polos Navy")
+    category: str = Field(default="UMUM", min_length=2, max_length=50, description="Kategori barang: TAS, HOODIE, JAKET, atau lainnya")
     tech_pack_notes: str | None = Field(None, description="Catatan tech pack / spesifikasi versi pertama")
 
 
@@ -24,6 +28,7 @@ class SampleResponse(BaseModel):
     client_id: uuid.UUID
     sample_code: str
     article_name: str
+    category: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -35,7 +40,10 @@ class SampleResponse(BaseModel):
 
 class SampleVersionCreate(BaseModel):
     """Membuat versi revisi baru dari sample yang sudah ada."""
-    tech_pack_notes: str | None = Field(None, description="Catatan perubahan spesifikasi revisi")
+    tech_pack_notes: str | None = Field(None, description="Catatan perubahan spesifikasi revisi / design pesanan")
+    order_id: uuid.UUID | None = Field(
+        None, description="Tautkan revisi ke pesanan tertentu (opsional)"
+    )
 
 
 class SampleVersionApprove(BaseModel):
@@ -59,6 +67,9 @@ class SampleVersionResponse(BaseModel):
     sample_id: uuid.UUID
     version_number: int
     status: SampleStatus
+    order_id: uuid.UUID | None = None
+    design_image_key: str | None = None
+    design_image_url: str | None = Field(None, description="URL presigned sementara bila ada gambar")
     tech_pack_notes: str | None
     agreed_price: float | None = None
     currency: str = "IDR"

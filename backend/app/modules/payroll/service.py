@@ -33,6 +33,7 @@ from app.modules.payroll.errors import (
 )
 from app.modules.payroll.models import (
     BatchFinancial,
+    OverheadExpense,
     PayrollDetail,
     PayrollNotification,
     PayrollPayment,
@@ -508,7 +509,12 @@ def get_monthly_summary(
     )
 
     verified_pcs = int(output_row[1] or 0)
-    overhead_total = _round2(Decimal(financial_totals[2]))
+    bills_total = db.scalar(
+        select(sa_func.coalesce(sa_func.sum(OverheadExpense.amount), 0)).where(
+            OverheadExpense.year == year, OverheadExpense.month == month
+        )
+    ) or 0
+    overhead_total = _round2(Decimal(financial_totals[2]) + Decimal(bills_total))
     overhead_per_unit = (
         _round2(overhead_total / Decimal(verified_pcs)) if verified_pcs > 0 else Decimal("0.00")
     )
@@ -527,7 +533,7 @@ def get_monthly_summary(
         payroll_paid_total=_round2(payroll_paid_total),
         contract_revenue=_round2(Decimal(financial_totals[0])),
         material_cost=_round2(Decimal(financial_totals[1])),
-        overhead_cost=_round2(Decimal(financial_totals[2])),
+        overhead_cost=overhead_total,
         total_hpp=_round2(Decimal(financial_totals[3])),
         net_profit=_round2(Decimal(financial_totals[4])),
         overhead_per_unit=overhead_per_unit,
@@ -601,3 +607,86 @@ def get_batch_financial(db: Session, order_id: uuid.UUID) -> BatchFinancial:
     if not fin:
         raise ValueError(f"Finansial batch untuk order {order_id} belum dihitung.")
     return fin
+
+
+def adjust_payroll_detail(
+    db: Session,
+    run_id: uuid.UUID,
+    detail_id: uuid.UUID,
+    manual_adjustment: Decimal,
+) -> PayrollDetail:
+    """Koreksi manual per slip oleh Finance — hanya saat run BELUM terkunci.
+
+    Net dihitung ulang: borongan + uang makan + bonus QC + koreksi manual.
+    """
+    run = _get_or_raise(db, run_id)
+    if run.is_locked:
+        raise PayrollRunLockedError(run_id)
+    detail = db.scalar(
+        select(PayrollDetail).where(
+            PayrollDetail.id == detail_id,
+            PayrollDetail.payroll_run_id == run_id,
+        )
+    )
+    if detail is None:
+        raise PayrollDetailNotFoundError(detail_id)
+    detail.manual_adjustment = _round2(manual_adjustment)
+    detail.net_salary = _round2(
+        Decimal(detail.total_sewing_fee)
+        + Decimal(detail.meal_allowance_amount)
+        + Decimal(detail.qc_bonus_share)
+        + Decimal(detail.manual_adjustment)
+    )
+    db.commit()
+    db.refresh(detail)
+    return detail
+
+
+def list_overhead_expenses(
+    db: Session, year: int, month: int
+) -> list[OverheadExpense]:
+    """Daftar tagihan overhead bulan berjalan (listrik, air, internet, dll)."""
+    return list(
+        db.scalars(
+            select(OverheadExpense)
+            .where(OverheadExpense.year == year, OverheadExpense.month == month)
+            .order_by(OverheadExpense.created_at.desc())
+        ).all()
+    )
+
+
+def create_overhead_expense(
+    db: Session,
+    year: int,
+    month: int,
+    category: str,
+    amount: Decimal,
+    recorder_id=None,
+    notes: str | None = None,
+) -> OverheadExpense:
+    """Finance mencatat tagihan overhead bulanan."""
+    if not 1 <= month <= 12:
+        raise ValueError("Bulan wajib 1–12.")
+    if amount <= 0:
+        raise ValueError("Nominal tagihan wajib lebih dari 0.")
+    exp = OverheadExpense(
+        year=year,
+        month=month,
+        category=category.strip(),
+        amount=_round2(amount),
+        recorded_by_user_id=recorder_id,
+        notes=notes,
+    )
+    db.add(exp)
+    db.commit()
+    db.refresh(exp)
+    return exp
+
+
+def delete_overhead_expense(db: Session, expense_id) -> None:
+    """Hapus catatan tagihan yang salah input."""
+    exp = db.scalar(select(OverheadExpense).where(OverheadExpense.id == expense_id))
+    if exp is None:
+        raise ValueError(f"Tagihan overhead {expense_id} tidak ditemukan.")
+    db.delete(exp)
+    db.commit()

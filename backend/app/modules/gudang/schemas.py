@@ -13,6 +13,7 @@ class InventoryItemCreate(BaseModel):
     material_name: str = Field(..., min_length=2, max_length=255, description="Nama material, misal: Cotton Combed 24s Navy")
     initial_stock: float = Field(default=0.0, ge=0.0, description="Stok awal bahan (opsional)")
     unit_measure: str = Field(default="METER", description="Satuan ukuran: METER, YARD, KG, PCS")
+    order_id: uuid.UUID = Field(..., description="ID Pesanan asal bahan (wajib FR-6.1, harus milik klien yang sama)")
 
 
 class InventoryItemResponse(BaseModel):
@@ -117,8 +118,8 @@ class CuttingCreate(BaseModel):
     qty_lapis: float = Field(..., gt=0, description="Jumlah lembar lapis kain")
     qty_potong_hasil: int = Field(..., gt=0, description="Pcs hasil potong")
     waste_qty: float = Field(default=0.0, ge=0.0, description="Sisa waste (satuan item)")
-    waste_category: str | None = Field(
-        None, description="Kategori waste FR-6.3: SISA_POTONG / SCRAP / BS_REJECT"
+    waste_category: str = Field(
+        ..., min_length=2, description="Kategori waste FR-6.3 (wajib): SISA_POTONG / SCRAP / BS_REJECT"
     )
     notes: str | None = None
 

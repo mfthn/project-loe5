@@ -4,10 +4,13 @@ import React, { useEffect, useState, useRef } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
-import { sampleApi, qcApi } from "../../lib/api";
-import type { Sample, SampleVersion, GarmentComponent, QCInspection } from "../../types/api";
+import { useAuth } from "../../lib/auth-context";
+import { sampleApi, qcApi, authApi, produksiApi } from "../../lib/api";
+import type { Sample, SampleVersion, GarmentComponent, QCInspection, ClientProfile, Order } from "../../types/api";
 
 export default function SamplePage() {
+  const { user } = useAuth();
+  const isOwner = user?.role === "OWNER";
   const [samples, setSamples] = useState<Sample[]>([]);
   const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
   const [escalations, setEscalations] = useState<QCInspection[]>([]);
@@ -17,6 +20,7 @@ export default function SamplePage() {
   // Stopwatch state
   const [elapsedMs, setElapsedMs] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [laps, setLaps] = useState<number[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
 
@@ -28,22 +32,35 @@ export default function SamplePage() {
   const [newSampleModal, setNewSampleModal] = useState(false);
   const [newVersionModal, setNewVersionModal] = useState(false);
   const [newComponentModal, setNewComponentModal] = useState(false);
+  const [designUploading, setDesignUploading] = useState(false);
+  const [designUrl, setDesignUrl] = useState<string | null>(null);
+  const [revOrderId, setRevOrderId] = useState("");
+  const [revNotes, setRevNotes] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
 
   // Form states
-  const [sampleCode, setSampleCode] = useState("");
   const [sampleItemName, setSampleItemName] = useState("");
+  const [sampleCategory, setSampleCategory] = useState("HOODIE");
+  const [sampleCategoryCustom, setSampleCategoryCustom] = useState("");
+  const [sampleClientId, setSampleClientId] = useState("");
+  const [clients, setClients] = useState<ClientProfile[]>([]);
   const [componentName, setComponentName] = useState("");
   const [fabricConsumption, setFabricConsumption] = useState(0.45);
 
   const loadSamples = async () => {
     try {
       setLoading(true);
-      const [list, escList] = await Promise.all([
+      const [list, escList, clientList, orderList] = await Promise.all([
         sampleApi.getSamples(),
         qcApi.getEscalations().catch(() => []),
+        authApi.getClients().catch(() => []),
+        produksiApi.getOrders().catch(() => []),
       ]);
       setSamples(list);
       setEscalations(escList);
+      setClients(clientList);
+      setOrders(orderList);
+      if (clientList.length > 0 && !sampleClientId) setSampleClientId(clientList[0].id);
       if (list.length > 0) {
         // Load detail of first sample
         const detail = await sampleApi.getSampleDetail(list[0].id);
@@ -91,6 +108,15 @@ export default function SamplePage() {
     setTimerRunning(false);
     if (timerRef.current) clearInterval(timerRef.current);
     setElapsedMs(0);
+    setLaps([]);
+  };
+
+  const checkpointStopwatch = () => {
+    if (!timerRunning && elapsedMs === 0) {
+      setNotice({ type: "warning", message: "Jalankan stopwatch dulu sebelum mencatat checkpoin." });
+      return;
+    }
+    setLaps((prev) => [...prev, elapsedMs]);
   };
 
   // Format Elapsed Time: mm:ss.ms
@@ -110,9 +136,11 @@ export default function SamplePage() {
     }
     const durationSeconds = Math.max(1, Math.round(elapsedMs / 1000));
     try {
+      const comp = activeVersion?.components?.find((c) => c.id === selectedComponentId);
       await sampleApi.recordTimeStudy(selectedComponentId, {
-        duration_seconds: durationSeconds,
-        notes: studyNotes || `Time study stopwatch digital: ${durationSeconds} detik`,
+        component_name: comp?.component_name || "Komponen",
+        material_usage_est: comp?.fabric_consumption ?? 0,
+        time_study_seconds: durationSeconds,
       });
       setNotice({
         type: "success",
@@ -179,11 +207,40 @@ export default function SamplePage() {
     }
   };
 
+  const handleDesignUpload = async (file: File | undefined) => {
+    if (!file || !activeVersion) return;
+    try {
+      setDesignUploading(true);
+      await sampleApi.uploadDesignImage(activeVersion.id, file);
+      const detail = await sampleApi.getVersionDetail(activeVersion.id).catch(() => null);
+      setDesignUrl(detail?.design_image_url || null);
+      if (selectedSample) await handleSelectSample(selectedSample.id);
+      setNotice({ type: "success", message: "Gambar design terunggah." });
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal mengunggah gambar." });
+    } finally {
+      setDesignUploading(false);
+    }
+  };
+
   // Active latest version
   const activeVersion =
     selectedSample?.versions && selectedSample.versions.length > 0
       ? selectedSample.versions[selectedSample.versions.length - 1]
       : null;
+
+  useEffect(() => {
+    const vid = activeVersion?.id;
+    if (!vid) {
+      setDesignUrl(null);
+      return;
+    }
+    sampleApi.getVersionDetail(vid).then(
+      (d) => setDesignUrl(d.design_image_url || null),
+      () => setDesignUrl(null),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeVersion?.id]);
 
   return (
     <AppLayout
@@ -210,9 +267,13 @@ export default function SamplePage() {
           gap: 12,
         }}
       >
-        <button onClick={() => setNewSampleModal(true)} className="btn btn-primary">
-          ➕ Buat Sampel Baru
-        </button>
+        {isOwner ? (
+          <span className="badge badge-info">Mode pantau — persetujuan via tombol Approval di tiap versi</span>
+        ) : (
+          <button onClick={() => setNewSampleModal(true)} className="btn btn-primary">
+            ➕ Buat Sampel Baru
+          </button>
+        )}
 
         <span className="badge badge-info">
           ⏱️ Skenario 4: Stopwatch Pengukuran Detik Riil
@@ -291,17 +352,19 @@ export default function SamplePage() {
       </div>
 
       <div
-        className="split-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "300px 1fr",
+          gridTemplateColumns: "380px 1fr",
           gap: 24,
           alignItems: "start",
         }}
       >
-        {/* Sample List Sidebar */}
+        {/* Sample List Sidebar (diperpanjang) */}
         <div className="card">
-          <h3 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Katalog Sampel</h3>
+          <h3 style={{ fontSize: "1.05rem", marginBottom: 4 }}>Katalog Sampel</h3>
+          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: 12 }}>
+            Pilih versi untuk melihat detail, time study, dan persetujuan.
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {samples.length === 0 ? (
               <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", padding: 12 }}>
@@ -409,28 +472,74 @@ export default function SamplePage() {
                         Siap dikonversi ke order massal
                       </span>
                     )}
+
+                    {activeVersion && selectedSample && !isOwner && (
+                      <button
+                        onClick={() => {
+                          setRevOrderId(activeVersion.order_id || "");
+                          setRevNotes("");
+                          setNewVersionModal(true);
+                        }}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        📝 Buat Revisi (Ganti Design)
+                      </button>
+                    )}
                   </div>
                 </div>
+              </div>
+
+              {/* Design Image */}
+              <div className="card" style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+                  <h3 style={{ fontSize: "1.05rem", margin: 0 }}>Gambar Design Versi</h3>
+                  {!isOwner && activeVersion && (
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer" }}>
+                      {designUploading ? "Mengunggah…" : "📤 Upload Gambar Design"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        style={{ display: "none" }}
+                        disabled={designUploading}
+                        onChange={(e) => {
+                          handleDesignUpload(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                {designUrl ? (
+                  <img
+                    src={designUrl}
+                    alt={`Design ${selectedSample?.sample_code} v${activeVersion?.version_number}`}
+                    style={{ maxWidth: "100%", maxHeight: 420, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", objectFit: "contain", background: "#FAF8FF" }}
+                  />
+                ) : (
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
+                    Belum ada gambar design untuk versi ini. Unggah JPG/PNG/WebP ≤ 5 MB.
+                  </p>
+                )}
               </div>
 
               {/* Stopwatch Time Study Panel (Interactive Feature) */}
               <div
                 className="card-glass"
                 style={{
-                  border: "1px solid rgba(56, 189, 248, 0.3)",
-                  background: "radial-gradient(ellipse at top, rgba(14, 165, 233, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%)",
+                  border: "1px solid rgba(124, 58, 237, 0.35)",
+                  background: "linear-gradient(160deg, #2E1065 0%, #1E0A45 100%)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                   <div>
-                    <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8 }}>
+                    <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8, color: "#ffffff", margin: 0 }}>
                       ⏱️ Stopwatch Digital Time Study (Detik)
                     </h3>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    <div style={{ fontSize: "0.8rem", color: "#C4B5FD" }}>
                       Ukur waktu penjahitan per komponen secara presisi untuk standardisasi upah borongan.
                     </div>
                   </div>
-                  <span className="badge badge-info">Stopwatch Presisi ±50ms</span>
+                  <span className="badge badge-success">Stopwatch Presisi ±50ms</span>
                 </div>
 
                 <div
@@ -446,7 +555,7 @@ export default function SamplePage() {
                   <div className="digital-clock">{formatTime(elapsedMs)}</div>
 
                   {/* Stopwatch Buttons */}
-                  <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                     {!timerRunning ? (
                       <button onClick={startStopwatch} className="btn btn-primary btn-lg">
                         ▶ Mulai Stopwatch
@@ -456,10 +565,48 @@ export default function SamplePage() {
                         ⏸ Jeda
                       </button>
                     )}
+                    <button
+                      onClick={checkpointStopwatch}
+                      className="btn btn-secondary btn-lg"
+                      disabled={elapsedMs === 0}
+                      title="Catat waktu putaran saat ini tanpa menghentikan"
+                    >
+                      📍 Checkpoin
+                    </button>
                     <button onClick={resetStopwatch} className="btn btn-secondary btn-lg">
                       🔄 Reset
                     </button>
                   </div>
+
+                  {laps.length > 0 && (
+                    <div
+                      style={{
+                        background: "rgba(255, 255, 255, 0.07)",
+                        border: "1px solid rgba(196, 181, 253, 0.35)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "12px 16px",
+                        width: "100%",
+                        maxWidth: 420,
+                      }}
+                    >
+                      <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#C4B5FD", marginBottom: 8 }}>
+                        Checkpoin Putaran ({laps.length})
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 140, overflowY: "auto" }}>
+                        {laps.map((lap, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
+                            <span style={{ color: "#EDE9FE" }}>Putaran {i + 1}</span>
+                            <span className="font-mono" style={{ fontWeight: 700, color: "#ffffff" }}>
+                              {formatTime(lap)}
+                              {i > 0 && (
+                                <span style={{ color: "#C4B5FD", fontWeight: 400 }}> (+{formatTime(lap - laps[i - 1])})</span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Save Time Study to Component */}
@@ -520,6 +667,7 @@ export default function SamplePage() {
                   <h3 style={{ fontSize: "1.05rem" }}>
                     Daftar Komponen Garmen (Versi v{activeVersion?.version_number ?? 1})
                   </h3>
+                  {!isOwner && (
                   <button
                     onClick={() => setNewComponentModal(true)}
                     className="btn btn-secondary btn-sm"
@@ -531,6 +679,7 @@ export default function SamplePage() {
                   >
                     ➕ Tambah Komponen
                   </button>
+                  )}
                 </div>
 
                 <div className="table-wrap">
@@ -565,13 +714,39 @@ export default function SamplePage() {
                               {c.average_duration_seconds ? `${c.average_duration_seconds} dtk` : "-"}
                             </td>
                             <td>
-                              <button
-                                onClick={() => setSelectedComponentId(c.id)}
-                                className="btn btn-ghost btn-sm"
-                                style={{ color: "var(--accent-primary)" }}
-                              >
-                                Pilih untuk Stopwatch
-                              </button>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button
+                                  onClick={() => setSelectedComponentId(c.id)}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ color: "var(--accent-primary)" }}
+                                >
+                                  Pilih untuk Stopwatch
+                                </button>
+                                {!isOwner && (
+                                  <button
+                                    onClick={() => {
+                                      const nm = window.prompt("Nama komponen:", c.component_name);
+                                      if (nm === null) return;
+                                      const mat = window.prompt("Konsumsi kain (m/pcs):", String(c.fabric_consumption ?? 0));
+                                      if (mat === null) return;
+                                      sampleApi.updateComponent(c.id, {
+                                        component_name: nm,
+                                        material_usage_est: Number(mat),
+                                        time_study_seconds: c.average_duration_seconds ?? 0,
+                                      })
+                                        .then(() => {
+                                          setNotice({ type: "success", message: "Komponen diperbarui." });
+                                          if (selectedSample) handleSelectSample(selectedSample.id);
+                                        })
+                                        .catch((err: any) => setNotice({ type: "danger", message: err.message || "Gagal edit komponen." }));
+                                    }}
+                                    className="btn btn-ghost btn-sm"
+                                    title="Edit komponen"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -602,7 +777,7 @@ export default function SamplePage() {
             try {
               await sampleApi.addComponent(activeVersion.id, {
                 component_name: componentName,
-                fabric_consumption: Number(fabricConsumption),
+                material_usage_est: Number(fabricConsumption),
               });
               setNotice({ type: "success", message: `Komponen ${componentName} berhasil ditambahkan.` });
               setNewComponentModal(false);
@@ -658,15 +833,15 @@ export default function SamplePage() {
           onSubmit={async (e) => {
             e.preventDefault();
             try {
-              // Pakai clientId klien A atau fallback
+              // Klien pemilik sample wajib dipilih (Tag ID Klien anti-kontaminasi)
+              const category = sampleCategory === "LAINNYA" ? sampleCategoryCustom : sampleCategory;
               const created = await sampleApi.createSample({
-                client_id: "00000000-0000-0000-0000-000000000000", // Will resolve in backend or default
-                sample_code: sampleCode,
-                item_name: sampleItemName,
+                client_id: sampleClientId,
+                article_name: sampleItemName,
+                category,
               });
-              setNotice({ type: "success", message: `Sampel ${sampleCode} berhasil dibuat!` });
+              setNotice({ type: "success", message: `Sampel ${created.sample_code} berhasil dibuat!` });
               setNewSampleModal(false);
-              setSampleCode("");
               setSampleItemName("");
               loadSamples();
             } catch (err: any) {
@@ -675,15 +850,55 @@ export default function SamplePage() {
           }}
         >
           <div className="form-group">
-            <label className="form-label">Kode Sampel</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Contoh: SMP-HOODIE-01"
-              value={sampleCode}
-              onChange={(e) => setSampleCode(e.target.value)}
+            <label className="form-label">Klien Pemilik (Tag ID anti-kontaminasi)</label>
+            <select
+              className="form-select"
+              value={sampleClientId}
+              onChange={(e) => setSampleClientId(e.target.value)}
               required
-            />
+            >
+              <option value="">Pilih klien</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name} ({c.client_code})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Kategori Barang</label>
+              <select
+                className="form-select"
+                value={sampleCategory}
+                onChange={(e) => setSampleCategory(e.target.value)}
+                required
+              >
+                <option value="TAS">TAS</option>
+                <option value="HOODIE">HOODIE</option>
+                <option value="JAKET">JAKET</option>
+                <option value="LAINNYA">LAINNYA (isi sendiri)</option>
+              </select>
+            </div>
+            {sampleCategory === "LAINNYA" && (
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Kategori Baru</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Contoh: TOPI"
+                  value={sampleCategoryCustom}
+                  onChange={(e) => setSampleCategoryCustom(e.target.value.toUpperCase())}
+                  required
+                />
+              </div>
+            )}
+          </div>
+          <div className="notice notice-info" style={{ marginBottom: 16 }}>
+            <span>💡</span>
+            <div style={{ fontSize: "0.82rem" }}>
+              Kode sampel digenerate otomatis sistem (SMP-{sampleCategory === "LAINNYA" ? (sampleCategoryCustom || "???") : sampleCategory}-NNN).
+            </div>
           </div>
 
           <div className="form-group">
@@ -709,8 +924,64 @@ export default function SamplePage() {
         </form>
       </Modal>
 
-      {/* Modal: Approval Owner + Harga */}
+      {/* Modal: Revisi Design per Pesanan */}
       <Modal
+        isOpen={newVersionModal}
+        onClose={() => setNewVersionModal(false)}
+        title="📝 Revisi Design / Ketentuan Pesanan"
+      >
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!selectedSample) return;
+            try {
+              const rev = await sampleApi.createVersion(selectedSample.id, {
+                tech_pack_notes: revNotes || undefined,
+                order_id: revOrderId || undefined,
+              });
+              setNotice({ type: "success", message: `Revisi v${rev.version_number} tercatat.` });
+              setNewVersionModal(false);
+              handleSelectSample(selectedSample.id);
+            } catch (err: any) {
+              setNotice({ type: "danger", message: err.message || "Gagal membuat revisi." });
+            }
+          }}
+        >
+          <div className="form-group">
+            <label className="form-label">Tautkan ke Pesanan (opsional)</label>
+            <select className="form-select" value={revOrderId} onChange={(e) => setRevOrderId(e.target.value)}>
+              <option value="">Tanpa pesanan spesifik</option>
+              {orders
+                .filter((o) => !selectedSample || o.client_id === selectedSample.client_id)
+                .map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.order_number} ({o.status})
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Perubahan Design / Ketentuan</label>
+            <textarea
+              className="form-input"
+              value={revNotes}
+              onChange={(e) => setRevNotes(e.target.value)}
+              placeholder="Contoh: Ganti design kerah sesuai permintaan pemesan"
+              rows={3}
+            />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setNewVersionModal(false)}>
+              Batal
+            </button>
+            <button type="submit" className="btn btn-primary">
+              Simpan Revisi
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Approval Owner + Harga */}      <Modal
         isOpen={ownerModalOpen}
         onClose={() => setOwnerModalOpen(false)}
         title="💰 Approval Owner — Produk + Harga Kesepakatan"

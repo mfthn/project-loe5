@@ -4,16 +4,31 @@ import React, { useEffect, useState } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
-import { gudangApi, produksiApi } from "../../lib/api";
-import type { CuttingResult, InventoryItem, InventoryTransaction, MaterialHandover, MaterialRequest, Order } from "../../types/api";
+import { useAuth } from "../../lib/auth-context";
+import { gudangApi, produksiApi, authApi, financeApi } from "../../lib/api";
+import type { CuttingResult, InventoryItem, InventoryTransaction, MaterialHandover, MaterialRequest, Order, PurchaseOrder } from "../../types/api";
+
+type NeedRow = {
+  request_id: string; order_id: string; order_number: string; order_status: string;
+  inventory_item_id: string; material_code: string; material_name: string;
+  qty_requested: number; qty_fulfilled: number; current_stock: number;
+  request_status: string; need_status: string;
+};
 
 export default function GudangPage() {
+  const { user } = useAuth();
+  const isOwner = user?.role === "OWNER";
+  const isMandor = user?.role === "MANDOR";
+  const canManageStock = user?.role === "GUDANG";
+  const canVerifyRequest = user?.role === "GUDANG" || user?.role === "OWNER";
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [requests, setRequests] = useState<MaterialRequest[]>([]);
   const [handovers, setHandovers] = useState<MaterialHandover[]>([]);
   const [cuttings, setCuttings] = useState<CuttingResult[]>([]);
+  const [needs, setNeeds] = useState<NeedRow[]>([]);
+  const [draftPOs, setDraftPOs] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<{ type: "success" | "danger" | "warning"; message: string } | null>(null);
 
@@ -22,8 +37,17 @@ export default function GudangPage() {
   const [issueModalOpen, setIssueModalOpen] = useState(false);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [handoverModalOpen, setHandoverModalOpen] = useState(false);
-  const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [cuttingModalOpen, setCuttingModalOpen] = useState(false);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+
+  // Form material baru
+  const [newMatClientId, setNewMatClientId] = useState("");
+  const [newMatOrderId, setNewMatOrderId] = useState("");
+  const [newMatCode, setNewMatCode] = useState("");
+  const [newMatName, setNewMatName] = useState("");
+  const [newMatStock, setNewMatStock] = useState(0);
+  const [newMatUnit, setNewMatUnit] = useState("METER");
+  const [newMatLocation, setNewMatLocation] = useState("");
 
   // Form receive state
   const [receiveItemId, setReceiveItemId] = useState("");
@@ -52,9 +76,8 @@ export default function GudangPage() {
   const [hoNotes, setHoNotes] = useState("");
 
   // Form lokasi penyimpanan
-  const [locItemId, setLocItemId] = useState("");
-  const [locValue, setLocValue] = useState("");
   const [clientFilter, setClientFilter] = useState("");
+  const [clients, setClients] = useState<{ id: string; company_name: string; client_code: string }[]>([]);
 
   const clientOptions = [...new Set(items.map((it) => it.client_id))];
   const visibleItems = clientFilter ? items.filter((it) => it.client_id === clientFilter) : items;
@@ -65,19 +88,22 @@ export default function GudangPage() {
   const [cutLapis, setCutLapis] = useState(50);
   const [cutHasil, setCutHasil] = useState(240);
   const [cutWaste, setCutWaste] = useState(0);
-  const [cutWasteCategory, setCutWasteCategory] = useState("");
+  const [cutWasteCategory, setCutWasteCategory] = useState("SISA_POTONG");
   const [cutNotes, setCutNotes] = useState("");
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [itemList, txList, orderList, reqList, hoList, cutList] = await Promise.all([
+      const [itemList, txList, orderList, reqList, hoList, cutList, clientList, needList, poList] = await Promise.all([
         gudangApi.getItems(),
-        gudangApi.getTransactions({ limit: 50 }),
+        gudangApi.getTransactions(),
         produksiApi.getOrders().catch(() => []),
         gudangApi.getRequests().catch(() => []),
         gudangApi.getHandovers().catch(() => []),
         gudangApi.getCutting().catch(() => []),
+        authApi.getClients().catch(() => []),
+        financeApi.getNeeds().catch(() => []),
+        financeApi.getPOs().catch(() => []),
       ]);
       setItems(itemList);
       setTransactions(txList);
@@ -85,12 +111,15 @@ export default function GudangPage() {
       setRequests(reqList);
       setHandovers(hoList);
       setCuttings(cutList);
+      setClients(clientList);
+      setNeeds(needList);
+      setDraftPOs(poList.filter((p) => p.status === "DRAFT"));
+      if (clientList.length > 0 && !newMatClientId) setNewMatClientId(clientList[0].id);
       if (itemList.length > 0) {
         setReceiveItemId(itemList[0].id);
         setIssueItemId(itemList[0].id);
         setReqItemId(itemList[0].id);
         setHoItemId(itemList[0].id);
-        setLocItemId(itemList[0].id);
       }
       if (orderList.length > 0) {
         setIssueOrderId(orderList[0].id);
@@ -115,6 +144,31 @@ export default function GudangPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleCreateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const created = await gudangApi.createItem({
+        client_id: newMatClientId,
+        material_code: newMatCode,
+        material_name: newMatName,
+        unit_measure: newMatUnit,
+        initial_stock: Number(newMatStock),
+        order_id: newMatOrderId,
+      });
+      if (newMatLocation.trim()) {
+        await gudangApi.setLocation(created.id, newMatLocation.trim()).catch(() => null);
+      }
+      setNotice({ type: "success", message: `Material ${newMatCode} terdaftar.` });
+      setItemModalOpen(false);
+      setNewMatCode("");
+      setNewMatName("");
+      setNewMatLocation("");
+      loadData();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal mendaftarkan material." });
+    }
+  };
 
   const handleReceive = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +195,7 @@ export default function GudangPage() {
         inventory_item_id: issueItemId,
         order_id: issueOrderId,
         quantity: Number(issueQty),
-        notes: issueNotes || "Pengeluaran kain ke line cutting",
+        notes: issueNotes || "Pengeluaran barang ke produksi",
       });
       setNotice({ type: "success", message: `Berhasil mengeluarkan ${issueQty} unit bahan ke cutting.` });
       setIssueModalOpen(false);
@@ -212,15 +266,29 @@ export default function GudangPage() {
     }
   };
 
-  const handleLocation = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleConfirmPO = async (poId: string) => {
     try {
-      await gudangApi.setLocation(locItemId, locValue);
-      setNotice({ type: "success", message: `Lokasi penyimpanan disimpan: ${locValue}.` });
-      setLocationModalOpen(false);
+      await financeApi.confirmPO(poId);
+      setNotice({ type: "success", message: "Kebutuhan pengadaan DIKONFIRMASI — lanjut ke Finance." });
       loadData();
     } catch (err: any) {
-      setNotice({ type: "danger", message: err.message || "Gagal menyimpan lokasi." });
+      setNotice({ type: "danger", message: err.message || "Gagal konfirmasi pengadaan." });
+    }
+  };
+
+  const handleRequestPurchase = async (n: NeedRow) => {
+    const shortfall = Math.max(1, Math.ceil(n.qty_requested - n.qty_fulfilled - n.current_stock));
+    try {
+      await financeApi.createPO({
+        po_number: `PO-${n.order_number}-${Date.now().toString().slice(-4)}`,
+        order_id: n.order_id,
+        supplier_name: "MENUNGGU FINANCE",
+        lines: [{ inventory_item_id: n.inventory_item_id, qty_ordered: shortfall, unit_price: 0 }],
+      });
+      setNotice({ type: "success", message: `Diajukan ke Finance: ${shortfall} unit ${n.material_code}. Finance melengkapi harga.` });
+      loadData();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal mengajukan pembelian." });
     }
   };
 
@@ -270,24 +338,37 @@ export default function GudangPage() {
         }}
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={() => setReceiveModalOpen(true)} className="btn btn-primary">
-            📥 Penerimaan Bahan Masuk (Receive)
-          </button>
-          <button onClick={() => setIssueModalOpen(true)} className="btn btn-secondary">
-            📤 Pengeluaran ke Cutting (Issue)
-          </button>
-          <button onClick={() => setRequestModalOpen(true)} className="btn btn-secondary">
-            🧾 Pengajuan Bahan (Mandor)
-          </button>
-          <button onClick={() => setHandoverModalOpen(true)} className="btn btn-secondary">
-            🤝 Serah Terima ke Produksi
-          </button>
-          <button onClick={() => setCuttingModalOpen(true)} className="btn btn-secondary">
-            ✂️ Catat Hasil Cutting
-          </button>
-          <button onClick={() => setLocationModalOpen(true)} className="btn btn-ghost btn-sm">
-            🗄️ Lokasi Penyimpanan
-          </button>
+          {!isOwner && !isMandor ? (
+            <>
+              <button onClick={() => setItemModalOpen(true)} className="btn btn-primary">
+                📦 Daftarkan Material
+              </button>
+              <button onClick={() => setReceiveModalOpen(true)} className="btn btn-secondary">
+                📥 Penerimaan Bahan Masuk (Receive)
+              </button>
+              <button onClick={() => setIssueModalOpen(true)} className="btn btn-secondary">
+                📤 Pengeluaran Barang ke Produksi
+              </button>
+              <button onClick={() => setHandoverModalOpen(true)} className="btn btn-secondary">
+                🤝 Serah Terima ke Produksi
+              </button>
+              <button onClick={() => setCuttingModalOpen(true)} className="btn btn-secondary">
+                ✂️ Catat Hasil Cutting
+              </button>
+            </>
+          ) : null}
+          {!isOwner && (
+            <button onClick={() => setRequestModalOpen(true)} className="btn btn-secondary">
+              🧾 Pengajuan Bahan (Mandor)
+            </button>
+          )}
+          {(isOwner || isMandor) && (
+            <span className="badge badge-info">
+              {isOwner
+                ? "Mode pantau — Owner hanya melihat & memverifikasi pengajuan"
+                : "Akses Mandor: pengajuan bahan, serah terima, dan daftar stok"}
+            </span>
+          )}
         </div>
 
         <button onClick={loadData} className="btn btn-ghost btn-sm">
@@ -419,14 +500,18 @@ export default function GudangPage() {
                     <td className="font-mono" style={{ fontSize: "0.78rem" }}>{req.inventory_item_id.slice(0, 8)}...</td>
                     <td>
                       {req.status === "DIAJUKAN" ? (
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => handleReview(req.id, true)} className="btn btn-primary btn-sm">
-                            Setujui
-                          </button>
-                          <button onClick={() => handleReview(req.id, false)} className="btn btn-secondary btn-sm">
-                            Tolak
-                          </button>
-                        </div>
+                        canVerifyRequest ? (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => handleReview(req.id, true)} className="btn btn-primary btn-sm">
+                              Setujui
+                            </button>
+                            <button onClick={() => handleReview(req.id, false)} className="btn btn-secondary btn-sm">
+                              Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Menunggu verifikasi gudang</span>
+                        )
                       ) : (
                         <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Selesai diverifikasi</span>
                       )}
@@ -473,9 +558,13 @@ export default function GudangPage() {
                     </td>
                     <td>
                       {!ho.received_at ? (
-                        <button onClick={() => handleReceiveHandover(ho.id)} className="btn btn-primary btn-sm">
-                          Konfirmasi Terima (→ SEWING)
-                        </button>
+                        user?.role === "MANDOR" ? (
+                          <button onClick={() => handleReceiveHandover(ho.id)} className="btn btn-primary btn-sm">
+                            Konfirmasi Terima (→ SEWING)
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Menunggu mandor</span>
+                        )
                       ) : (
                         <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Order lanjut produksi</span>
                       )}
@@ -535,6 +624,95 @@ export default function GudangPage() {
         </div>
       </div>
 
+      {/* Kebutuhan Produksi & Konfirmasi Pengadaan */}
+      <div style={{ marginBottom: 32 }}>
+        <h3 style={{ marginBottom: 14 }}>Kebutuhan Produksi (Terpenuhi / Belum)</h3>
+        <div className="table-wrap" style={{ marginBottom: 16 }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Material</th>
+                <th>Diminta / Terpenuhi / Stok</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {needs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+                    Belum ada pengajuan kebutuhan produksi.
+                  </td>
+                </tr>
+              ) : (
+                needs.map((n) => (
+                  <tr key={n.request_id}>
+                    <td className="font-mono" style={{ fontWeight: 700 }}>{n.order_number}</td>
+                    <td>{n.material_code}</td>
+                    <td className="font-mono">{n.qty_requested} / {n.qty_fulfilled} / {n.current_stock}</td>
+                    <td>
+                      <span className={`badge ${n.need_status === "TERPENUHI" ? "badge-success" : "badge-danger"}`}>
+                        {n.need_status}
+                      </span>
+                    </td>
+                    <td>
+                      {n.need_status === "BELUM" && !isOwner && !isMandor && (
+                        <button onClick={() => handleRequestPurchase(n)} className="btn btn-primary btn-sm">
+                          Minta Finance Belikan
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style={{ marginBottom: 14 }}>Konfirmasi Pengadaan (Sample → Gudang → Finance)</h3>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>No. PO</th>
+                <th>Supplier</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {draftPOs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+                    Tidak ada PO menunggu konfirmasi gudang.
+                  </td>
+                </tr>
+              ) : (
+                draftPOs.map((po) => (
+                  <tr key={po.id}>
+                    <td className="font-mono" style={{ fontWeight: 700 }}>{po.po_number}</td>
+                    <td>{po.supplier_name}</td>
+                    <td className="font-mono">Rp {Number(po.total_amount).toLocaleString("id-ID")}</td>
+                    <td><span className="badge badge-warning">{po.status}</span></td>
+                    <td>
+                      {canVerifyRequest ? (
+                        <button onClick={() => handleConfirmPO(po.id)} className="btn btn-primary btn-sm">
+                          Konfirmasi Kebutuhan
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Menunggu gudang</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Transaction History Log */}
       <div>
         <h3 style={{ marginBottom: 14 }}>Log Mutasi Gudang Terakhir (Audit Trail)</h3>
@@ -585,6 +763,66 @@ export default function GudangPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal: Daftarkan Material Baru */}
+      <Modal
+        isOpen={itemModalOpen}
+        onClose={() => setItemModalOpen(false)}
+        title="📦 Daftarkan Material Baru"
+      >
+        <form onSubmit={handleCreateItem}>
+          <div className="form-group">
+            <label className="form-label">Klien Pemilik (Tag ID)</label>
+            <select className="form-select" value={newMatClientId} onChange={(e) => setNewMatClientId(e.target.value)} required>
+              <option value="">Pilih klien</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.company_name} ({c.client_code})</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Pesanan Asal (wajib FR-6.1)</label>
+            <select className="form-select" value={newMatOrderId} onChange={(e) => setNewMatOrderId(e.target.value)} required>
+              <option value="">Pilih pesanan</option>
+              {orders.map((o) => (
+                <option key={o.id} value={o.id}>{o.order_number} ({o.status})</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Kode Material</label>
+            <input type="text" className="form-input font-mono" value={newMatCode} onChange={(e) => setNewMatCode(e.target.value)} placeholder="KAIN-COTTON-24S" required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Nama Material</label>
+            <input type="text" className="form-input" value={newMatName} onChange={(e) => setNewMatName(e.target.value)} placeholder="Cotton Combed 24s Navy" required />
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Stok Awal</label>
+              <input type="number" className="form-input" value={newMatStock} onChange={(e) => setNewMatStock(Number(e.target.value))} min={0} />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Satuan</label>
+              <select className="form-select" value={newMatUnit} onChange={(e) => setNewMatUnit(e.target.value)}>
+                <option value="METER">METER</option>
+                <option value="YARD">YARD</option>
+                <option value="KG">KG</option>
+                <option value="PCS">PCS</option>
+                <option value="CONE">CONE</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Lokasi Simpan (Rak/Bin)</label>
+              <input type="text" className="form-input font-mono" value={newMatLocation} onChange={(e) => setNewMatLocation(e.target.value)} placeholder="RAK-A-01" />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setItemModalOpen(false)}>Batal</button>
+            <button type="submit" className="btn btn-primary">Daftarkan</button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modal: Penerimaan Bahan Masuk */}
       <Modal
@@ -681,7 +919,7 @@ export default function GudangPage() {
       <Modal
         isOpen={issueModalOpen}
         onClose={() => setIssueModalOpen(false)}
-        title="📤 Form Pengeluaran Bahan ke Cutting (Issue)"
+        title="📤 Form Pengeluaran Barang ke Produksi"
       >
         <form onSubmit={handleIssue}>
           <div className="notice notice-info" style={{ marginBottom: 16 }}>
@@ -708,7 +946,7 @@ export default function GudangPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Pilih Pesanan Produksi (Target Cutting)</label>
+            <label className="form-label">Pilih Pesanan Produksi Tujuan</label>
             <select
               className="form-select"
               value={issueOrderId}
@@ -742,7 +980,7 @@ export default function GudangPage() {
               className="form-input"
               value={issueNotes}
               onChange={(e) => setIssueNotes(e.target.value)}
-              placeholder="Contoh: Pengeluaran untuk cutting batch 1"
+              placeholder="Contoh: Pengeluaran untuk produksi batch 1"
             />
           </div>
 
@@ -872,13 +1110,15 @@ export default function GudangPage() {
       >
         <form onSubmit={handleCutting}>
           <div className="form-group">
-            <label className="form-label">Pesanan (status CUTTING/SEWING)</label>
+            <label className="form-label">Pesanan Produksi</label>
             <select className="form-select" value={cutOrderId} onChange={(e) => setCutOrderId(e.target.value)} required>
-              {orders.map((ord) => (
-                <option key={ord.id} value={ord.id}>
-                  {ord.order_number} ({ord.status})
-                </option>
-              ))}
+              {orders
+                .filter((o) => o.status === "CUTTING" || o.status === "SEWING")
+                .map((ord) => (
+                  <option key={ord.id} value={ord.id}>
+                    {ord.order_number}
+                  </option>
+                ))}
             </select>
           </div>
           <div className="form-group">
@@ -907,9 +1147,8 @@ export default function GudangPage() {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Kategori Waste (FR-6.3)</label>
-            <select className="form-select" value={cutWasteCategory} onChange={(e) => setCutWasteCategory(e.target.value)}>
-              <option value="">Tanpa kategori</option>
+            <label className="form-label">Kategori Waste (FR-6.3, wajib)</label>
+            <select className="form-select" value={cutWasteCategory} onChange={(e) => setCutWasteCategory(e.target.value)} required>
               <option value="SISA_POTONG">Sisa potongan</option>
               <option value="SCRAP">Scrap</option>
               <option value="BS_REJECT">BS / Reject</option>
@@ -930,37 +1169,6 @@ export default function GudangPage() {
         </form>
       </Modal>
 
-      {/* Modal: Lokasi Penyimpanan */}
-      <Modal
-        isOpen={locationModalOpen}
-        onClose={() => setLocationModalOpen(false)}
-        title="🗄️ Lokasi Penyimpanan Bahan"
-      >
-        <form onSubmit={handleLocation}>
-          <div className="form-group">
-            <label className="form-label">Material</label>
-            <select className="form-select" value={locItemId} onChange={(e) => setLocItemId(e.target.value)} required>
-              {items.map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.material_code} - {it.material_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Rak / Bin (contoh: RAK-A-01)</label>
-            <input type="text" className="form-input" value={locValue} onChange={(e) => setLocValue(e.target.value)} placeholder="RAK-A-01" required />
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setLocationModalOpen(false)}>
-              Batal
-            </button>
-            <button type="submit" className="btn btn-primary">
-              Simpan Lokasi
-            </button>
-          </div>
-        </form>
-      </Modal>
     </AppLayout>
   );
 }

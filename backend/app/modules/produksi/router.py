@@ -21,8 +21,11 @@ from app.modules.produksi.errors import (
 from app.modules.produksi.models import OrderStatus
 from app.modules.produksi.schemas import (
     AssemblyCreate,
+    CheckinCreate,
+    CheckinResponse,
     AssemblyResponse,
     LeaderboardEntry,
+    OrderComponentCreate,
     OrderCreate,
     OrderDetailResponse,
     OrderFromSampleCreate,
@@ -34,17 +37,25 @@ from app.modules.produksi.schemas import (
     ProductionOutputVerify,
     RateCardChangeResponse,
     RateCardUpdate,
+    SellingPricePropose,
+    SellingPriceReview,
     WorkerDashboardResponse,
 )
 from app.modules.produksi.service import (
+    add_order_component,
+    checkin_worker,
+    checkout_worker,
     assemble_order,
     create_order,
     create_order_from_sample,
     get_operator_leaderboard,
     get_order,
+    propose_selling_price,
+    review_selling_price,
     get_order_output_summary,
     get_worker_dashboard_summary,
     list_assemblies,
+    list_checkins,
     list_orders,
     list_outputs,
     list_rate_history,
@@ -62,7 +73,7 @@ router = APIRouter(prefix="/produksi", tags=["produksi"])
 # TIM_SAMPLE dikecualikan — tidak boleh menyetujui pesanan massal tanpa konfirmasi.
 _ORDER_MANAGE_ROLES = [UserRole.OWNER, UserRole.MANDOR]
 _FROM_SAMPLE_ROLES = [UserRole.OWNER, UserRole.MANDOR]
-_OUTPUT_RECORD_ROLES = [UserRole.PENJAHIT, UserRole.MANDOR, UserRole.OWNER]
+_OUTPUT_RECORD_ROLES = [UserRole.PENJAHIT, UserRole.MANDOR]
 _VERIFY_ROLES = [UserRole.MANDOR, UserRole.OWNER]
 _RATE_ROLES = [UserRole.OWNER, UserRole.MANDOR]
 
@@ -279,9 +290,12 @@ def log_production_output(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ProductionOutputResponse:
-    """FR-8: Penjahit mencatat jumlah output setiap 30 menit dari terminal tablet lantai pabrik."""
+    """FR-8: Mencatat output 30 menit. Mandor wajib menunjuk id penjahit (check-in)."""
     try:
-        out = record_output(db, payload, operator_user_id=current_user.id)
+        out = record_output(
+            db, payload, operator_user_id=current_user.id,
+            is_mandor=(current_user.role == UserRole.MANDOR),
+        )
     except (
         OrderNotFoundError,
         OrderComponentNotFoundError,
@@ -423,3 +437,132 @@ def get_assemblies(
         client_id = current_user.client_id
     batches = list_assemblies(db, client_id=client_id, order_id=order_id)
     return [AssemblyResponse.model_validate(b) for b in batches]
+
+
+@router.post(
+    "/orders/{order_id}/components",
+    response_model=OrderDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(_ORDER_MANAGE_ROLES))],
+)
+def add_component_to_order(
+    order_id: uuid.UUID,
+    payload: OrderComponentCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OrderDetailResponse:
+    """Tambah komponen + rate card ke order berjalan (khusus OWNER & MANDOR)."""
+    try:
+        order = add_order_component(db, order_id, payload, added_by_id=current_user.id)
+    except (OrderNotFoundError, OrderStatusTransitionError, ValueError) as e:
+        raise _handle_error(e) from e
+    return OrderDetailResponse.model_validate(order)
+
+
+@router.post(
+    "/orders/{order_id}/selling-price",
+    response_model=OrderResponse,
+    dependencies=[Depends(require_roles([UserRole.TIM_SAMPLE, UserRole.MANDOR, UserRole.OWNER]))],
+)
+def propose_order_selling_price(
+    order_id: uuid.UUID,
+    payload: SellingPricePropose,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OrderResponse:
+    """Usulkan harga jual (jualan) per order. Persetujuan akhir oleh Owner."""
+    try:
+        order = propose_selling_price(db, order_id, payload.selling_price, current_user.id)
+    except (OrderNotFoundError, ValueError) as e:
+        raise _handle_error(e) from e
+    return OrderResponse.model_validate(order)
+
+
+@router.post(
+    "/orders/{order_id}/selling-price/review",
+    response_model=OrderResponse,
+    dependencies=[Depends(require_roles([UserRole.OWNER]))],
+)
+def review_order_selling_price(
+    order_id: uuid.UUID,
+    payload: SellingPriceReview,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OrderResponse:
+    """Owner menyetujui/menolak harga jual per order (DIAJUKAN → DISETUJUI/DITOLAK)."""
+    try:
+        order = review_selling_price(db, order_id, payload.approve, current_user.id)
+    except (OrderNotFoundError, OrderStatusTransitionError) as e:
+        raise _handle_error(e) from e
+    return OrderResponse.model_validate(order)
+
+
+@router.post(
+    "/checkins",
+    response_model=CheckinResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles([UserRole.MANDOR]))],
+)
+def checkin_penjahit(
+    payload: CheckinCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CheckinResponse:
+    """Mandor check-in-kan penjahit ke line + tugas (satu sesi terbuka per orang)."""
+    try:
+        return CheckinResponse(**checkin_worker(db, payload, checked_in_by_id=current_user.id))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.get(
+    "/checkins",
+    response_model=list[CheckinResponse],
+    dependencies=[Depends(require_roles(
+        [UserRole.OWNER, UserRole.MANDOR, UserRole.PENJAHIT, UserRole.GUDANG,
+         UserRole.TIM_SAMPLE, UserRole.QC_INSPECTOR, UserRole.FINANCE_PAYROLL]
+    ))],
+)
+def get_checkins(
+    only_open: bool = Query(True, description="Hanya sesi yang masih terbuka"),
+    order_id: uuid.UUID | None = Query(None),
+    db: Session = Depends(get_db),
+) -> list[CheckinResponse]:
+    """Daftar check-in penjahit (untuk penempatan & pilihan operator terminal)."""
+    return [CheckinResponse(**c) for c in list_checkins(db, only_open=only_open, order_id=order_id)]
+
+
+@router.post(
+    "/checkins/{checkin_id}/checkout",
+    response_model=CheckinResponse,
+    dependencies=[Depends(require_roles([UserRole.MANDOR]))],
+)
+def checkout_penjahit(
+    checkin_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> CheckinResponse:
+    """Mandor menutup sesi check-in penjahit."""
+    try:
+        return CheckinResponse(**checkout_worker(db, checkin_id))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.get(
+    "/workers",
+    dependencies=[Depends(require_roles([UserRole.OWNER, UserRole.MANDOR]))],
+)
+def get_workers(db: Session = Depends(get_db)):
+    """Daftar penjahit aktif untuk check-in mandor."""
+    from sqlalchemy import select as _select
+
+    from app.modules.auth.models import User as _User
+    from app.modules.auth.models import UserRole as _Role
+
+    workers = list(
+        db.scalars(
+            _select(_User).where(_User.role == _Role.PENJAHIT, _User.is_active.is_(True))
+            .order_by(_User.name)
+        ).all()
+    )
+    return [{"id": str(w.id), "name": w.name, "username": w.username} for w in workers]

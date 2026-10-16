@@ -12,6 +12,7 @@ import type { InventoryItem, Order } from "../../types/api";
 
 export default function PortalKlienPage() {
   const { user } = useAuth();
+  const isOwner = user?.role === "OWNER";
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,10 +52,11 @@ export default function PortalKlienPage() {
         />
       )}
 
-      {/* Profil Pendaftar & ID Klien (10 Karakter) */}
-      <ClientProfileCard user={user} />
+      {/* Profil Pendaftar & ID Klien (10 Karakter) — disembunyikan untuk Owner */}
+      {!isOwner && <ClientProfileCard user={user} />}
 
       {/* Hubungi Tim Sample untuk Buat Sample / Tambah Pesanan Baru */}
+      {!isOwner && (
       <div
         style={{
           marginBottom: 28,
@@ -93,6 +95,7 @@ export default function PortalKlienPage() {
           </a>
         </div>
       </div>
+      )}
 
       {/* Order Status Cards */}
       <div style={{ marginBottom: 32 }}>
@@ -109,20 +112,19 @@ export default function PortalKlienPage() {
               {loading ? "Memuat data pesanan..." : "Belum ada pesanan aktif yang terdaftar untuk akun Anda."}
             </div>
           ) : (
-            orders.map((ord) => (
+            orders.map((ord) => {
+              const tag =
+                ord.status === "COMPLETED"
+                  ? { label: "Delivering — dikirim ke klien", cls: "badge-success" }
+                  : ord.status === "SEWING" || ord.status === "MENUNGGU_QC" || ord.status === "QC"
+                  ? { label: "Production — sedang diproduksi", cls: "badge-info" }
+                  : { label: "Pending — masih di gudang", cls: "badge-warning" };
+              return (
               <div key={ord.id} className="card-elevated">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span className="badge badge-purple">{ord.scheme}</span>
-                  <span
-                    className={`badge ${
-                      ord.status === "COMPLETED"
-                        ? "badge-success"
-                        : ord.status === "QC" || ord.status === "MENUNGGU_QC"
-                        ? "badge-info"
-                        : "badge-warning"
-                    }`}
-                  >
-                    {ord.status}
+                  <span className={`badge ${tag.cls}`}>
+                    {tag.label}
                   </span>
                 </div>
 
@@ -135,7 +137,8 @@ export default function PortalKlienPage() {
                   Dibuat pada: {new Date(ord.created_at).toLocaleDateString("id-ID")}
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

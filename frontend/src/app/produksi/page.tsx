@@ -5,7 +5,7 @@ import { AppLayout } from "../../components/AppLayout";
 import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
-import { produksiApi } from "../../lib/api";
+import { produksiApi, authApi } from "../../lib/api";
 import type { Order, ProductionOutput, OrderSummary, OrderStatus } from "../../types/api";
 
 const STATUS_STEPS: OrderStatus[] = [
@@ -16,6 +16,16 @@ const STATUS_STEPS: OrderStatus[] = [
   "QC",
   "COMPLETED",
 ];
+
+function formatPending(createdAt: string): string {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  if (Number.isNaN(ms) || ms < 0) return "-";
+  const hours = Math.floor(ms / 3_600_000);
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  if (days <= 0) return `${rest} jam`;
+  return `${days} hr ${rest} jam`;
+}
 
 export default function ProduksiPage() {
   const { user } = useAuth();
@@ -29,20 +39,54 @@ export default function ProduksiPage() {
   // Terminal 30 Menit form state
   const [terminalComponentId, setTerminalComponentId] = useState("");
   const [terminalQty, setTerminalQty] = useState(12);
+  const [terminalOperatorId, setTerminalOperatorId] = useState("");
+
+  // Check-in penjahit (mandor)
+  const [workers, setWorkers] = useState<{ id: string; name: string; username: string }[]>([]);
+  const [checkins, setCheckins] = useState<{
+    id: string; user_id: string; user_name: string | null; order_id: string | null;
+    line_number: number; task_category: string | null; checkin_at: string; checkout_at: string | null;
+  }[]>([]);
+  const [ciUserId, setCiUserId] = useState("");
+  const [ciLine, setCiLine] = useState(1);
+  const [ciTask, setCiTask] = useState("");
 
   // Modal new order
   const [newOrderModal, setNewOrderModal] = useState(false);
   const [newOrderNumber, setNewOrderNumber] = useState("");
   const [newOrderScheme, setNewOrderScheme] = useState<"CMT" | "SEMI_CMT" | "FULL_PACKAGE">("CMT");
   const [newOrderTarget, setNewOrderTarget] = useState(1000);
+  const [newOrderClientId, setNewOrderClientId] = useState("");
+  const [clients, setClients] = useState<{ id: string; company_name: string; client_code: string }[]>([]);
+
+  // Modal tambah komponen
+  const [compModalOpen, setCompModalOpen] = useState(false);
+  const [compName, setCompName] = useState("");
+  const [compCutting, setCompCutting] = useState(500);
+  const [compSewing, setCompSewing] = useState(2500);
 
   const isMandorOrOwner = user?.role === "MANDOR" || user?.role === "OWNER";
+  const isOwner = user?.role === "OWNER";
 
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const list = await produksiApi.getOrders();
+      const [list, clientList] = await Promise.all([
+        produksiApi.getOrders(),
+        authApi.getClients().catch(() => []),
+      ]);
       setOrders(list);
+      setClients(clientList);
+      if (user?.role === "MANDOR" || user?.role === "OWNER") {
+        const [w, ci] = await Promise.all([
+          produksiApi.getWorkers().catch(() => []),
+          produksiApi.getCheckins(true).catch(() => []),
+        ]);
+        setWorkers(w);
+        setCheckins(ci);
+        if (w.length > 0 && !ciUserId) setCiUserId(w[0].id);
+      }
+      if (clientList.length > 0 && !newOrderClientId) setNewOrderClientId(clientList[0].id);
       if (list.length > 0) {
         handleSelectOrder(list[0]);
       }
@@ -64,6 +108,8 @@ export default function ProduksiPage() {
       setOutputs(outList);
       if (order.components && order.components.length > 0) {
         setTerminalComponentId(order.components[0].id);
+      } else {
+        setTerminalComponentId("");
       }
     } catch (err) {
       console.error(err);
@@ -74,10 +120,14 @@ export default function ProduksiPage() {
     loadOrders();
   }, []);
 
-  // Catat Output 30 Menit (Penjahit)
+  // Catat Output 30 Menit (Penjahit / Mandor menunjuk id penjahit)
   const handleRecordOutput = async () => {
     if (!selectedOrder || !terminalComponentId) {
       setNotice({ type: "warning", message: "Pilih komponen terlebih dahulu." });
+      return;
+    }
+    if (user?.role === "MANDOR" && !terminalOperatorId) {
+      setNotice({ type: "warning", message: "Pilih penjahit pelaksana (dari check-in) terlebih dahulu." });
       return;
     }
     const now = new Date();
@@ -88,6 +138,7 @@ export default function ProduksiPage() {
       await produksiApi.recordOutput({
         order_id: selectedOrder.id,
         component_id: terminalComponentId,
+        operator_user_id: user?.role === "MANDOR" ? terminalOperatorId : undefined,
         interval_start: intervalStart,
         interval_end: intervalEnd,
         qty_completed: Number(terminalQty),
@@ -126,6 +177,58 @@ export default function ProduksiPage() {
       loadOrders();
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal memajukan status pesanan." });
+    }
+  };
+
+  // Tambah komponen + rate ke order berjalan
+  const handleAddComponent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrder) return;
+    try {
+      const updated = await produksiApi.addComponent(selectedOrder.id, {
+        component_name: compName,
+        cutting_rate_per_pcs: Number(compCutting),
+        sewing_rate_per_pcs: Number(compSewing),
+      });
+      setSelectedOrder(updated);
+      setCompModalOpen(false);
+      setCompName("");
+      setNotice({ type: "success", message: `Komponen ${compName} + rate tercatat.` });
+      if (updated.components && updated.components.length > 0) {
+        setTerminalComponentId(updated.components[updated.components.length - 1].id);
+      }
+      loadOrders();
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal menambah komponen." });
+    }
+  };
+
+  // Check-in / checkout penjahit (Mandor)
+  const handleCheckin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await produksiApi.checkinWorker({
+        user_id: ciUserId,
+        order_id: selectedOrder?.id || null,
+        line_number: Number(ciLine),
+        task_category: ciTask || undefined,
+      });
+      setNotice({ type: "success", message: "Penjahit di-check-in ke line." });
+      const ci = await produksiApi.getCheckins(true).catch(() => []);
+      setCheckins(ci);
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal check-in." });
+    }
+  };
+
+  const handleCheckout = async (checkinId: string) => {
+    try {
+      await produksiApi.checkoutWorker(checkinId);
+      setNotice({ type: "success", message: "Check-out tercatat." });
+      const ci = await produksiApi.getCheckins(true).catch(() => []);
+      setCheckins(ci);
+    } catch (err: any) {
+      setNotice({ type: "danger", message: err.message || "Gagal check-out." });
     }
   };
 
@@ -176,7 +279,7 @@ export default function ProduksiPage() {
         }}
       >
         <div style={{ display: "flex", gap: 10 }}>
-          {isMandorOrOwner && (
+          {!isOwner && (
             <button onClick={() => setNewOrderModal(true)} className="btn btn-primary">
               ➕ Buat Order Produksi Baru
             </button>
@@ -192,7 +295,6 @@ export default function ProduksiPage() {
       </div>
 
       <div
-        className="split-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "320px 1fr",
@@ -240,6 +342,11 @@ export default function ProduksiPage() {
                         {ord.status}
                       </span>
                     </div>
+                    {ord.status !== "COMPLETED" && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--color-warning)", marginTop: 4 }}>
+                        ⏳ Terpending: {formatPending(ord.created_at)}
+                      </div>
+                    )}
                   </button>
                 );
               })
@@ -263,12 +370,86 @@ export default function ProduksiPage() {
                     </h2>
                     <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
                       Target Pesanan: {selectedOrder.target_quantity.toLocaleString("id-ID")} pcs
+                      {selectedOrder.status !== "COMPLETED" && (
+                        <> • <strong style={{ color: "var(--color-warning)" }}>⏳ Terpending: {formatPending(selectedOrder.created_at)}</strong></>
+                      )}
+                    </div>
+                    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700 }}>Harga Jual:</span>
+                      {selectedOrder.selling_price != null ? (
+                        <span className="font-mono" style={{ fontWeight: 800 }}>
+                          Rp {Number(selectedOrder.selling_price).toLocaleString("id-ID")}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>belum diusulkan</span>
+                      )}
+                      <span className={`badge ${
+                        selectedOrder.selling_price_status === "DISETUJUI" ? "badge-success"
+                        : selectedOrder.selling_price_status === "DIAJUKAN" ? "badge-warning"
+                        : selectedOrder.selling_price_status === "DITOLAK" ? "badge-danger"
+                        : "badge-neutral"
+                      }`}>
+                        {selectedOrder.selling_price_status && selectedOrder.selling_price_status !== "-" ? selectedOrder.selling_price_status : "BELUM DIAJUKAN"}
+                      </span>
+                      {!isOwner && (
+                        <button
+                          onClick={() => {
+                            const v = window.prompt("Usulan harga jual keseluruhan order (Rp):", selectedOrder.selling_price != null ? String(selectedOrder.selling_price) : "5000000");
+                            if (v === null) return;
+                            produksiApi.proposeSellingPrice(selectedOrder.id, Number(v))
+                              .then(async (u) => {
+                                setSelectedOrder(u);
+                                setNotice({ type: "success", message: "Harga jual diusulkan — menunggu approve Owner." });
+                              })
+                              .catch((err: any) => setNotice({ type: "danger", message: err.message || "Gagal mengusulkan harga." }));
+                          }}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          💰 Usulkan Harga
+                        </button>
+                      )}
+                      {isOwner && selectedOrder.selling_price_status === "DIAJUKAN" && (
+                        <>
+                          <button
+                            onClick={() => {
+                              produksiApi.reviewSellingPrice(selectedOrder.id, true)
+                                .then(async (u) => {
+                                  setSelectedOrder(u);
+                                  setNotice({ type: "success", message: "Harga jual DISETUJUI." });
+                                })
+                                .catch((err: any) => setNotice({ type: "danger", message: err.message || "Gagal menyetujui." }));
+                            }}
+                            className="btn btn-primary btn-sm"
+                          >
+                            Setujui Harga
+                          </button>
+                          <button
+                            onClick={() => {
+                              produksiApi.reviewSellingPrice(selectedOrder.id, false)
+                                .then(async (u) => {
+                                  setSelectedOrder(u);
+                                  setNotice({ type: "warning", message: "Harga jual DITOLAK." });
+                                })
+                                .catch((err: any) => setNotice({ type: "danger", message: err.message || "Gagal menolak." }));
+                            }}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            Tolak
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   {isMandorOrOwner && (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {selectedOrder.status === "SAMPLE" && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(selectedOrder.status === "SAMPLE" ||
+                        selectedOrder.status === "CUTTING" ||
+                        selectedOrder.status === "SEWING") && !isOwner && (
+                        <button onClick={() => setCompModalOpen(true)} className="btn btn-secondary btn-sm">
+                          🧩 Tambah Komponen
+                        </button>
+                      )}                      {selectedOrder.status === "SAMPLE" && (
                         <button onClick={() => handleAdvanceStatus("CUTTING")} className="btn btn-primary btn-sm">
                           Mulai Cutting →
                         </button>
@@ -288,6 +469,62 @@ export default function ProduksiPage() {
                           </button>
                         </>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Komponen & Rate Borongan (edit rate: Mandor/Owner) */}
+                <div className="card" style={{ margin: "16px 0" }}>
+                  <h3 style={{ fontSize: "1rem", marginBottom: 12 }}>Komponen & Rate Borongan</h3>
+                  {(selectedOrder.components?.length || 0) === 0 ? (
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
+                      Belum ada komponen. {isMandorOrOwner && !isOwner ? "Tambahkan lewat tombol di atas." : ""}
+                    </p>
+                  ) : (
+                    <div className="table-wrap">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Komponen</th>
+                            <th>Rate Cutting</th>
+                            <th>Rate Jahit</th>
+                            {(user?.role === "MANDOR" || isOwner) && <th>Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedOrder.components?.map((c) => (
+                            <tr key={c.id}>
+                              <td className="font-mono">{c.sequence_order}</td>
+                              <td style={{ fontWeight: 600 }}>{c.component_name}</td>
+                              <td className="font-mono">Rp {c.rate_card ? Number(c.rate_card.cutting_rate_per_pcs).toLocaleString("id-ID") : "-"}</td>
+                              <td className="font-mono">Rp {c.rate_card ? Number(c.rate_card.sewing_rate_per_pcs).toLocaleString("id-ID") : "-"}</td>
+                              {(user?.role === "MANDOR" || isOwner) && (
+                                <td>
+                                  <button
+                                    onClick={() => {
+                                      const cut = window.prompt("Rate cutting baru (Rp/pcs):", String(c.rate_card?.cutting_rate_per_pcs ?? 0));
+                                      if (cut === null) return;
+                                      const sew = window.prompt("Rate jahit baru (Rp/pcs):", String(c.rate_card?.sewing_rate_per_pcs ?? 0));
+                                      if (sew === null) return;
+                                      produksiApi.setRateCard(c.id, { cutting_rate_per_pcs: Number(cut), sewing_rate_per_pcs: Number(sew) })
+                                        .then(async () => {
+                                          const updated = await produksiApi.getOrderDetail(selectedOrder.id);
+                                          setSelectedOrder(updated);
+                                          setNotice({ type: "success", message: "Rate tercatat di riwayat perubahan." });
+                                        })
+                                        .catch((err: any) => setNotice({ type: "danger", message: err.message || "Gagal ubah rate." }));
+                                    }}
+                                    className="btn btn-ghost btn-sm"
+                                  >
+                                    ✏️ Edit Rate
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
@@ -355,29 +592,126 @@ export default function ProduksiPage() {
                 )}
               </div>
 
-              {/* Terminal Touchscreen Input 30 Menit (FR-4.1) */}
+              {/* Check-in Penjahit (Mandor menempatkan ke line) */}
+              {user?.role === "MANDOR" && (
+                <div className="card">
+                  <h3 style={{ fontSize: "1.05rem", marginBottom: 4 }}>✅ Check-in Penjahit ke Line</h3>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 12 }}>
+                    Penugasan dihitung dari check-in: nama, line, dan kategori yang dikerjakan.
+                  </div>
+                  <form onSubmit={handleCheckin} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
+                    <div className="form-group" style={{ margin: 0, minWidth: 180 }}>
+                      <label className="form-label">Penjahit</label>
+                      <select className="form-select" value={ciUserId} onChange={(e) => setCiUserId(e.target.value)} required>
+                        <option value="">Pilih penjahit</option>
+                        {workers.map((w) => (
+                          <option key={w.id} value={w.id}>{w.name} ({w.username})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ margin: 0, maxWidth: 110 }}>
+                      <label className="form-label">Line</label>
+                      <input type="number" className="form-input" value={ciLine} onChange={(e) => setCiLine(Number(e.target.value))} min={1} required />
+                    </div>
+                    <div className="form-group" style={{ margin: 0, minWidth: 160 }}>
+                      <label className="form-label">Kategori Tugas</label>
+                      <input type="text" className="form-input" value={ciTask} onChange={(e) => setCiTask(e.target.value)} placeholder="Badan Depan" />
+                    </div>
+                    <button type="submit" className="btn btn-primary">Check-in</button>
+                  </form>
+                  {checkins.length > 0 ? (
+                    <div className="table-wrap">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Penjahit</th>
+                            <th>Line</th>
+                            <th>Tugas</th>
+                            <th>Sejak</th>
+                            <th>Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {checkins.map((c) => (
+                            <tr key={c.id}>
+                              <td style={{ fontWeight: 700 }}>{c.user_name || c.user_id.slice(0, 8)}</td>
+                              <td className="font-mono">L{c.line_number}</td>
+                              <td>{c.task_category || "-"}</td>
+                              <td className="font-mono" style={{ fontSize: "0.78rem" }}>
+                                {new Date(c.checkin_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                              </td>
+                              <td>
+                                <button onClick={() => handleCheckout(c.id)} className="btn btn-secondary btn-sm">
+                                  Check-out
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
+                      Belum ada penjahit check-in hari ini.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Terminal Touchscreen Input 30 Menit (FR-7.3/7.4) */}
               <div
                 className="card-glass"
                 style={{
-                  border: "1px solid rgba(59, 130, 246, 0.3)",
-                  background: "radial-gradient(ellipse at top, rgba(30, 58, 138, 0.2) 0%, rgba(15, 23, 42, 0.9) 100%)",
+                  border: "1px solid rgba(124, 58, 237, 0.35)",
+                  background: "linear-gradient(160deg, #2E1065 0%, #1E0A45 100%)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
                   <div>
-                    <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8 }}>
-                      🖥️ Terminal Touchscreen Lantai Produksi (Interval 30 Menit)
+                    <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8, color: "#ffffff", margin: 0 }}>
+                      🖥️ Terminal Touchscreen Lantai Produksi
                     </h3>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                      Dirancang dengan tombol besar untuk memudahkan operator penjahit langsung di lantai kerja.
+                    <div style={{ fontSize: "0.8rem", color: "#C4B5FD", marginTop: 4 }}>
+                      {selectedOrder.order_number} •{" "}
+                      <span className="badge badge-info">{selectedOrder.status}</span>{" "}
+                      • Interval {(() => {
+                        const now = new Date();
+                        const slot = Math.floor((now.getHours() * 60 + now.getMinutes()) / 30);
+                        const h = String(Math.floor(slot / 2)).padStart(2, "0");
+                        return `${h}:${slot % 2 === 0 ? "00" : "30"}`;
+                      })()}
                     </div>
                   </div>
-                  <span className="badge badge-info">Touch UI Enabled</span>
+                  <span className="badge badge-success">Touch UI Enabled</span>
                 </div>
 
+                {(selectedOrder.components?.length || 0) === 0 ? (
+                  <div
+                    style={{
+                      background: "rgba(255, 255, 255, 0.06)",
+                      padding: 24,
+                      borderRadius: "var(--radius-lg)",
+                      border: "1px dashed rgba(196, 181, 253, 0.5)",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: "2rem" }}>🧩</div>
+                    <div style={{ color: "#ffffff", fontWeight: 700, margin: "8px 0 4px" }}>
+                      Order ini belum punya komponen
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#C4B5FD", marginBottom: 12 }}>
+                      Tambahkan komponen + rate borongan dulu agar terminal bisa dipakai.
+                    </div>
+                    {isMandorOrOwner && !isOwner && (
+                      <button onClick={() => setCompModalOpen(true)} className="btn btn-primary">
+                        ➕ Tambah Komponen Pertama
+                      </button>
+                    )}
+                  </div>
+                ) : (
                 <div
                   style={{
-                    background: "var(--bg-surface)",
+                    background: "#ffffff",
                     padding: 20,
                     borderRadius: "var(--radius-lg)",
                     border: "1px solid var(--border-subtle)",
@@ -390,10 +724,13 @@ export default function ProduksiPage() {
                         className="form-select"
                         value={terminalComponentId}
                         onChange={(e) => setTerminalComponentId(e.target.value)}
+                        style={{ fontSize: "1rem", fontWeight: 600 }}
                       >
+                        <option value="">— Pilih komponen —</option>
                         {selectedOrder.components?.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.component_name} (Target: {c.quantity_target} pcs)
+                            {c.component_name}
+                            {c.rate_card ? ` — Rp ${Number(c.rate_card.sewing_rate_per_pcs).toLocaleString("id-ID")}/pcs` : ""}
                           </option>
                         ))}
                       </select>
@@ -401,46 +738,64 @@ export default function ProduksiPage() {
 
                     <div className="form-group" style={{ margin: 0 }}>
                       <label className="form-label">Pcs Selesai (30 Menit Terakhir):</label>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {[6, 12, 18, 24].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setTerminalQty(n)}
-                            className={`btn ${terminalQty === n ? "btn-primary" : "btn-secondary"}`}
-                            style={{ flex: 1, fontWeight: 700 }}
-                          >
-                            +{n}
-                          </button>
-                        ))}
-                      </div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={terminalQty}
+                        onChange={(e) => setTerminalQty(Number(e.target.value))}
+                        min={1}
+                        aria-label="Jumlah pcs 30 menit terakhir"
+                        style={{ fontSize: "1.1rem", fontWeight: 700, textAlign: "center", padding: "12px" }}
+                      />
                     </div>
+                    {user?.role === "MANDOR" && (
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">ID Penjahit Pelaksana (check-in):</label>
+                        <select
+                          className="form-select"
+                          value={terminalOperatorId}
+                          onChange={(e) => setTerminalOperatorId(e.target.value)}
+                          style={{ fontSize: "1rem", fontWeight: 600 }}
+                        >
+                          <option value="">— Pilih penjahit —</option>
+                          {checkins.map((c) => (
+                            <option key={c.id} value={c.user_id}>
+                              {c.user_name || c.user_id.slice(0, 8)} — Line {c.line_number}{c.task_category ? ` (${c.task_category})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ marginTop: 16, display: "flex", gap: 12, alignItems: "center" }}>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={terminalQty}
-                      onChange={(e) => setTerminalQty(Number(e.target.value))}
-                      min={1}
-                      style={{ maxWidth: 140, fontSize: "1.2rem", fontWeight: 700, textAlign: "center" }}
-                    />
-                    <button
-                      onClick={handleRecordOutput}
-                      className="btn btn-primary btn-touch"
-                      style={{ flex: 1 }}
-                      disabled={selectedOrder.status !== "SEWING"}
-                    >
-                      ⚡ Simpan Output Borongan ({terminalQty} Pcs)
-                    </button>
+                    {isOwner ? (
+                      <div className="notice notice-info" style={{ flex: 1 }}>
+                        <span>👁️</span>
+                        <div style={{ fontSize: "0.82rem" }}>Mode pantau — pencatatan output dilakukan Penjahit/Mandor.</div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleRecordOutput}
+                        className="btn btn-primary btn-touch"
+                        style={{ flex: 1 }}
+                        disabled={selectedOrder.status !== "SEWING" || !terminalComponentId || (user?.role === "MANDOR" && !terminalOperatorId)}
+                      >
+                        ⚡ Simpan Output Borongan ({terminalQty} Pcs)
+                      </button>
+                    )}
                   </div>
-                  {selectedOrder.status !== "SEWING" && (
+                  {selectedOrder.status !== "SEWING" ? (
                     <div style={{ fontSize: "0.78rem", color: "var(--color-warning)", marginTop: 8 }}>
-                      ⚠️ Terminal hanya menerima input saat status pesanan berada di <strong>SEWING</strong>.
+                      ⚠️ Terminal hanya menerima input saat status pesanan berada di <strong>SEWING</strong> (kini: {selectedOrder.status}).
                     </div>
-                  )}
+                  ) : !terminalComponentId ? (
+                    <div style={{ fontSize: "0.78rem", color: "var(--color-info)", marginTop: 8 }}>
+                      👆 Pilih komponen dulu untuk mengaktifkan tombol simpan.
+                    </div>
+                  ) : null}
                 </div>
+                )}
               </div>
 
               {/* Log Output Terakhir & Verifikasi Mandor */}
@@ -453,6 +808,7 @@ export default function ProduksiPage() {
                     <thead>
                       <tr>
                         <th>Interval Waktu</th>
+                        <th>ID Penjahit</th>
                         <th>Komponen</th>
                         <th>Jumlah (Pcs)</th>
                         <th>Status Validasi</th>
@@ -462,19 +818,28 @@ export default function ProduksiPage() {
                     <tbody>
                       {outputs.length === 0 ? (
                         <tr>
-                          <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+                          <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
                             Belum ada catatan output untuk pesanan ini.
                           </td>
                         </tr>
                       ) : (
-                        outputs.map((out) => (
+                        outputs.map((out) => {
+                          const compName =
+                            selectedOrder.components?.find((c) => c.id === (out.order_component_id || out.component_id))?.component_name
+                            || out.component_name
+                            || "Garmen";
+                          const when = out.time_window || out.interval_start;
+                          const opName =
+                            checkins.find((c) => c.user_id === out.operator_user_id)?.user_name
+                            || out.operator?.name
+                            || out.operator_user_id.slice(0, 8);
+                          return (
                           <tr key={out.id}>
                             <td className="font-mono" style={{ fontSize: "0.8rem" }}>
-                              {new Date(out.interval_start).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                              {" - "}
-                              {new Date(out.interval_end).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                              {when ? new Date(when).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}
                             </td>
-                            <td style={{ fontWeight: 600 }}>{out.component_name || "Garmen"}</td>
+                            <td style={{ fontWeight: 700 }}>{opName}</td>
+                            <td style={{ fontWeight: 600 }}>{compName}</td>
                             <td className="font-mono" style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-primary)" }}>
                               {out.qty_completed} pcs
                             </td>
@@ -496,7 +861,8 @@ export default function ProduksiPage() {
                               )}
                             </td>
                           </tr>
-                        ))
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -522,7 +888,7 @@ export default function ProduksiPage() {
             e.preventDefault();
             try {
               await produksiApi.createOrder({
-                client_id: "00000000-0000-0000-0000-000000000000",
+                client_id: newOrderClientId,
                 order_number: newOrderNumber,
                 scheme: newOrderScheme,
                 target_quantity: Number(newOrderTarget),
@@ -536,6 +902,23 @@ export default function ProduksiPage() {
             }
           }}
         >
+          <div className="form-group">
+            <label className="form-label">Klien Pemilik Order</label>
+            <select
+              className="form-select"
+              value={newOrderClientId}
+              onChange={(e) => setNewOrderClientId(e.target.value)}
+              required
+            >
+              <option value="">Pilih klien</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name} ({c.client_code})
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="form-group">
             <label className="form-label">Nomor Order / PO</label>
             <input
@@ -579,6 +962,45 @@ export default function ProduksiPage() {
             </button>
             <button type="submit" className="btn btn-primary">
               Simpan Order
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Tambah Komponen + Rate */}
+      <Modal
+        isOpen={compModalOpen}
+        onClose={() => setCompModalOpen(false)}
+        title="🧩 Tambah Komponen + Rate Borongan"
+      >
+        <form onSubmit={handleAddComponent}>
+          <div className="form-group">
+            <label className="form-label">Nama Komponen</label>
+            <input
+              type="text"
+              className="form-input"
+              value={compName}
+              onChange={(e) => setCompName(e.target.value)}
+              placeholder="Contoh: Badan Depan, Lengan, Kerah"
+              required
+            />
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Rate Cutting (Rp/pcs)</label>
+              <input type="number" className="form-input" value={compCutting} onChange={(e) => setCompCutting(Number(e.target.value))} min={0} required />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Rate Jahit (Rp/pcs)</label>
+              <input type="number" className="form-input" value={compSewing} onChange={(e) => setCompSewing(Number(e.target.value))} min={0} required />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setCompModalOpen(false)}>
+              Batal
+            </button>
+            <button type="submit" className="btn btn-primary">
+              Simpan Komponen
             </button>
           </div>
         </form>

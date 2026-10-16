@@ -6,9 +6,10 @@ import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
 import { ClientProfileCard } from "../../components/ClientProfileCard";
-import { produksiApi, gudangApi, payrollApi } from "../../lib/api";
+import { produksiApi, gudangApi, payrollApi, sampleApi, qcApi, financeApi } from "../../lib/api";
 import type {
   BatchFinancial,
+  Order,
   OrderSummary,
   PayrollMonthlySummary,
   PayrollNotification,
@@ -30,7 +31,17 @@ type ClientProgress = {
   client_id: string;
   status: string;
   completion_pct: number;
+  pending: string;
 };
+
+function formatPending(createdAt: string): string {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  if (Number.isNaN(ms) || ms < 0) return "-";
+  const hours = Math.floor(ms / 3_600_000);
+  const days = Math.floor(hours / 24);
+  if (days <= 0) return `${hours % 24} jam`;
+  return `${days} hr ${hours % 24} jam`;
+}
 
 type SpeedBucket = { label: string; qty: number };
 
@@ -230,6 +241,10 @@ export default function DashboardPage() {
   const [financials, setFinancials] = useState<BatchFinancial[]>([]);
   const [monthlySummary, setMonthlySummary] = useState<PayrollMonthlySummary | null>(null);
   const [payrollNotifications, setPayrollNotifications] = useState<PayrollNotification[]>([]);
+  const [rolePanel, setRolePanel] = useState<{
+    cards: { label: string; value: string; meta?: string; tone?: "ok" | "warn" | "bad" | "info" }[];
+    rows: { title: string; detail: string }[];
+  } | null>(null);
   const [speedBuckets, setSpeedBuckets] = useState<SpeedBucket[]>([]);
   const [linesActive, setLinesActive] = useState(0);
   const [tailorsOnDuty, setTailorsOnDuty] = useState(0);
@@ -260,7 +275,9 @@ export default function DashboardPage() {
       const lines = new Set<number>();
       const tailors = new Set<string>();
       for (const o of todays) {
-        const ts = new Date(o.time_window || o.interval_start);
+        const raw = o.time_window || o.interval_start;
+        if (!raw) continue;
+        const ts = new Date(raw);
         if (Number.isNaN(ts.getTime())) continue;
         const slot = Math.floor((ts.getHours() * 60 + ts.getMinutes()) / 30);
         buckets.set(slot, (buckets.get(slot) || 0) + o.qty_completed);
@@ -306,6 +323,7 @@ export default function DashboardPage() {
               client_id: o.client_id,
               status: o.status,
               completion_pct: s.completion_pct ?? s.percentage_completed ?? 0,
+              pending: formatPending((o as { created_at?: string }).created_at || ""),
             });
           } catch {
             // Order tanpa output dilewati
@@ -335,6 +353,7 @@ export default function DashboardPage() {
         setPayrollNotifications([]);
         setWorkerDashboard(null);
         setWorkerPayroll([]);
+        setRolePanel(null);
 
         if (user?.role === "PENJAHIT") {
           const [workerData, payrollData] = await Promise.all([
@@ -397,6 +416,103 @@ export default function DashboardPage() {
           await loadRealtimeOps(orders);
         } else if (user?.role === "FINANCE_PAYROLL") {
           setFinancials(await payrollApi.getBatchFinancials());
+          const [invoices, pos, runs] = await Promise.all([
+            financeApi.getInvoices().catch(() => []),
+            financeApi.getPOs().catch(() => []),
+            payrollApi.getRuns().catch(() => []),
+          ]);
+          const openInv = invoices.filter((i) => i.status === "BELUM_BAYAR" || i.status === "SEBAGIAN");
+          const unpaid = openInv.reduce((s, i) => s + (Number(i.amount_total) - Number(i.amount_paid)), 0);
+          const draftPO = pos.filter((p) => p.status === "DRAFT" || p.status === "TERKONFIRMASI");
+          const openRuns = runs.filter((r) => !r.is_locked);
+          setRolePanel({
+            cards: [
+              { label: "Piutang terbuka", value: `${openInv.length} invoice`, meta: `Rp ${unpaid.toLocaleString("id-ID")} belum dibayar`, tone: openInv.length ? "warn" : "ok" },
+              { label: "PO menunggu", value: `${draftPO.length} PO`, meta: "DRAFT / TERKONFIRMASI", tone: draftPO.length ? "warn" : "ok" },
+              { label: "Siklus gaji terbuka", value: `${openRuns.length} run`, meta: "belum dikunci audit", tone: "info" },
+            ],
+            rows: openInv.slice(0, 5).map((i) => ({ title: i.invoice_number, detail: `${i.status} — sisa Rp ${(Number(i.amount_total) - Number(i.amount_paid)).toLocaleString("id-ID")}` })),
+          });
+        } else if (user?.role === "TIM_SAMPLE") {
+          const [samples, escalations] = await Promise.all([
+            sampleApi.getSamples().catch(() => []),
+            qcApi.getEscalations().catch(() => []),
+          ]);
+          const versions = samples.flatMap((s) => s.versions || []);
+          const pendingOwner = versions.filter((v) => v.status === "APPROVED").length;
+          setRolePanel({
+            cards: [
+              { label: "Katalog sample", value: `${samples.length} artikel`, meta: `${versions.length} versi`, tone: "info" },
+              { label: "Menunggu Owner", value: `${pendingOwner} versi`, meta: "APPROVED → approve harga", tone: pendingOwner ? "warn" : "ok" },
+              { label: "Eskalasi QC", value: `${escalations.length} laporan`, meta: "3x repair dari produksi", tone: escalations.length ? "bad" : "ok" },
+            ],
+            rows: samples.slice(0, 5).map((s) => ({
+              title: s.sample_code,
+              detail: `${(s.versions || []).length} versi — ${s.versions?.[s.versions.length - 1]?.status || "-"}`,
+            })),
+          });
+        } else if (user?.role === "GUDANG") {
+          const [items, reqs, hos, pos] = await Promise.all([
+            gudangApi.getItems().catch(() => []),
+            gudangApi.getRequests().catch(() => []),
+            gudangApi.getHandovers().catch(() => []),
+            financeApi.getPOs().catch(() => []),
+          ]);
+          const empty = items.filter((it) => (it.current_stock || 0) <= 0).length;
+          const pendingReq = reqs.filter((r) => r.status === "DIAJUKAN").length;
+          const pendingHo = hos.filter((h) => !h.received_at).length;
+          const draftPO = pos.filter((p) => p.status === "DRAFT").length;
+          setRolePanel({
+            cards: [
+              { label: "Stok tercatat", value: `${items.length} material`, meta: `${empty} stok habis`, tone: empty ? "bad" : "ok" },
+              { label: "Pengajuan pending", value: `${pendingReq} request`, meta: "menunggu verifikasi", tone: pendingReq ? "warn" : "ok" },
+              { label: "Serah terima jalan", value: `${pendingHo} handover`, meta: "menunggu mandor", tone: "info" },
+              { label: "PO perlu konfirmasi", value: `${draftPO} PO`, meta: "DRAFT dari sample", tone: draftPO ? "warn" : "ok" },
+            ],
+            rows: reqs.filter((r) => r.status === "DIAJUKAN").slice(0, 5).map((r) => ({
+              title: `Order ${r.order_id.slice(0, 8)}…`,
+              detail: `minta ${r.qty_requested} — terpenuhi ${r.qty_fulfilled}`,
+            })),
+          });
+        } else if (user?.role === "QC_INSPECTOR") {
+          const [orders, escalations] = await Promise.all([
+            produksiApi.getOrders().catch(() => []),
+            qcApi.getEscalations().catch(() => []),
+          ]);
+          const waiting = orders.filter((o) => o.status === "MENUNGGU_QC" || o.status === "QC");
+          let passPcs = 0;
+          await Promise.all(
+            waiting.slice(0, 10).map(async (o) => {
+              try {
+                const s = await qcApi.getOrderSummary(o.id);
+                passPcs += s.total_lolos;
+              } catch {
+                // abaikan
+              }
+            })
+          );
+          setRolePanel({
+            cards: [
+              { label: "Antrean QC", value: `${waiting.length} order`, meta: "MENUNGGU_QC / QC", tone: waiting.length ? "warn" : "ok" },
+              { label: "Lolos (≤10 order)", value: `${passPcs} pcs`, meta: "akumulasi ringkasan", tone: "ok" },
+              { label: "Eskalasi sample", value: `${escalations.length} laporan`, meta: "3x repair", tone: escalations.length ? "bad" : "ok" },
+            ],
+            rows: waiting.slice(0, 5).map((o) => ({ title: o.order_number, detail: o.status })),
+          });
+        } else if (user?.role === "KLIEN_MAKLON") {
+          const [myOrders, myItems] = await Promise.all([
+            produksiApi.getOrders().catch(() => []),
+            gudangApi.getItems().catch(() => []),
+          ]);
+          const tag = (st: string) =>
+            st === "COMPLETED" ? "Delivering" : st === "SEWING" || st === "MENUNGGU_QC" || st === "QC" ? "Production" : "Pending";
+          setRolePanel({
+            cards: [
+              { label: "Pesanan saya", value: `${myOrders.length} order`, meta: "semua status", tone: "info" },
+              { label: "Stok titipan", value: `${myItems.length} material`, meta: "di gudang", tone: "info" },
+            ],
+            rows: myOrders.slice(0, 6).map((o) => ({ title: o.order_number, detail: `${tag(o.status)} — target ${o.target_quantity} pcs` })),
+          });
         }
 
         if (
@@ -621,6 +737,7 @@ export default function DashboardPage() {
                     <th>Order</th>
                     <th>Klien</th>
                     <th>Status</th>
+                    <th>Terpending</th>
                     <th>Progres</th>
                   </tr>
                 </thead>
@@ -630,6 +747,7 @@ export default function DashboardPage() {
                       <td className="font-mono" style={{ fontWeight: 700 }}>{p.order_number}</td>
                       <td><span className="badge badge-purple font-mono" style={{ fontSize: "0.72rem" }}>{p.client_id.slice(0, 8)}...</span></td>
                       <td><span className="badge badge-info">{p.status}</span></td>
+                      <td className="font-mono" style={{ fontSize: "0.78rem", color: "var(--color-warning)", fontWeight: 700 }}>⏳ {p.pending}</td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ flex: 1, height: 8, borderRadius: "var(--radius-full)", background: "var(--bg-secondary)", overflow: "hidden" }}>
@@ -647,6 +765,46 @@ export default function DashboardPage() {
             <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
               {loading ? "Memuat progres..." : "Tidak ada order aktif."}
             </p>
+          )}
+        </section>
+      )}
+
+      {rolePanel && (
+        <section className="card-elevated" style={{ marginBottom: 24 }}>
+          <h2 style={{ margin: "0 0 16px", fontSize: "1.15rem" }}>Ringkasan Kerja Anda</h2>
+          <div className="stats-grid" style={{ marginBottom: rolePanel.rows.length ? 20 : 0 }}>
+            {rolePanel.cards.map((c) => (
+              <div className="stat-card" key={c.label}>
+                <div className="stat-label">{c.label}</div>
+                <div
+                  className="stat-value"
+                  style={{
+                    color:
+                      c.tone === "ok" ? "var(--color-success)"
+                      : c.tone === "warn" ? "var(--color-warning)"
+                      : c.tone === "bad" ? "var(--color-danger)"
+                      : undefined,
+                  }}
+                >
+                  {c.value}
+                </div>
+                {c.meta && <div className="stat-meta">{c.meta}</div>}
+              </div>
+            ))}
+          </div>
+          {rolePanel.rows.length > 0 && (
+            <div className="table-wrap">
+              <table className="table">
+                <tbody>
+                  {rolePanel.rows.map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 700 }}>{r.title}</td>
+                      <td style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{r.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}

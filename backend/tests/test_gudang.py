@@ -84,6 +84,7 @@ def test_add_inventory_item_with_tag_client(http_client, gudang_auth_headers, se
         "material_name": "Cotton Combed 30s Navy",
         "initial_stock": 500.0,
         "unit_measure": "METER",
+        "order_id": str(data["order_a_id"])
     }
     res = http_client.post(
         "/api/v1/gudang/items",
@@ -108,6 +109,7 @@ def test_receive_material_in(http_client, gudang_auth_headers, setup_clients_and
             "material_name": "Benang Jahit Poliester",
             "initial_stock": 10.0,
             "unit_measure": "CONE",
+            "order_id": str(data["order_a_id"]),
         },
         headers=gudang_auth_headers,
     )
@@ -152,6 +154,7 @@ def test_skenario_1_cross_contamination_blocked(http_client, gudang_auth_headers
             "material_name": "Katun Rayon Klien A",
             "initial_stock": 200.0,
             "unit_measure": "METER",
+            "order_id": str(data["order_a_id"]),
         },
         headers=gudang_auth_headers,
     )
@@ -197,6 +200,7 @@ def test_issue_material_success_when_matching(http_client, gudang_auth_headers, 
             "material_name": "Kain Drill Klien A",
             "initial_stock": 100.0,
             "unit_measure": "METER",
+            "order_id": str(data["order_a_id"]),
         },
         headers=gudang_auth_headers,
     )
@@ -235,6 +239,7 @@ def test_insufficient_stock_rejected(http_client, gudang_auth_headers, setup_cli
             "material_name": "Sisa Kain",
             "initial_stock": 5.0,
             "unit_measure": "METER",
+            "order_id": str(data["order_a_id"]),
         },
         headers=gudang_auth_headers,
     )

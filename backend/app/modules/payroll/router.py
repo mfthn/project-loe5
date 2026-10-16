@@ -21,6 +21,9 @@ from app.modules.payroll.errors import (
 )
 from app.modules.payroll.schemas import (
     BatchFinancialCreate,
+    OverheadExpenseCreate,
+    OverheadExpenseResponse,
+    PayrollAdjustment,
     BatchFinancialResponse,
     PayrollFinanceReview,
     PayrollMonthlySummaryResponse,
@@ -28,18 +31,22 @@ from app.modules.payroll.schemas import (
     PayrollPaymentResponse,
     PayrollPreviewResponse,
     PayrollRunCreate,
+    PayrollDetailResponse,
     PayrollRunDetailResponse,
     PayrollRunResponse,
     WorkerPayrollSummaryResponse,
 )
 from app.modules.payroll.service import (
     calculate_and_save_batch_financial,
+    create_overhead_expense,
     create_payroll_run,
     get_batch_financial,
     get_monthly_summary,
     get_payroll_run,
     list_batch_financials,
     list_payroll_notifications,
+    delete_overhead_expense,
+    list_overhead_expenses,
     list_payroll_runs,
     list_worker_payroll_summaries,
     mark_payroll_detail_paid,
@@ -291,3 +298,77 @@ def get_batch_financial_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return BatchFinancialResponse.model_validate(fin)
+
+
+@router.patch(
+    "/runs/{run_id}/details/{detail_id}/adjustment",
+    response_model=PayrollDetailResponse,
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
+)
+def adjust_payroll_detail_entry(
+    run_id: uuid.UUID,
+    detail_id: uuid.UUID,
+    payload: PayrollAdjustment,
+    db: Session = Depends(get_db),
+) -> PayrollDetailResponse:
+    """Koreksi manual angka gaji per slip (Finance, run terbuka; tercatat di audit)."""
+    try:
+        from app.modules.payroll.service import adjust_payroll_detail as _adjust
+
+        detail = _adjust(db, run_id, detail_id, payload.manual_adjustment)
+    except (PayrollRunNotFoundError, PayrollDetailNotFoundError, PayrollRunLockedError) as e:
+        raise _handle_error(e) from e
+    return PayrollDetailResponse.model_validate(detail)
+
+
+@router.get(
+    "/overhead",
+    response_model=list[OverheadExpenseResponse],
+    dependencies=[Depends(require_roles(_VIEW_ROLES))],
+)
+def get_overhead_expenses(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+) -> list[OverheadExpenseResponse]:
+    """Daftar tagihan overhead bulanan (sumber overhead FR-10.4)."""
+    return [OverheadExpenseResponse.model_validate(e) for e in list_overhead_expenses(db, year, month)]
+
+
+@router.post(
+    "/overhead",
+    response_model=OverheadExpenseResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
+)
+def create_overhead_expense_entry(
+    payload: OverheadExpenseCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OverheadExpenseResponse:
+    """Finance mencatat tagihan listrik/air/internet bulanan."""
+    try:
+        exp = create_overhead_expense(
+            db, payload.year, payload.month, payload.category, payload.amount,
+            recorder_id=current_user.id, notes=payload.notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return OverheadExpenseResponse.model_validate(exp)
+
+
+@router.delete(
+    "/overhead/{expense_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(_FINANCE_ROLES))],
+)
+def delete_overhead_expense_entry(
+    expense_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> None:
+    """Hapus tagihan salah input."""
+    try:
+        delete_overhead_expense(db, expense_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return None

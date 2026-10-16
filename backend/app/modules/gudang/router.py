@@ -78,7 +78,7 @@ def get_inventory_items(
     "/items",
     response_model=InventoryItemResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG]))],
 )
 def add_inventory_item(
     payload: InventoryItemCreate,
@@ -93,7 +93,7 @@ def add_inventory_item(
 @router.post(
     "/receive",
     response_model=InventoryTransactionResponse,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG]))],
 )
 def receive_material_entry(
     payload: MaterialReceiptRequest,
@@ -119,7 +119,7 @@ def receive_material_entry(
 @router.post(
     "/issue",
     response_model=InventoryTransactionResponse,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.OWNER, UserRole.MANDOR]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.MANDOR]))],
 )
 def issue_material_exit(
     payload: MaterialIssueRequest,
@@ -148,7 +148,7 @@ def issue_material_exit(
 @router.post(
     "/adjust",
     response_model=InventoryTransactionResponse,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG]))],
 )
 def adjust_stock_opname(
     payload: StockAdjustRequest,
@@ -203,7 +203,7 @@ def _resolve_client_filter(
 @router.patch(
     "/items/{item_id}/location",
     response_model=InventoryItemResponse,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG]))],
 )
 def set_storage_location(
     item_id: uuid.UUID,
@@ -222,7 +222,7 @@ def set_storage_location(
     "/requests",
     response_model=MaterialRequestResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles([UserRole.MANDOR, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.MANDOR]))],
 )
 def create_request(
     payload: MaterialRequestCreate,
@@ -284,7 +284,7 @@ def review_request(
     "/handovers",
     response_model=HandoverResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG]))],
 )
 def create_handover_entry(
     payload: HandoverCreate,
@@ -341,7 +341,7 @@ def receive_handover(
     "/cutting",
     response_model=CuttingResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.MANDOR, UserRole.OWNER]))],
+    dependencies=[Depends(require_roles([UserRole.GUDANG, UserRole.MANDOR]))],
 )
 def record_cutting(
     payload: CuttingCreate,

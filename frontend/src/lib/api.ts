@@ -4,6 +4,7 @@ import type {
   BatchFinancialCreate,
   BonusPoolPreview,
   Client,
+  ClientProfile,
   CuttingResult,
   DualAskRequest,
   DualAskResponse,
@@ -21,6 +22,7 @@ import type {
   PayrollMonthlySummary,
   PayrollNotification,
   PayrollPayment,
+  PayrollDetail,
   PayrollPreview,
   PayrollRun,
   ProductionOutput,
@@ -33,6 +35,7 @@ import type {
   SampleVersion,
   TokenResponse,
   User,
+  UserRole,
   WorkerPayrollSummary,
   WorkerDashboardSummary,
 } from "../types/api";
@@ -157,6 +160,37 @@ export const authApi = {
       body: JSON.stringify(data),
     });
   },
+  getClients: async (): Promise<ClientProfile[]> => {
+    return apiFetch<ClientProfile[]>("/auth/clients");
+  },
+  getUsers: async (): Promise<User[]> => {
+    return apiFetch<User[]>("/auth/users");
+  },
+  createUser: async (data: {
+    username: string;
+    password: string;
+    name: string;
+    email?: string;
+    role: UserRole;
+    client_id?: string | null;
+  }): Promise<User> => {
+    return apiFetch<User>("/auth/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateUser: async (
+    userId: string,
+    data: { name?: string; email?: string; role?: UserRole; client_id?: string | null; is_active?: boolean },
+  ): Promise<User> => {
+    return apiFetch<User>(`/auth/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteUser: async (userId: string): Promise<void> => {
+    await apiFetch(`/auth/users/${userId}`, { method: "DELETE" });
+  },
 };
 
 // ================= Gudang API =================
@@ -170,6 +204,7 @@ export const gudangApi = {
     material_name: string;
     unit_measure: string;
     initial_stock?: number;
+    order_id: string;
   }): Promise<InventoryItem> => {
     return apiFetch<InventoryItem>("/gudang/items", {
       method: "POST",
@@ -202,12 +237,12 @@ export const gudangApi = {
   getTransactions: async (params?: {
     inventory_item_id?: string;
     client_id?: string;
-    limit?: number;
+    order_id?: string;
   }): Promise<InventoryTransaction[]> => {
     const query = new URLSearchParams();
-    if (params?.inventory_item_id) query.set("inventory_item_id", params.inventory_item_id);
+    if (params?.inventory_item_id) query.set("item_id", params.inventory_item_id);
     if (params?.client_id) query.set("client_id", params.client_id);
-    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.order_id) query.set("order_id", params.order_id);
     const qs = query.toString() ? `?${query.toString()}` : "";
     return apiFetch<InventoryTransaction[]>(`/gudang/transactions${qs}`);
   },
@@ -296,25 +331,65 @@ export const sampleApi = {
   },
   createSample: async (data: {
     client_id: string;
-    sample_code: string;
-    item_name: string;
-    notes?: string;
+    sample_code?: string;
+    article_name: string;
+    category: string;
+    tech_pack_notes?: string;
   }): Promise<Sample> => {
     return apiFetch<Sample>("/sample/", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
-  createVersion: async (sampleId: string, notes?: string): Promise<SampleVersion> => {
-    return apiFetch<SampleVersion>(`/sample/${sampleId}/versions`, {
+  createVersion: async (
+    sampleId: string,
+    data: { tech_pack_notes?: string; order_id?: string },
+  ): Promise<SampleVersion> => {
+    return apiFetch<SampleVersion>(`/sample/${sampleId}/revisi`, {
       method: "POST",
-      body: JSON.stringify({ notes }),
+      body: JSON.stringify(data),
     });
   },
   approveVersion: async (versionId: string): Promise<SampleVersion> => {
     return apiFetch<SampleVersion>(`/sample/versions/${versionId}/approve`, {
       method: "POST",
     });
+  },
+  getVersionDetail: async (versionId: string): Promise<SampleVersion> => {
+    return apiFetch<SampleVersion>(`/sample/versions/${versionId}`);
+  },
+  uploadDesignImage: async (versionId: string, file: File): Promise<SampleVersion> => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("loe_token") : null;
+    const form = new FormData();
+    form.append("file", file);
+    const tryFetch = async (base: string) => {
+      const res = await fetch(`${base}/sample/versions/${versionId}/design-image`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        let msg = `Gagal mengunggah (${res.status}).`;
+        try {
+          const j = await res.json();
+          if (typeof j?.detail === "string") msg = j.detail;
+        } catch {
+          // abaikan
+        }
+        throw new ApiError(res.status, msg);
+      }
+      return (await res.json()) as SampleVersion;
+    };
+    try {
+      return await tryFetch(API_BASE_URL);
+    } catch (e) {
+      const fallback = API_BASE_URL.includes("localhost")
+        ? API_BASE_URL.replace("localhost", "127.0.0.1")
+        : API_BASE_URL.replace("127.0.0.1", "localhost");
+      if (fallback === API_BASE_URL) throw e;
+      return tryFetch(fallback);
+    }
   },
   approveOwner: async (
     versionId: string,
@@ -333,19 +408,28 @@ export const sampleApi = {
   },
   addComponent: async (
     versionId: string,
-    data: { component_name: string; fabric_consumption?: number },
+    data: { component_name: string; material_usage_est?: number; time_study_seconds?: number },
   ): Promise<GarmentComponent> => {
     return apiFetch<GarmentComponent>(`/sample/versions/${versionId}/components`, {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
+  updateComponent: async (
+    componentId: string,
+    data: { component_name: string; material_usage_est?: number; time_study_seconds?: number },
+  ): Promise<GarmentComponent> => {
+    return apiFetch<GarmentComponent>(`/sample/components/${componentId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
   recordTimeStudy: async (
     componentId: string,
-    data: { duration_seconds: number; notes?: string },
-  ): Promise<any> => {
-    return apiFetch(`/sample/components/${componentId}/time-study`, {
-      method: "POST",
+    data: { component_name: string; material_usage_est?: number; time_study_seconds: number },
+  ): Promise<GarmentComponent> => {
+    return apiFetch<GarmentComponent>(`/sample/components/${componentId}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
@@ -390,11 +474,23 @@ export const produksiApi = {
       body: JSON.stringify({ qty_assembled, notes }),
     });
   },
+  proposeSellingPrice: async (orderId: string, selling_price: number): Promise<Order> => {
+    return apiFetch<Order>(`/produksi/orders/${orderId}/selling-price`, {
+      method: "POST",
+      body: JSON.stringify({ selling_price }),
+    });
+  },
+  reviewSellingPrice: async (orderId: string, approve: boolean): Promise<Order> => {
+    return apiFetch<Order>(`/produksi/orders/${orderId}/selling-price/review`, {
+      method: "POST",
+      body: JSON.stringify({ approve }),
+    });
+  },
   addComponent: async (
     orderId: string,
-    data: { component_name: string; quantity_target: number },
-  ): Promise<OrderComponent> => {
-    return apiFetch<OrderComponent>(`/produksi/orders/${orderId}/components`, {
+    data: { component_name: string; cutting_rate_per_pcs: number; sewing_rate_per_pcs: number },
+  ): Promise<Order> => {
+    return apiFetch<Order>(`/produksi/orders/${orderId}/components`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -419,6 +515,7 @@ export const produksiApi = {
     order_id: string;
     order_component_id?: string;
     component_id?: string;
+    operator_user_id?: string;
     line_number?: number;
     interval_start?: string;
     interval_end?: string;
@@ -428,6 +525,7 @@ export const produksiApi = {
     const payload = {
       order_id: data.order_id,
       order_component_id: data.order_component_id || data.component_id,
+      operator_user_id: data.operator_user_id,
       line_number: data.line_number || 1,
       qty_completed: data.qty_completed,
       time_window: data.time_window || data.interval_start || new Date().toISOString(),
@@ -449,6 +547,26 @@ export const produksiApi = {
     { user_id: string; name: string; total_qty: number; verified_qty: number }[]
   > => {
     return apiFetch(`/produksi/leaderboard?limit=${limit}`);
+  },
+  getWorkers: async (): Promise<{ id: string; name: string; username: string }[]> => {
+    return apiFetch("/produksi/workers");
+  },
+  getCheckins: async (onlyOpen = true): Promise<{
+    id: string; user_id: string; user_name: string | null; order_id: string | null;
+    line_number: number; task_category: string | null; checkin_at: string; checkout_at: string | null;
+  }[]> => {
+    return apiFetch(`/produksi/checkins?only_open=${onlyOpen}`);
+  },
+  checkinWorker: async (data: {
+    user_id: string; order_id?: string | null; line_number?: number; task_category?: string; notes?: string;
+  }): Promise<unknown> => {
+    return apiFetch("/produksi/checkins", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  checkoutWorker: async (checkinId: string): Promise<unknown> => {
+    return apiFetch(`/produksi/checkins/${checkinId}/checkout`, { method: "POST" });
   },
 };
 
@@ -479,22 +597,20 @@ export const qcApi = {
     });
   },
   getInspections: async (orderId: string): Promise<QCInspection[]> => {
-    return apiFetch<QCInspection[]>(`/qc/orders/${orderId}/inspections`);
+    return apiFetch<QCInspection[]>(`/qc/inspections?order_id=${orderId}`);
   },
   getOrderSummary: async (orderId: string): Promise<QCBatchSummary> => {
-    return apiFetch<QCBatchSummary>(`/qc/orders/${orderId}/summary`);
+    return apiFetch<QCBatchSummary>(`/qc/summary/${orderId}`);
   },
   getBonusPoolPreview: async (params?: {
-    start_date?: string;
-    end_date?: string;
+    order_id?: string;
     rate_per_pcs?: number;
   }): Promise<BonusPoolPreview> => {
     const query = new URLSearchParams();
-    if (params?.start_date) query.set("start_date", params.start_date);
-    if (params?.end_date) query.set("end_date", params.end_date);
-    if (params?.rate_per_pcs) query.set("rate_per_pcs", String(params.rate_per_pcs));
+    if (params?.order_id) query.set("order_id", params.order_id);
+    if (params?.rate_per_pcs) query.set("bonus_rate_per_pcs", String(params.rate_per_pcs));
     const qs = query.toString() ? `?${query.toString()}` : "";
-    return apiFetch<BonusPoolPreview>(`/qc/bonus-pool/preview${qs}`);
+    return apiFetch<BonusPoolPreview>(`/qc/bonus-preview${qs}`);
   },
   getEscalations: async (): Promise<QCInspection[]> => {
     return apiFetch<QCInspection[]>("/qc/escalations");
@@ -546,6 +662,12 @@ export const payrollApi = {
       { method: "POST" },
     );
   },
+  adjustDetail: async (runId: string, detailId: string, manual_adjustment: number): Promise<PayrollDetail> => {
+    return apiFetch<PayrollDetail>(`/payroll/runs/${runId}/details/${detailId}/adjustment`, {
+      method: "PATCH",
+      body: JSON.stringify({ manual_adjustment }),
+    });
+  },
   getMySummary: async (): Promise<WorkerPayrollSummary[]> => {
     return apiFetch<WorkerPayrollSummary[]>("/payroll/my-summary");
   },
@@ -593,6 +715,33 @@ export const financeApi = {
       body: JSON.stringify({ approve, notes }),
     });
   },
+  confirmPO: async (poId: string): Promise<PurchaseOrder> => {
+    return apiFetch<PurchaseOrder>(`/finance/pos/${poId}/confirm`, {
+      method: "POST",
+    });
+  },
+  updatePO: async (poId: string, data: { supplier_name?: string; line_prices?: Record<string, number> }): Promise<PurchaseOrder> => {
+    return apiFetch<PurchaseOrder>(`/finance/pos/${poId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+  payPO: async (poId: string, data: { amount: number; notes?: string }): Promise<{
+    po_id: string; po_number: string; total_amount: number; total_paid: number; remaining: number; lunas: boolean;
+  }> => {
+    return apiFetch(`/finance/pos/${poId}/payments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  getNeeds: async (): Promise<{
+    request_id: string; order_id: string; order_number: string; order_status: string;
+    inventory_item_id: string; material_code: string; material_name: string;
+    qty_requested: number; qty_fulfilled: number; current_stock: number;
+    request_status: string; need_status: string;
+  }[]> => {
+    return apiFetch("/finance/needs");
+  },
   getInvoices: async (): Promise<Invoice[]> => {
     return apiFetch<Invoice[]>("/finance/invoices");
   },
@@ -623,8 +772,7 @@ export const financeApi = {
   },
   getRealizedHpp: async (orderId: string): Promise<HPPRealized> => {
     return apiFetch<HPPRealized>(`/finance/hpp/${orderId}`);
-  },
-  applyHpp: async (
+  },  applyHpp: async (
     orderId: string,
     data: { contract_revenue?: number; overhead_cost?: number },
   ): Promise<BatchFinancial> => {
@@ -632,6 +780,23 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+  getOverhead: async (year: number, month: number): Promise<{
+    id: string; year: number; month: number; category: string;
+    amount: number | string; notes: string | null; created_at: string;
+  }[]> => {
+    return apiFetch(`/payroll/overhead?year=${year}&month=${month}`);
+  },
+  addOverhead: async (data: {
+    year: number; month: number; category: string; amount: number; notes?: string;
+  }): Promise<unknown> => {
+    return apiFetch("/payroll/overhead", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteOverhead: async (expenseId: string): Promise<void> => {
+    await apiFetch(`/payroll/overhead/${expenseId}`, { method: "DELETE" });
   },
 };
 // ================= AI Assistant API =================
@@ -667,8 +832,20 @@ export const aiApi = {
   },
 };
 
-export async function fetchAiStatus(): Promise<{ httpStatus: number; ok: boolean }> {
-  try {
+/** Pesan error AI yang dibedakan: dokumen hilang vs model/offline vs auth. */
+export function friendlyAiError(raw?: string): string {
+  const msg = (raw || "").toLowerCase();
+  if (!msg) return "Layanan AI tidak menjawab. Coba lagi beberapa saat.";
+  if (msg.includes("tidak ada dokumen") || msg.includes("s3_bucket") || msg.includes("sop"))
+    return "Dokumen SOP belum tersedia di server. Minta admin mengunggah dokumen lalu sinkron ulang.";
+  if (msg.includes("embedding") || msg.includes("model") || msg.includes("llm") || msg.includes("bedrock"))
+    return "Model AI sedang gangguan. Coba lagi; bila berlanjut hubungi tim IT.";
+  if (msg.includes("401") || msg.includes("403") || msg.includes("login") || msg.includes("akses ditolak"))
+    return "Sesi berakhir atau akses ditolak. Silakan login ulang.";
+  return raw || "Layanan AI tidak menjawab. Coba lagi beberapa saat.";
+}
+
+export async function fetchAiStatus(): Promise<{ httpStatus: number; ok: boolean }> {  try {
     const res = await fetch(`${API_BASE_URL}/ai/status`, { cache: "no-store" });
     return { httpStatus: res.status, ok: res.ok };
   } catch {

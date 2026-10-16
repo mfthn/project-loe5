@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "../../components/AppLayout";
 import { Notice } from "../../components/Notice";
-import { aiApi } from "../../lib/api";
+import { aiApi, friendlyAiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { KontakPemesananCard } from "../../components/KontakPemesananCard";
 import type { DualAskResponse, SourceDocument } from "../../types/api";
@@ -107,7 +107,7 @@ export default function AiAssistantPage() {
     } catch (err: any) {
       setNotice({
         type: "danger",
-        message: err.message || "Gagal menghubungi AI Bedrock RAG. Periksa status layanan.",
+        message: friendlyAiError(err.message),
       });
     } finally {
       setLoading(false);

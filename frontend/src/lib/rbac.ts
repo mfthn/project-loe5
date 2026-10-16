@@ -11,7 +11,8 @@ export type AppModule =
   | "portal-klien"
   | "ai-assistant"
   | "konsultasi"
-  | "analisis";
+  | "analisis"
+  | "pengguna";
 
 // Matriks RBAC resmi sesuai dokumen SRS v2.0 & dokumen SOP autentikasi
 // PENJAHIT butuh produksi (terminal 30 mnt) + rekap-gaji (slip sendiri).
@@ -25,7 +26,9 @@ export const ROLE_MODULES: Record<UserRole, AppModule[]> = {
     "qc",
     "payroll",
     "portal-klien",
+    "ai-assistant",
     "analisis",
+    "pengguna",
   ],
   TIM_SAMPLE: ["dashboard", "sample"],
   GUDANG: ["dashboard", "gudang"],
@@ -126,6 +129,13 @@ export const MODULE_REGISTRY: Record<AppModule, ModuleMetadata> = {
     icon: "📊",
     badge: "Bedrock RAG",
     description: "Chatbot analisis owner: kapasitas produksi, tren QC, payroll, dan prioritas order.",
+  },
+  pengguna: {
+    id: "pengguna",
+    label: "Kelola Akun Pekerja",
+    href: "/pengguna",
+    icon: "👥",
+    description: "Buat, edit, nonaktifkan, dan hapus akun pekerja beserta otorisasi perannya.",
   },
 };
 

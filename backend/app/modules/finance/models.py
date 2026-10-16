@@ -13,6 +13,7 @@ from app.core.database import Base
 
 class POStatus(str, enum.Enum):
     DRAFT = "DRAFT"
+    TERKONFIRMASI = "TERKONFIRMASI"
     DISETUJUI = "DISETUJUI"
     DITOLAK = "DITOLAK"
     DITERIMA_SEBAGIAN = "DITERIMA_SEBAGIAN"
@@ -165,3 +166,24 @@ class InvoicePayment(Base):
     )
 
     invoice: Mapped[Invoice] = relationship("Invoice", back_populates="payments")
+
+
+class POPayment(Base):
+    """Pembayaran ke supplier per PO (dilunasi bertahap oleh Finance)."""
+    __tablename__ = "po_payments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    po_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("purchase_orders.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    recorded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    paid_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

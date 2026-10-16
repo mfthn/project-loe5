@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { MarkdownText } from "../MarkdownText";
-import { aiApi } from "../../lib/api";
+import { aiApi, friendlyAiError } from "../../lib/api";
 import type { DualAskResponse, SourceDocument } from "../../types/api";
 
 interface ChatMessage {
@@ -72,13 +72,13 @@ export function ChatWidget() {
       };
 
       setMessages((prev) => [...prev, aiMsg]);
-    } catch {
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
           id: String(Date.now() + 1),
           sender: "ai",
-          text: "Maaf, sistem asisten AI sedang sibuk atau offline. Anda dapat langsung berkonsultasi dengan tim pemesanan kami via WhatsApp.",
+          text: `${friendlyAiError(err?.message)} Anda dapat langsung berkonsultasi dengan tim pemesanan kami via WhatsApp.`,
           timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
           whatsapp_handoff_url: "https://wa.me/6281234567890?text=Halo%20Tim%20Pemesanan%20Lukla,%20saya%20ingin%20konsultasi%20produksi.",
         },

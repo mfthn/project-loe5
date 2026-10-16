@@ -4,7 +4,7 @@ Endpoint tersedia di /api/v1/sample.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -30,6 +30,7 @@ from app.modules.sample.schemas import (
 )
 from app.modules.sample.service import (
     add_component,
+    presigned_design_url,
     approve_owner,
     approve_version,
     create_revision,
@@ -40,6 +41,7 @@ from app.modules.sample.service import (
     list_samples,
     reject_owner,
     update_component,
+    upload_design_image,
 )
 
 router = APIRouter(prefix="/sample", tags=["sample"])
@@ -216,6 +218,33 @@ def reject_sample_owner(
     return SampleVersionResponse.model_validate(version)
 
 
+@router.post(
+    "/versions/{version_id}/design-image",
+    response_model=SampleVersionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(_SAMPLE_ROLES))],
+)
+async def upload_version_design_image(
+    version_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> SampleVersionResponse:
+    """Upload gambar design untuk versi sample (JPG/PNG/WebP ≤5MB, versi terkunci ditolak)."""
+    try:
+        content = await file.read()
+        version = upload_design_image(
+            db, version_id,
+            filename=file.filename or "design",
+            content_type=file.content_type or "",
+            data=content,
+        )
+    except (SampleVersionNotFoundError, SampleAlreadyApprovedError, ValueError) as e:
+        raise _handle_sample_error(e) from e
+    resp = SampleVersionResponse.model_validate(version)
+    resp.design_image_url = presigned_design_url(version.design_image_key)
+    return resp
+
+
 @router.get("/versions/{version_id}", response_model=SampleVersionDetailResponse)
 def get_version_detail(
     version_id: uuid.UUID,
@@ -232,11 +261,12 @@ def get_version_detail(
     total_time = sum(c.time_study_seconds for c in components)
     total_material = sum(c.material_usage_est for c in components)
 
-    return SampleVersionDetailResponse(
+    detail = SampleVersionDetailResponse(
         id=version.id,
         sample_id=version.sample_id,
         version_number=version.version_number,
         status=version.status,
+        order_id=version.order_id,
         tech_pack_notes=version.tech_pack_notes,
         agreed_price=version.agreed_price,
         currency=version.currency,
@@ -250,6 +280,8 @@ def get_version_detail(
         total_time_seconds=total_time,
         total_material_est=total_material,
     )
+    detail.design_image_url = presigned_design_url(version.design_image_key)
+    return detail
 
 
 # ---------------------------------------------------------------------------
