@@ -113,13 +113,28 @@ def _strip_markdown(text: str) -> str:
     return text
 
 
-async def _reply_chunks(message, text: str) -> None:
-    """Kirim per potongan; coba HTML dulu, jatuh ke teks polos bila ditolak."""
+async def _reply_with_thinking(message, coro_factory) -> None:
+    """Kirim pesan 'sedang diproses' dulu agar user tahu bot hidup (LLM ~50 dtk),
+    lalu sunting menjadi jawaban final saat backend selesai."""
     from telegram.error import BadRequest
 
-    for part in _split(text):
+    thinking = await message.reply_text("⏳ Sebentar, saya carikan rujukan SOP-nya...")
+    try:
+        answer = await coro_factory()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("gagal meminta jawaban backend: %s", exc)
+        answer = "Maaf, terjadi gangguan saat menghubungi AI. Coba kirim ulang."
+    for i, part in enumerate(_split(answer)):
         try:
-            await message.reply_text(_to_telegram_html(part), parse_mode="HTML")
+            html_text = _to_telegram_html(part)
+            if i == 0:
+                try:
+                    await thinking.edit_text(html_text, parse_mode="HTML")
+                    continue
+                except BadRequest:
+                    await thinking.edit_text(_strip_markdown(part))
+                    continue
+            await message.reply_text(html_text, parse_mode="HTML")
         except BadRequest:
             await message.reply_text(_strip_markdown(part))
 
@@ -127,7 +142,7 @@ async def _reply_chunks(message, text: str) -> None:
 async def _ask_backend(question: str, url: str, need_auth: bool = False) -> str:
     async def _post(token: str | None):
         headers = {"Authorization": f"Bearer {token}"} if token else {}
-        async with httpx.AsyncClient(timeout=90) as cli:
+        async with httpx.AsyncClient(timeout=120) as cli:
             return await cli.post(url, json={"question": question}, headers=headers)
 
     try:
@@ -140,6 +155,8 @@ async def _ask_backend(question: str, url: str, need_auth: bool = False) -> str:
             r = await _post(_bearer)
     except httpx.ConnectError:
         return "Backend mati. Nyalakan dulu: `uvicorn app.main:app --reload` di folder backend."
+    except httpx.TimeoutException:
+        return "Backend lambat merespons (Bedrock RAG). Coba kirim ulang pertanyaan Anda."
     if r.status_code == 422:
         return "Pertanyaan kosong / terlalu panjang (maks 2000 karakter)."
     if r.status_code in (401, 403):
@@ -175,8 +192,7 @@ async def handle_public(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not q:
         return
     await update.message.chat.send_action(ChatAction.TYPING)
-    answer = await _ask_backend(q, RAG_URL)
-    await _reply_chunks(update.message, answer)
+    await _reply_with_thinking(update.message, lambda: _ask_backend(q, RAG_URL))
 
 
 async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -192,8 +208,7 @@ async def handle_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Pakai: /owner <pertanyaan>, contoh: /owner ringkas output sewing minggu ini")
         return
     await update.message.chat.send_action(ChatAction.TYPING)
-    answer = await _ask_backend(q, AGENT_URL, need_auth=True)
-    await _reply_chunks(update.message, answer)
+    await _reply_with_thinking(update.message, lambda: _ask_backend(q, AGENT_URL, need_auth=True))
 
 
 def main() -> None:
