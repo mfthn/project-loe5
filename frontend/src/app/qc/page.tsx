@@ -178,18 +178,18 @@ export default function QCPage() {
                 <button
                   key={ord.id}
                   onClick={() => handleSelectOrder(ord.id)}
+                  className="qc-order-option"
+                  aria-pressed={isSelected}
                   style={{
                     textAlign: "left",
                     padding: "12px 14px",
                     borderRadius: "var(--radius-md)",
-                    background: isSelected ? "var(--bg-surface-elevated)" : "var(--bg-secondary)",
-                    border: `1px solid ${isSelected ? "var(--accent-primary)" : "var(--border-subtle)"}`,
                     color: "inherit",
                     cursor: "pointer",
                     transition: "all var(--transition-fast)",
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: isSelected ? "var(--accent-primary)" : "var(--text-primary)" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
                     {ord.order_number}
                   </div>
                   <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
