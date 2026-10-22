@@ -11,6 +11,7 @@ Tiga kelompok endpoint:
   6. GET  /ai/status       → Status index RAG.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -97,6 +98,34 @@ def ask_agent(
     except RagError as e:
         raise _to_http(e) from e
     return AskResponse(**result)
+
+
+@router.post(
+    "/ask-agent/stream",
+    summary="Owner Tracker AI streaming (SSE teks)",
+    description="Sama seperti /ask-agent tetapi jawaban mengalir per potongan agar terasa instan.",
+    dependencies=[Depends(require_roles(_OWNER_AGENT_ROLES))],
+    response_class=StreamingResponse,
+)
+def ask_agent_stream(
+    body: AskRequest,
+    rag: RagService = Depends(get_rag_service),
+    db: Session = Depends(get_db),
+):
+    try:
+        db_ctx = build_db_context(db)
+        chunks = rag.ask_agent_stream(body.question, db_ctx)
+    except RagError as e:
+        raise _to_http(e) from e
+
+    def event_source():
+        try:
+            for piece in chunks:
+                yield piece
+        except RagError as e:
+            yield f"\n\n[ERROR] {e}"
+
+    return StreamingResponse(event_source(), media_type="text/plain; charset=utf-8")
 
 
 @router.get(

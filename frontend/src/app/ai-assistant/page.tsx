@@ -87,11 +87,28 @@ export default function AiAssistantPage() {
     setLoading(true);
 
     try {
-      // Owner -> /ai/ask-agent (S3 docs + live database tracking)
+      if (isOwner) {
+        // Owner -> /ai/ask-agent/stream: jawaban mengalir per potongan
+        const aiId = String(Date.now() + 1);
+        const stamp = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: aiId,
+            sender: "ai",
+            text: "",
+            sources: [],
+            timestamp: stamp,
+            mode: "owner_agent" as const,
+          },
+        ]);
+        await aiApi.askAgentStream(question, (piece) => {
+          setMessages((prev) => prev.map((m) => (m.id === aiId ? { ...m, text: m.text + piece } : m)));
+        });
+        return;
+      }
       // Client/Others -> /ai/rag (S3 docs SOP only + WhatsApp handoff)
-      const res: DualAskResponse = isOwner
-        ? await aiApi.askAgent(question)
-        : await aiApi.askClient(question);
+      const res: DualAskResponse = await aiApi.askClient(question);
 
       const aiMsg: ChatMessage = {
         id: String(Date.now() + 1),

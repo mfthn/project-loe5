@@ -9,9 +9,13 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Protocol
 
+import logging
+
 from app.core.config import Settings, get_settings
 from app.modules.ai.clients import AwsRagClients
 from app.modules.ai.errors import RagNotConfiguredError, RagUnavailableError
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "Kamu adalah asisten yang menjawab pertanyaan berdasarkan konteks dokumen yang diberikan. "
@@ -178,16 +182,74 @@ class RagService:
         chunks = chunk_text(text, self._s.chunk_size, self._s.chunk_overlap)
         if not chunks:
             raise RagUnavailableError(f"Dokumen {uri} kosong.")
-        # Embedding dihitung untuk semua chunk dulu, baru index diganti sekaligus
-        index = [(chunk, self._clients.embed(chunk.text)) for chunk in chunks]
+        # Embedding paralel (4 worker) — jauh lebih cepat dari serial per chunk
+        from concurrent.futures import ThreadPoolExecutor
+
+        texts = [c.text for c in chunks]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            vectors = list(pool.map(self._clients.embed, texts))
+        index = list(zip(chunks, vectors))
         self._index = index
+        self._save_disk_cache()
         return len(index)
+
+    def _disk_cache_path(self):
+        from pathlib import Path
+
+        return Path(__file__).resolve().parents[3] / ".rag_index.json"
+
+    def _save_disk_cache(self) -> None:
+        """Simpan indeks + fingerprint dokumen ke disk agar restart tak membangun ulang."""
+        import json
+
+        fp_fn = getattr(self._clients, "documents_fingerprint", None)
+        try:
+            fingerprint = fp_fn() if callable(fp_fn) else None
+            payload = {
+                "fingerprint": fingerprint,
+                "chunk_size": self._s.chunk_size,
+                "chunk_overlap": self._s.chunk_overlap,
+                "chunks": [
+                    {"index": c.index, "text": c.text, "start": c.start, "end": c.end}
+                    for c, _ in self._index
+                ],
+                "vectors": [v for _, v in self._index],
+            }
+            self._disk_cache_path().write_text(json.dumps(payload), encoding="utf-8")
+        except Exception:  # noqa: BLE001 — cache opsional, jangan gagalkan build
+            logger.exception("Gagal menyimpan cache indeks RAG")
+
+    def _load_disk_cache(self) -> bool:
+        """Muat indeks dari disk bila fingerprint dokumen masih cocok."""
+        import json
+
+        fp_fn = getattr(self._clients, "documents_fingerprint", None)
+        if not callable(fp_fn):
+            return False
+        try:
+            payload = json.loads(self._disk_cache_path().read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 — belum ada cache
+            return False
+        try:
+            if payload.get("fingerprint") != fp_fn():
+                return False
+            if payload.get("chunk_size") != self._s.chunk_size:
+                return False
+            chunks = [Chunk(**c) for c in payload.get("chunks", [])]
+            vectors = payload.get("vectors", [])
+            if not chunks or len(chunks) != len(vectors):
+                return False
+            self._index = list(zip(chunks, vectors))
+            return True
+        except Exception:  # noqa: BLE001 — cache korup, bangun ulang
+            logger.exception("Cache indeks RAG tidak valid")
+            return False
 
     def _ensure_index(self) -> None:
         if self.is_ready:
             return
         with self._lock:
-            if not self._index:
+            if not self._index and not self._load_disk_cache():
                 self._build_locked()
 
     def retrieve(self, question: str) -> list[Hit]:
@@ -319,6 +381,27 @@ class RagService:
                 for h in hits
             ],
         }
+
+    def ask_agent_stream(self, question: str, db_context: str):
+        """Varian streaming dari ask_agent — yield potongan jawaban."""
+        hits = self.retrieve(question)
+        sop_context = (
+            "\n\n".join(f"[Dokumen SOP — Chunk {h.chunk.index}]\n{h.chunk.text}" for h in hits)
+            if hits
+            else "(Tidak ada chunk SOP yang relevan untuk pertanyaan ini.)"
+        )
+        combined_context = (
+            "--- DATA OPERASIONAL REAL-TIME (dari database sistem) ---\n"
+            f"{db_context}\n\n"
+            "--- DOKUMEN SOP (dari knowledge base) ---\n"
+            f"{sop_context}"
+        )
+        user_text = f"Konteks:\n{combined_context}\n\nPertanyaan: {question}"
+        stream_fn = getattr(self._clients, "converse_stream", None)
+        if not callable(stream_fn):
+            yield self._clients.converse(OWNER_TRACKER_PROMPT, user_text)
+            return
+        yield from stream_fn(OWNER_TRACKER_PROMPT, user_text)
 
     def ask_with_persona(self, question: str, persona: str) -> dict:
         """FR-AI: Menjawab pertanyaan menggunakan persona AI Dual-Assistant (legacy endpoint /assistant).

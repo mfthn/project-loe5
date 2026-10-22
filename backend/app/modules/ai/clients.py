@@ -122,3 +122,51 @@ class AwsRagClients:
 
         blocks = resp["output"]["message"]["content"]
         return "".join(block.get("text", "") for block in blocks).strip()
+
+    def documents_fingerprint(self) -> str:
+        """Hash ETag+ukuran seluruh .md di bucket — berubah bila dokumen berubah."""
+        import hashlib
+
+        try:
+            h = hashlib.sha256()
+            token = None
+            while True:
+                kwargs: dict = {"Bucket": self._s.s3_bucket, "MaxKeys": 1000}
+                if token:
+                    kwargs["ContinuationToken"] = token
+                resp = self._s3.list_objects_v2(**kwargs)
+                for obj in resp.get("Contents", []):
+                    if obj["Key"].endswith(".md"):
+                        h.update(obj["Key"].encode())
+                        h.update(str(obj.get("ETag", "")).encode())
+                        h.update(str(obj.get("Size", 0)).encode())
+                if resp.get("IsTruncated"):
+                    token = resp.get("NextContinuationToken")
+                else:
+                    break
+            return h.hexdigest()
+        except (ClientError, BotoCoreError) as e:
+            logger.exception("Gagal fingerprint s3://%s", self._s.s3_bucket)
+            raise RagUpstreamError(f"Gagal membaca daftar dokumen dari S3. {_AWS_HINT}") from e
+
+    def converse_stream(self, system_prompt: str, user_text: str):
+        """Yield potongan teks jawaban via Bedrock converse_stream."""
+        try:
+            resp = self._llm.converse_stream(
+                modelId=self._s.llm_model_id,
+                system=[{"text": system_prompt}],
+                messages=[{"role": "user", "content": [{"text": user_text}]}],
+                inferenceConfig={
+                    "maxTokens": self._s.llm_max_tokens,
+                    "temperature": self._s.llm_temperature,
+                },
+            )
+            for event in resp.get("stream", []):
+                delta = event.get("contentBlockDelta")
+                if delta and isinstance(delta.get("delta"), dict):
+                    text = delta["delta"].get("text", "")
+                    if text:
+                        yield text
+        except (ClientError, BotoCoreError) as e:
+            logger.exception("Gagal streaming LLM %s", self._s.llm_model_id)
+            raise RagUpstreamError(f"Gagal memanggil model LLM di Bedrock. {_AWS_HINT}") from e

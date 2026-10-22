@@ -8,6 +8,9 @@
 !.env.example
 **/.env*
 !**/.env.example
+# Cache indeks RAG lokal (dibangun ulang otomatis)
+.rag_index.json
+**/.rag_index.json
 *.pem
 *.key
 *.cert

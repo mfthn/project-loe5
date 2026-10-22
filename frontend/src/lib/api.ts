@@ -816,6 +816,49 @@ export const aiApi = {
       body: JSON.stringify({ question }),
     });
   },
+  askAgentStream: async (
+    question: string,
+    onChunk: (text: string) => void,
+  ): Promise<void> => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("loe_token") : null;
+    const doFetch = async (base: string) => {
+      const res = await fetch(`${base}/ai/ask-agent/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ question }),
+        credentials: "include",
+      });
+      if (!res.ok || !res.body) {
+        let msg = `Gagal streaming (${res.status}).`;
+        try {
+          const j = await res.json();
+          if (typeof j?.detail === "string") msg = j.detail;
+        } catch {
+          // abaikan
+        }
+        throw new ApiError(res.status, msg);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        onChunk(decoder.decode(value, { stream: true }));
+      }
+    };
+    try {
+      await doFetch(API_BASE_URL);
+    } catch (e) {
+      const fallback = API_BASE_URL.includes("localhost")
+        ? API_BASE_URL.replace("localhost", "127.0.0.1")
+        : API_BASE_URL.replace("127.0.0.1", "localhost");
+      if (fallback === API_BASE_URL) throw e;
+      await doFetch(fallback);
+    }
+  },
   // Legacy backward-compatible assistant endpoint
   askAssistant: async (data: DualAskRequest): Promise<DualAskResponse> => {
     return apiFetch<DualAskResponse>("/ai/assistant", {

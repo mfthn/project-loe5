@@ -31,6 +31,30 @@ def _recent_date() -> date:
     return date.today() - timedelta(days=_RECENT_DAYS)
 
 
+_HUMAN_STATUS = {
+    "SAMPLE": "sampel",
+    "CUTTING": "potong (cutting)",
+    "SEWING": "jahit (sewing)",
+    "MENUNGGU_QC": "antre QC",
+    "QC": "inspeksi QC",
+    "COMPLETED": "selesai",
+    "LOLOS": "lolos",
+    "REPAIR": "perbaikan",
+    "DEFECT": "cacat",
+    "DRAFT": "draf",
+    "REVISION": "revisi",
+    "APPROVED": "disetujui tim sampel",
+    "OWNER_APPROVED": "disetujui owner",
+    "OWNER_REJECTED": "ditolak owner",
+}
+
+
+def _human(status) -> str:
+    """Ubah enum teknis menjadi bahasa manusia untuk konteks LLM."""
+    name = status.value if hasattr(status, "value") else str(status)
+    return _HUMAN_STATUS.get(name, name.lower().replace("_", " "))
+
+
 # ── Per-domain helpers ─────────────────────────────────────────────────────────
 
 
@@ -41,7 +65,7 @@ def _orders_summary(db: Session) -> str:
         .group_by(Order.status)
         .all()
     )
-    status_lines = "\n".join(f"  - {r.status}: {r.cnt} order" for r in rows)
+    status_lines = "\n".join(f"  - {_human(r.status)}: {r.cnt} order" for r in rows)
 
     active_orders = (
         db.query(Order)
@@ -51,7 +75,7 @@ def _orders_summary(db: Session) -> str:
         .all()
     )
     active_lines = "\n".join(
-        f"  [{o.order_number}] {o.target_quantity} pcs | {o.status} | deadline: {o.deadline}"
+        f"  [{o.order_number}] {o.target_quantity} pcs | tahap {_human(o.status)} | deadline: {o.deadline}"
         for o in active_orders
     ) or "  (tidak ada order aktif)"
 
@@ -146,7 +170,7 @@ def _qc_summary(db: Session) -> str:
     if not rows:
         return "=== QC ===\nTidak ada data QC dalam 30 hari terakhir."
 
-    lines = "\n".join(f"  - {r.status}: {r.cnt} inspeksi" for r in rows)
+    lines = "\n".join(f"  - {_human(r.status)}: {r.cnt} inspeksi" for r in rows)
     total = sum(r.cnt for r in rows)
     passed = next((r.cnt for r in rows if r.status == QCStatus.LOLOS), 0)
     pass_rate = (passed / total * 100) if total else 0
@@ -167,7 +191,7 @@ def _sample_summary(db: Session) -> str:
     if not rows:
         return "=== SAMPLE ===\nBelum ada data sample."
 
-    lines = "\n".join(f"  - {r.status}: {r.cnt} versi sample" for r in rows)
+    lines = "\n".join(f"  - {_human(r.status)}: {r.cnt} versi sample" for r in rows)
     return f"=== STATUS SAMPLE ===\n{lines}"
 
 
