@@ -169,6 +169,12 @@ Buka **http://localhost:3000** di browser.
 
 ## Akun Sistem per Role (Internal Pabrik)
 
+### Catatan Setup Akses Roles
+
+1. Masuk folder backend
+2. Jalankan ''''alembic upgrade head'''
+3. Jalankan '''python .\scripts\seed.py'''
+
 > ⚠️ **Penting**: Akun-akun di bawah ini adalah akun resmi sistem internal pabrik. Jangan bagikan kredensial ini ke pihak luar. Akun **KLIEN_MAKLON** dibuat mandiri oleh calon klien/mitra maklon lewat halaman **Daftar Klien** di `/login`.
 
 | Role | Username | Password | Nama & Jabatan | Akses Modul |
