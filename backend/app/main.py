@@ -33,8 +33,12 @@ def create_app() -> FastAPI:
     # Mengizinkan akses dari lokal (untuk developer) dan semua subdomain Vercel (untuk production/preview)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+|[a-zA-Z0-9-]+\.vercel\.app)(:\d+)?",
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://project-loe5.vercel.app",
+        ] + (settings.cors_origins if isinstance(settings.cors_origins, list) else []),
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+|.*\.vercel\.app)(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
