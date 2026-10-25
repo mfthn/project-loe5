@@ -1,6 +1,8 @@
 // Alamat dasar API. Diambil dari environment agar mudah berpindah antara development dan server.
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
+  process.env.NEXT_PUBLIC_API_URL || 
+  process.env.NEXT_PUBLIC_API_BASE_URL || 
+  "https://project-loe5-backend.onrender.com/api/v1";
 
 /**
  * Format ID Klien dibatasi menjadi tepat 10 karakter dengan template (LOE-id_client):
