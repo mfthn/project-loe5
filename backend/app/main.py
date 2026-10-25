@@ -30,10 +30,11 @@ def create_app() -> FastAPI:
 
     # Origin harus disebut eksplisit karena frontend mengirim cookie (allow_credentials).
     # Regex mencakup IP publik EC2 agar frontend di http://<IP>:3000 bisa memanggil API.
+    # Mengizinkan akses dari lokal (untuk developer) dan semua subdomain Vercel (untuk production/preview)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)(:\d+)?",
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+|[a-zA-Z0-9-]+\.vercel\.app)(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
