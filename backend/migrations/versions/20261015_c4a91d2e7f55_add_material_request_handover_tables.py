@@ -18,37 +18,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # 1. Tambah kolom storage_location di inventory_items (jika belum ada)
     op.add_column(
         'inventory_items',
         sa.Column('storage_location', sa.String(length=100), nullable=True),
     )
-    op.create_table(
-        'material_requests',
-        sa.Column('id', sa.UUID(), nullable=False),
-        sa.Column('order_id', sa.UUID(), nullable=False),
-        sa.Column('inventory_item_id', sa.UUID(), nullable=False),
-        sa.Column('client_id', sa.UUID(), nullable=False),
-        sa.Column('qty_requested', sa.Float(), nullable=False),
-        sa.Column('qty_fulfilled', sa.Float(), nullable=False, server_default='0'),
-        sa.Column('status', postgresql.ENUM(
-            'DIAJUKAN', 'DISETUJUI', 'DITOLAK', 'DISERAHKAN',
-            name='material_request_status_enum', create_type=True,
-        ), nullable=False, server_default='DIAJUKAN'),
-        sa.Column('requested_by_user_id', sa.UUID(), nullable=True),
-        sa.Column('reviewed_by_user_id', sa.UUID(), nullable=True),
-        sa.Column('notes', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['order_id'], ['orders.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['inventory_item_id'], ['inventory_items.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['client_id'], ['clients.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['requested_by_user_id'], ['users.id'], ondelete='SET NULL'),
-        sa.ForeignKeyConstraint(['reviewed_by_user_id'], ['users.id'], ondelete='SET NULL'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index('ix_material_requests_order_id', 'material_requests', ['order_id'])
-    op.create_index('ix_material_requests_client_id', 'material_requests', ['client_id'])
-    op.create_index('ix_material_requests_status', 'material_requests', ['status'])
+    
+    # 2. Hanya buat tabel material_handovers saja karena material_requests sudah dibuat di migrasi sebelumnya
     op.create_table(
         'material_handovers',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -78,6 +54,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table('material_handovers')
-    op.drop_table('material_requests')
-    sa.Enum(name='material_request_status_enum').drop(op.get_bind(), checkfirst=True)
     op.drop_column('inventory_items', 'storage_location')
