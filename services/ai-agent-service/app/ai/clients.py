@@ -20,7 +20,19 @@ class FreeRagClients:
 
     def __init__(self, settings: Settings) -> None:
         self._s = settings
-        self.docs_path = os.path.abspath(settings.docs_local_path)
+        # Deteksi path docs lokal dengan fallback cerdas agar jalan di lokal maupun cloud deployment
+        candidates = [
+            os.path.abspath(settings.docs_local_path),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", settings.docs_local_path)),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "docs")),
+            os.path.abspath(os.path.join(os.getcwd(), "data", "docs")),
+            os.path.abspath(os.path.join(os.getcwd(), "services", "ai-agent-service", "data", "docs")),
+        ]
+        self.docs_path = candidates[0]
+        for p in candidates:
+            if os.path.isdir(p) and glob.glob(os.path.join(p, "*.md")):
+                self.docs_path = p
+                break
 
     def read_documents(self) -> dict[str, str]:
         """Membaca seluruh dokumen SOP markdown dari folder lokal data/docs/."""
