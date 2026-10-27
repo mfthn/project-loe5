@@ -99,24 +99,17 @@ class FreeRagClients:
                 prompt = f"{system_prompt}\n\nPertanyaan/Permintaan:\n{user_text}"
 
                 def _call():
-                    try:
-                        resp = client.models.generate_content(
-                            model="gemini-3.5-flash-lite",
-                            contents=prompt,
-                        )
-                        if resp.text:
-                            return resp.text.strip()
-                    except Exception as m_err:
-                        logger.warning("Gemini model error: %s, trying fallback model", m_err)
+                    models = ["gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+                    for m in models:
                         try:
                             resp = client.models.generate_content(
-                                model="gemini-flash-lite-latest",
+                                model=m,
                                 contents=prompt,
                             )
                             if resp.text:
                                 return resp.text.strip()
-                        except Exception as fb_err:
-                            logger.warning("Fallback model error: %s", fb_err)
+                        except Exception as m_err:
+                            logger.warning("Gemini model %s error: %s, trying fallback", m, m_err)
                     return ""
 
                 with ThreadPoolExecutor(max_workers=1) as pool:

@@ -1,12 +1,12 @@
-// Alamat dasar API. Diambil dari environment agar mudah berpindah antara development dan server.
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://127.0.0.1:8001/api/v1";
+  "https://project-loe5-backend.onrender.com/api/v1";
 
-// AI Agent Service (chatbot klien & owner tracker) — port terpisah di microservices
+// AI Agent Service — fallback ke API_BASE_URL agar otomatis bekerja di production Vercel & Render
 export const AI_AGENT_BASE_URL =
-  process.env.NEXT_PUBLIC_AI_AGENT_URL ?? "http://127.0.0.1:8004/api/v1";
+  process.env.NEXT_PUBLIC_AI_AGENT_URL ||
+  API_BASE_URL;
 
 /**
  * Normalisasi nomor HP Indonesia ke bentuk lokal `08xxxxxxxxxx`.

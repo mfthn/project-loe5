@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 800
     llm_temperature: float = 0.2
 
+    # LLM Provider: 'gemini', 'free' (lokal heuristic), atau 'bedrock'
+    llm_provider: str = "gemini"
+    gemini_api_key: str = ""
+    docs_local_path: str = "docs"
+
     # Chunking dan retrieval
     chunk_size: int = 800
     chunk_overlap: int = 100

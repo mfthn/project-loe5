@@ -152,7 +152,12 @@ class RagService:
 
     @property
     def document_uri(self) -> str:
-        return f"s3://{self._s.s3_bucket}/{self._s.s3_document_key}"
+        s3_bucket = getattr(self._s, "s3_bucket", None)
+        s3_key = getattr(self._s, "s3_document_key", None)
+        if s3_bucket and s3_key and getattr(self._clients, "_s3", None):
+            return f"s3://{s3_bucket}/{s3_key}"
+        docs_path = getattr(self._s, "docs_local_path", "docs")
+        return f"local://{docs_path}"
 
     @property
     def is_ready(self) -> bool:
@@ -168,15 +173,14 @@ class RagService:
             return self._build_locked()
 
     def _build_locked(self) -> int:
-        # Dicek di sini agar build_index() dan ask() (lewat _ensure_index) sama-sama terlindungi
-        if not self._s.s3_bucket:
-            raise RagNotConfiguredError("S3_BUCKET belum diisi di backend/.env.")
         read_multi = getattr(self._clients, "read_documents", None)
         if callable(read_multi):
             docs = read_multi()
+            if not docs:
+                raise RagUnavailableError("Tidak ada dokumen SOP yang ditemukan.")
             text = "\n\n".join(f"# Sumber: {key}\n{body}" for key, body in docs.items())
-            uri = f"s3://{self._s.s3_bucket}/ ({len(docs)} dokumen .md)"
-        else:  # Kompatibilitas fake lama di pengujian
+            uri = f"knowledge-base ({len(docs)} dokumen .md)"
+        else:
             text = self._clients.read_document()
             uri = self.document_uri
         chunks = chunk_text(text, self._s.chunk_size, self._s.chunk_overlap)
@@ -449,11 +453,20 @@ _service_lock = threading.Lock()
 
 
 def get_rag_service() -> RagService:
-    """Satu instance per proses. Klien AWS dibuat saat pertama kali dipakai, bukan saat import."""
+    """Satu instance per proses. Menggunakan FreeRagClients (Gemini/Lokal) atau AwsRagClients."""
     global _service
     if _service is None:
         with _service_lock:
             if _service is None:
                 settings = get_settings()
-                _service = RagService(settings, AwsRagClients(settings))
+                provider = getattr(settings, "llm_provider", "gemini").lower()
+                from app.modules.ai.clients import AwsRagClients, FreeRagClients
+                if provider in ("gemini", "free") or not getattr(settings, "aws_access_key_id", None):
+                    clients = FreeRagClients(settings)
+                else:
+                    try:
+                        clients = AwsRagClients(settings)
+                    except Exception:
+                        clients = FreeRagClients(settings)
+                _service = RagService(settings, clients)
     return _service
