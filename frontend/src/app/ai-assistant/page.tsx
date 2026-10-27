@@ -118,7 +118,7 @@ export default function AiAssistantPage() {
         timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
         whatsapp_handoff_url: res.whatsapp_handoff_url,
         mode: isOwner ? "owner_agent" : "client_rag",
-        showContactCard: !isOwner,
+        showContactCard: !isOwner && Boolean(res.whatsapp_handoff_url),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -139,8 +139,8 @@ export default function AiAssistantPage() {
       title={isOwner ? "Owner Monitoring & Analytics Agent (/ask-agent)" : "Asisten Konsultasi Maklon (/rag)"}
       subtitle={
         isOwner
-          ? "Monitoring real-time: Dokumen SOP (S3) + Live Database (Orders, Output 30m, QC, Payroll, Stok)"
-          : "Knowledge Base SOP Maklon (S3) — Panduan Alur Produksi & Konsultasi Pemesanan"
+          ? "Monitoring real-time: Dokumen SOP + Live Database (Orders, Output 30m, QC, Payroll, Stok)"
+          : "Knowledge Base SOP Maklon — Panduan Alur Produksi & Konsultasi Pemesanan"
       }
       requiredModule="ai-assistant"
     >
@@ -172,8 +172,8 @@ export default function AiAssistantPage() {
           </div>
           <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#2E1065" }}>
             {isOwner
-              ? "📊 Mode Agentic Analytics — Mengakses S3 SOP + Live Database Sistem"
-              : "🤝 Mode Chatbot Maklon — Mengakses S3 SOP Dokumen Publik"}
+              ? "📊 Mode Agentic Analytics — SOP Operasional + Live Database Sistem"
+              : "🤝 Mode Asisten Maklon — Basis Pengetahuan SOP Produksi"}
           </div>
         </div>
 
@@ -188,7 +188,7 @@ export default function AiAssistantPage() {
               fontWeight: 700,
             }}
           >
-            {isOwner ? "Endpoint: /ai/ask-agent (DB Live)" : "Endpoint: /ai/rag (S3 SOP)"}
+            {isOwner ? "Live Database + SOP RAG" : "Knowledge Base SOP"}
           </span>
         </div>
       </div>
@@ -220,11 +220,27 @@ export default function AiAssistantPage() {
           ))}
 
           {loading && (
-            <div className="chat-bubble chat-bubble-ai">
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ animation: "pulse 1s infinite" }}>⏳</span>
-                <span>Menganalisis dokumen SOP dengan Amazon Bedrock...</span>
+            <div
+              className="chat-bubble chat-bubble-ai"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                background: "#ffffff",
+                border: "1px solid #EDE9FE",
+                boxShadow: "0 2px 6px rgba(109, 40, 217, 0.06)",
+              }}
+            >
+              <div className="typing-dots" style={{ color: "#7C3AED" }}>
+                <span />
+                <span />
+                <span />
               </div>
+              <span style={{ fontSize: "0.85rem", color: "#6D28D9" }}>
+                {isOwner
+                  ? "Sedang menganalisis data operasional & SOP pabrik..."
+                  : "Sedang mencari rujukan SOP & menyiapkan jawaban..."}
+              </span>
             </div>
           )}
         </div>

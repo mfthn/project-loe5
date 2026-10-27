@@ -231,7 +231,7 @@ export function ChatWidget() {
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "#C4B5FD", display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
-                  Ditenagai S3 SOP RAG Bedrock
+                  AI Knowledge Assistant • Online
                 </div>
               </div>
             </div>
@@ -244,17 +244,37 @@ export function ChatWidget() {
                 background: "rgba(255, 255, 255, 0.12)",
                 border: "none",
                 color: "#ffffff",
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: "50%",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "0.9rem",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.25)";
+                e.currentTarget.style.transform = "scale(1.08)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
+                e.currentTarget.style.transform = "scale(1)";
               }}
             >
-              ✕
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
 
@@ -354,11 +374,16 @@ export function ChatWidget() {
                   border: "1px solid #EDE9FE",
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: 10,
+                  boxShadow: "0 2px 6px rgba(109, 40, 217, 0.06)",
                 }}
               >
-                <span style={{ animation: "pulse 1s infinite" }}>⏳</span>
-                <span>Mencari rujukan SOP pabrik di S3...</span>
+                <div className="typing-dots" style={{ color: "#7C3AED" }}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span>Sedang menyiapkan jawaban...</span>
               </div>
             )}
             <div ref={messagesEndRef} />

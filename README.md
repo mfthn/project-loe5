@@ -1,295 +1,177 @@
-# project-loe5 (Lukla Operations Engine)
+# Lukla Operations Engine (project-loe5)
 
-Platform operasional terpadu pabrik garmen konveksi Ciwidey (*Lukla Manufacturing & Snøhund Brand Management*) yang melayani brand internal dan klien maklon B2B secara paralel dengan kapasitas dinamis hingga ±70 mesin jahit aktif.
-
----
-
-## Arsitektur Sistem
-
-- **frontend/**: Next.js 15 (App Router, React 19, TypeScript). Antarmuka web responsif berbasis peran (Dashboard Eksekutif, Terminal Touchscreen Lantai Produksi, dan Portal Klien B2B).
-- **backend/**: FastAPI (Python 3.12/3.14). Seluruh logika bisnis manufaktur, modul gudang anti-kontaminasi, sample tracker, terminal output 30 menit, QC defect, payroll engine, dan integrasi AI Amazon Bedrock.
-- **Database**: PostgreSQL 16 (port lokal `5433` via Podman/Docker `compose.yaml`).
-- **AI & Storage**: AWS Bedrock (Titan Text Embeddings v2 & Nova Lite Inference Profile) + AWS S3 untuk dokumen SOP dan aset.
-
-> **Catatan Arsitektur:** Frontend tidak mengakses database secara langsung. Seluruh operasi bisnis dan data dilayani lewat REST API di `http://localhost:8000/api/v1`.
+Platform operasional manufaktur terpadu pabrik garmen & tas konveksi Ciwidey (*Lukla Manufacturing & Snøhund Brand Management*). Sistem ini melayani pengelolaan brand internal dan mitra maklon B2B secara terisolasi dengan kapasitas lini dinamis hingga ±70 mesin jahit aktif.
 
 ---
 
-## Status Progres Proyek (Hackathon Tracker)
+## 🏛️ Arsitektur Sistem
 
-- [x] **Fase 1: Fondasi Skema Database, Alembic, & Autentikasi RBAC (SELESAI)**
-  - Pembuatan 14 tabel ORM SQLAlchemy sesuai dokumen SRS v2.0 dan BRD v1.0.
-  - Migrasi skema awal Alembic (`create_initial_schema`) diterapkan ke PostgreSQL.
-  - Autentikasi JWT (HttpOnly Cookie & Bearer Header) dengan hashing `bcrypt`.
-  - Matriks RBAC untuk 8 Peran Pengguna dengan penegakan izin di sisi server (`require_roles`).
-  - Script seeding data demo ([scripts/seed.py](file:///home/fitzeon/Documents/S1-Informatika/Pelatihan/MAIN-Academy/Hechaton/project-loe5-rag/backend/scripts/seed.py)): 3 Klien dan 12 Akun Pengguna siap pakai.
-  - Pipeline RAG Bedrock operasional membaca SOP dari AWS S3.
-- [x] **Fase 2: Modul Gudang Multi-Klien & Proteksi Anti-Kontaminasi Silang (SELESAI - Skenario 1 P0)**
-  - Pendaftaran material dengan Tag ID Klien wajib (`client_id`).
-  - Mutasi penerimaan bahan masuk (`POST /api/v1/gudang/receive`).
-  - **Skenario 1**: Pengeluaran bahan ke cutting (`POST /api/v1/gudang/issue`) dengan guard otomatis: jika `item.client_id != order.client_id`, sistem memblokir dengan HTTP 400 dan stok tidak berkurang.
-  - Isolasi data B2B: Klien maklon hanya dapat melihat stok dan riwayat mutasi miliknya sendiri.
-  - Pengujian: **30/30 unit test lulus** di `pytest`, linter `ruff` bersih.
-- [x] **Fase 3: Sample & Time Study Tracker + Stopwatch Digital (Skenario 4 - P0) (SELESAI)**
-  - CRUD Sample dengan kode unik per klien.
-  - Versi sample otomatis v1 DRAFT saat sample dibuat.
-  - Revisi versi (v2, v3, dst.) dengan nomor otomatis dan status REVISION.
-  - Approval versi (DRAFT/REVISION → APPROVED); versi APPROVED tidak bisa diubah.
-  - Komponen garmen + stopwatch time study (detik): ringkasan total waktu & estimasi bahan.
-  - Isolasi multi-tenant: KLIEN_MAKLON hanya melihat sample miliknya.
-  - Pengujian: **20/20 unit test lulus** (total 52/52 seluruh suite).
-- [x] **Fase 4: Produksi & Terminal Input 30 Menit Lantai Pabrik (P0) (SELESAI)**
-  - CRUD Order Produksi Massal (langsung atau dari versi sample APPROVED — FR-4.1).
-  - Komponen order + Rate Card upah borongan (cutting & sewing per pcs).
-  - Guard: nomor order duplikat ditolak (HTTP 409).
-  - Guard: sample versi non-APPROVED tidak bisa jadi order (HTTP 409).
-  - Transisi status wajib berurutan: SAMPLE→CUTTING→SEWING→MENUNGGU_QC→QC→COMPLETED.
-  - Terminal 30 Menit: Penjahit mencatat `qty_completed` per interval; Mandor memverifikasi.
-  - Guard: output hanya bisa dicatat saat status SEWING.
-  - Ringkasan output vs target (% completion) per order.
-  - Isolasi multi-tenant KLIEN_MAKLON pada endpoint GET /produksi/orders.
-  - Migrasi Alembic: tabel orders, order_components, rate_cards, production_outputs.
-  - Pengujian: **22/22 unit test baru lulus** (total 74/74 seluruh suite).
-- [x] **Fase 5: Quality Control, Manajemen Defect, & Pool Bonus QC (Skenario 3 - P0) (SELESAI)**
-  - Pencatatan inspeksi QC per batch pcs: LOLOS / REPAIR / DEFECT.
-  - Otomatis majukan status order MENUNGGU_QC → QC saat inspeksi pertama.
-  - Guard: inspeksi hanya bisa dilakukan saat status MENUNGGU_QC atau QC.
-  - Ringkasan QC per order: total, lolos, repair, defect, dan persentase.
-  - **Skenario 3**: Pool Bonus QC = `qty_lolos × rate`, dibagi RATA kepada semua MANDOR + Kepala Ops (kalkulasi on-demand).
-  - Migrasi Alembic: tabel qc_inspections.
-  - Pengujian: **16/16 unit test baru lulus** (total 90/90 seluruh suite).
-- [x] **Fase 6: Payroll Engine Sabtu & Penguncian Transaksi Audit (Skenario 2 - P0) (SELESAI)**
-  - Preview kalkulasi payroll (on-demand, tanpa menyimpan) sebelum konfirmasi.
-  - **FR-10.1**: Headcount dinamis — penjahit baru otomatis masuk selama ada output terverifikasi.
-  - **FR-10.2**: Upah borongan = `qty_completed × sewing_rate` per komponen per penjahit.
-  - Uang makan = `meal_allowance_percentage%` × total upah borongan (10–15%).
-  - Bonus QC = `qty_lolos × rate ÷ jumlah MANDOR` terintegrasi ke slip payroll.
-  - **FR-10 Audit Lock**: Kunci payroll PERMANEN — tidak bisa dibuka oleh siapa pun termasuk OWNER.
-  - Guard: periode tumpang tindih ditolak (HTTP 409).
-  - Guard: tidak ada output terverifikasi dalam periode ditolak (HTTP 422).
-  - Migrasi Alembic: tabel payroll_runs, payroll_details.
-  - Pengujian: **18/18 unit test baru lulus** (total 108/108 seluruh suite).
-- [x] **Fase 7: AI Dual-Assistant (Owner Tracker & Asisten Calon Klien) (P1) (SELESAI)**
-  - **Owner Tracker**: asisten internal untuk Owner/Mandor — memantau produksi, QC, payroll, dan pesanan.
-  - **Asisten Calon Klien**: asisten publik B2B — menjelaskan alur maklon, skema harga, sampling, dan QC.
-  - Satu endpoint `/api/v1/ai/assistant` dengan field `persona` (owner_tracker / client_assistant).
-  - System prompt unik per persona — bahasa dan nada disesuaikan.
-  - Pipeline RAG yang sama dipakai keduanya — tidak ada duplikasi infrastruktur.
-  - Pengujian: **6 test baru lulus** (total 114/114 seluruh suite).
-- [x] **Frontend Web App UI/UX: Antarmuka Terpadu Next.js 15 & Design System Industri (SELESAI)**
-  - **Login & Demo RBAC**: Quick Login Selector untuk 8 peran pengguna tanpa input manual.
-  - **Dashboard Eksekutif**: Live KPI pesanan aktif, output menunggu verifikasi, stok gudang, dan status AI Bedrock.
-  - **Gudang Multi-Klien**: Penerimaan (receive), pengeluaran (issue), dan simulasi visual proteksi anti-kontaminasi bahan.
-  - **Sample & Stopwatch**: Katalog prototipe, approval versi, dan stopwatch digital time study detik per komponen.
-  - **Lantai Produksi 30 Menit**: Visual pipeline status, terminal touchscreen penjahit interval 30 menit, dan verifikasi 1-klik mandor.
-  - **Quality Control**: Pencatatan inspeksi cacat garmen dan live kalkulator Pool Bonus QC Mandor.
-  - **Payroll Engine**: Preview kalkulasi Sabtu (borongan + uang makan 10-15% + bonus QC) dan tombol Kunci Audit Permanen.
-  - **AI Dual-Assistant**: Switcher persona Owner Tracker vs Konsultan Maklon dengan sitasi dokumen SOP Bedrock.
-  - **Portal Klien B2B**: Isolasi data pesanan dan transparansi sisa bahan baku milik klien mitra.
-  - Build produksi: **13/13 static routes Next.js 15 lulus (`npm run build`)**.
+Proyek ini telah mengadopsi arsitektur **Modular Microservices** untuk skalabilitas tinggi, isolasi peran bisnis, dan pemisahan beban komputasi AI:
+
+```
+                               ┌──────────────────────────────────────────────────────────┐
+                               │               Frontend Web Application                   │
+                               │           Next.js 15 (React 19, TypeScript)              │
+                               │                http://localhost:3000                     │
+                               └────────────────────────────┬─────────────────────────────┘
+                                                            │
+                                         /api/v1 Proxy & Rewrites (Next.js / Nginx)
+                                                            │
+                 ┌───────────────────┬──────────────────────┼──────────────────────┬───────────────────┐
+                 │                   │                      │                      │                   │
+                 ▼                   ▼                      ▼                      ▼                   ▼
+       ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
+       │   auth-service    │ │ manufacturing-svc │ │  finance-service  │ │ ai-agent-service  │ │ PostgreSQL 16     │
+       │    Port: 8001     │ │    Port: 8002     │ │    Port: 8003     │ │    Port: 8004     │ │    Port: 5433     │
+       │                   │ │                   │ │                   │ │                   │ │                   │
+       │ • JWT & RBAC 8 Peran│ • Sample & TimeStudy│ • Payroll Sabtu     │ │ • Public Chatbot  │ │ • Skema Relasional│
+       │ • Registrasi Klien│ │ • Gudang Isolasi  │ │ • FR-10 Audit Lock│ │   (WhatsApp Handoff)│ • Transaksi Produksi│
+       │ • ID Klien & Audit│ │ • Terminal 30m    │ │ • Invoicing & PO  │ │ • Owner Tracker   │ │ • Riwayat Audit   │
+       │                   │ │ • QC & Pool Bonus │ │                   │ │   (Live DB Context)│                   │
+       └─────────┬─────────┘ └─────────┬─────────┘ └─────────┬─────────┘ └─────────┬─────────┘ └─────────┬─────────┘
+                 │                     │                     │                     │                     │
+                 └─────────────────────┴─────────────────────┴─────────────────────┴─────────────────────┘
+                                               Database Connection Pool (SQLAlchemy)
+```
+
+### Komponen Utama:
+1. **Frontend (`frontend/`)**:
+   * Next.js 15 (App Router, React 19, TypeScript).
+   * Desain kustom *Glassmorphism* (Backdrop blur, transisi lembut, modern UI/UX).
+   * Antarmuka multi-peran: Dashboard Eksekutif, Terminal Touchscreen Lantai Produksi, Portal Mandiri Klien B2B, dan Widget AI.
+2. **Auth Service (`services/auth-service/` - Port 8001)**:
+   * Mengelola autentikasi JWT (HttpOnly Cookie & Bearer Token) dengan hashing `bcrypt`.
+   * Penegakan otorisasi RBAC untuk 8 peran pengguna.
+   * Pendaftaran mandiri klien maklon dengan format ID Klien unik (`LOE-XXXXXX`) dan riwayat audit perubahan nomor kontak.
+3. **Manufacturing Service (`services/manufacturing-service/` - Port 8002)**:
+   * **Modul Sampel**: Siklus prototipe (v1 DRAFT $\rightarrow$ revisi $\rightarrow$ APPROVED), stopwatch time study (detik per komponen).
+   * **Modul Gudang**: Proteksi anti-kontaminasi silang material antar-klien (pemblokiran otomatis HTTP 400 jika bahan tertukar).
+   * **Modul Lantai Produksi**: Pipeline status urut (*SAMPLE $\rightarrow$ CUTTING $\rightarrow$ SEWING $\rightarrow$ MENUNGGU_QC $\rightarrow$ QC $\rightarrow$ COMPLETED*), pencatatan output interval 30 menit, dan verifikasi mandor.
+   * **Modul Quality Control**: Pencatatan defect/repair/pass dan live kalkulator Pool Bonus QC Mandor 3-arah.
+4. **Finance Service (`services/finance-service/` - Port 8003)**:
+   * **Payroll Engine Sabtu**: Perhitungan upah borongan dinamis per penjahit, uang makan 10–15%, dan bonus QC.
+   * **FR-10 Audit Lock**: Penguncian rekapitulasi upah permanen yang tidak dapat diubah sepihak.
+   * Pencatatan invoice tagihan klien dan purchase order (PO) bahan baku.
+5. **AI Agent Service (`services/ai-agent-service/` - Port 8004)**:
+   * Ditenagai **Google Gemini AI** (`gemini-3.5-flash-lite`) dengan fallback cerdas ke generator heuristik lokal offline.
+   * **Chatbot Calon Klien (`/ai/rag`)**: Menjawab seputar skema CMT/Semi-CMT/Full Package, kapasitas pabrik, dan SOP dengan *intent-based WhatsApp handoff* otomatis ke tim sample saat klien siap order.
+   * **Owner Tracker (`/ai/ask-agent`)**: Menggabungkan SOP pabrik dengan data operasional *real-time* dari PostgreSQL (status SPK aktif, output per lini, dan statistik QC).
+6. **Database**:
+   * PostgreSQL 16 (Port `5433` lokal via Docker/Podman).
 
 ---
 
-## Prasyarat
+## 🚀 Panduan Menjalankan Sistem
 
-| Perangkat | Versi | Fedora / Linux | Windows |
-|---|---|---|---|
-| Podman / Docker | Terbaru | `sudo dnf install podman podman-compose` | Podman Desktop / Docker Desktop |
-| Python | 3.12 / 3.14 | `sudo dnf install python3.12` | python.org |
-| Node.js | 20 atau lebih baru | `sudo dnf install nodejs npm` | nodejs.org (LTS) |
-| Git | Terbaru | `sudo dnf install git` | git-scm.com |
+### Prasyarat:
+* **Docker** atau **Podman** (termasuk Compose).
+* **Python 3.12** atau **3.14**.
+* **Node.js 20+** dan **npm**.
 
 ---
 
-## Setup & Menjalankan Proyek
+### Cara 1: Menjalankan Lokal (Recommended untuk Development)
 
-### 1. Database PostgreSQL
-
-Dari root folder proyek, jalankan:
-
+#### 1. Jalankan Database PostgreSQL
+Dari root direktori proyek:
 ```bash
+docker compose up -d
+# atau bila menggunakan podman:
 podman compose up -d
-podman ps                      # Pastikan container project_loe5_db berstatus Up
 ```
-*(Gunakan `docker compose up -d` jika menggunakan Docker)*.
+Pastikan database berjalan di port `5433`.
 
-### 2. Backend (FastAPI)
-
-Masuk ke folder backend, aktifkan virtual environment, dan pasang dependensi:
-
+#### 2. Konfigurasi Environment File
+Salin template environment untuk masing-masing service:
 ```bash
-cd backend
-python3.12 -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
 cp .env.example .env
+cp frontend/.env.example frontend/.env.local
+cp services/auth-service/.env.example services/auth-service/.env
+cp services/manufacturing-service/.env.example services/manufacturing-service/.env
+cp services/finance-service/.env.example services/finance-service/.env
+cp services/ai-agent-service/.env.example services/ai-agent-service/.env
 ```
+*(Opsional: Masukkan `GEMINI_API_KEY` Anda di `services/ai-agent-service/.env` jika ingin menggunakan model Google Gemini aktif).*
 
-Pastikan variabel `DATABASE_URL` dan `AUTH_SECRET` di `backend/.env` telah terisi:
-```env
-DATABASE_URL=postgresql+psycopg://loe:loe_dev@localhost:5433/project_loe5
-AUTH_SECRET=lukla_operations_engine_super_secret_auth_key_2026_dev_secure
-```
-
-Terapkan migrasi skema database dan jalankan seed data demo:
-
+#### 3. Jalankan Seluruh Microservices Backend (1 Perintah)
+Gunakan skrip otomatis lokal:
 ```bash
-alembic upgrade head
-python scripts/seed.py
+./scripts/run-microservices-local.sh
 ```
+Skrip ini akan otomatis menyiapkan *virtual environment*, memasang dependensi yang dibutuhkan, dan menjalankan seluruh microservices di latar belakang:
+* Auth Service: `http://localhost:8001`
+* Manufacturing Service: `http://localhost:8002`
+* Finance Service: `http://localhost:8003`
+* AI Agent Service: `http://localhost:8004`
 
-Jalankan pengujian untuk memastikan backend 100% sehat:
-
-```bash
-pytest
-```
-
-Jalankan server API backend:
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-Dokumentasi Swagger API interaktif tersedia di: **http://localhost:8000/docs**
-
-### 3. Frontend (Next.js)
-
-Buka terminal baru di folder frontend:
-
+#### 4. Jalankan Frontend Web
+Buka terminal baru:
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local
 npm run dev
 ```
-
-Buka **http://localhost:3000** di browser.
-
----
-
-
-## Akun Sistem per Role (Internal Pabrik)
-
-### Catatan Setup Akses Roles
-
-1. Masuk folder backend
-2. Jalankan ''''alembic upgrade head'''
-3. Jalankan '''python .\scripts\seed.py'''
-
-> ⚠️ **Penting**: Akun-akun di bawah ini adalah akun resmi sistem internal pabrik. Jangan bagikan kredensial ini ke pihak luar. Akun **KLIEN_MAKLON** dibuat mandiri oleh calon klien/mitra maklon lewat halaman **Daftar Klien** di `/login`.
-
-| Role | Username | Password | Nama & Jabatan | Akses Modul |
-|---|---|---|---|---|
-| **OWNER** | `hendra_owner` | `Lukla@Owner2026` | Hendra Lukla (Owner/CEO) | Seluruh Modul: Dashboard, Gudang, Sample, Produksi, QC, Payroll, Portal Klien, AI Owner Tracker |
-| **FINANCE_PAYROLL** | `rina_finance` | `Lukla@Finance2026` | Rina Lestari (Finance & Payroll) | Dashboard, Payroll Engine & Rekap Finansial |
-| **MANDOR** | `agus_mandor` | `Lukla@Mandor2026` | Agus Santoso (Mandor Line 1) | Dashboard Mandor, Monitoring Produksi, Validasi Output |
-| **PENJAHIT** | `siti_jahit` | `Lukla@Jahit2026` | Siti Rahayu (Penjahit Line 1) | Dashboard Penjahit & Rekap Upah Borongan |
-| **GUDANG** | `budi_gudang` | `Lukla@Gudang2026` | Budi Santoso (Petugas Gudang) | Dashboard & Modul Gudang Multi-Tenant |
-| **TIM_SAMPLE** | `adis_sample` | `Lukla@Sample2026` | Adis Purnama (Tim Sample) | Dashboard, Modul Sample & Stopwatch Time Study |
-| **QC_INSPECTOR** | `dewi_qc` | `Lukla@QC2026` | Dewi Anggraini (QC Inspector) | Dashboard, Quality Control & Verifikasi Lolos/Defect |
-
-### Akun Klien Maklon (Registrasi Mandiri)
-
-Klien maklon **mendaftar sendiri** di halaman web `/login` → tab **✨ Daftar Klien**. Sistem akan otomatis:
-1. Membuat record `Client` (entitas perusahaan/brand) dengan UUID unik.
-2. Menghasilkan **ID Klien Resmi 10 Karakter** dengan template **`LOE-id_client`** (contoh: `LOE-90C3B8`).
-3. Membuat akun `User` dengan peran `KLIEN_MAKLON` yang langsung terhubung ke entitas Client tersebut.
-4. Menampilkan kartu profil data pendaftar lengkap (Nama Perusahaan, PIC, No. Telepon/WA, Email, dan ID 10 Karakter) di **Dashboard Klien** dan **Portal Klien Maklon**.
-5. ID Klien ini menjadi kunci pemisah isolasi data anti-kontaminasi silang pada stok bahan baku gudang, order produksi, dan alur pembuatan sample.
-
-Akses modul KLIEN_MAKLON: **Dashboard Klien**, **Portal Klien Maklon B2B**, dan **AI Asisten Konsultasi Maklon** (lengkap dengan kartu kontak pemesanan WhatsApp/Telegram Tim Sample).
+Buka browser di **http://localhost:3000**.
 
 ---
 
-## Daftar Endpoint API Aktif
+### Cara 2: Menjalankan Seluruh Sistem dengan Docker Compose (Production Ready)
 
-### Autentikasi (`/api/v1/auth`)
-- `POST /api/v1/auth/login` — Login pengguna (mendukung seluruh role internal dan KLIEN_MAKLON), menghasilkan JWT & HttpOnly cookie.
-- `POST /api/v1/auth/register` — **Registrasi mandiri klien maklon**: membuat entitas Client + User KLIEN_MAKLON sekaligus, mengembalikan data profil pendaftar dan `client_code` (format `LOE-xxxxxx` 10 karakter).
-- `POST /api/v1/auth/logout` — Logout dan membersihkan cookie sesi pengguna.
-- `GET /api/v1/auth/me` — Mengambil data profil, peran, serta profil klien terdaftar pengguna yang sedang login.
-
-### Modul Gudang & Anti-Kontaminasi (`/api/v1/gudang`)
-- `GET /api/v1/gudang/items` — Mengambil daftar stok bahan baku (otomatis terisolasi per `client_id` untuk Klien Maklon).
-- `POST /api/v1/gudang/items` — Mendaftarkan item material baru dengan Tag ID Klien wajib.
-- `POST /api/v1/gudang/receive` — Mencatat mutasi penerimaan bahan masuk (Transaksi IN).
-- `POST /api/v1/gudang/issue` — Mengeluarkan bahan ke cutting (Transaksi OUT) dengan **guard anti-kontaminasi silang**.
-- `GET /api/v1/gudang/transactions` — Melihat riwayat mutasi stok bahan.
-
-### Modul AI RAG (`/api/v1/ai`)
-- `POST /api/v1/ai/ask` — Tanya-jawab RAG seputar SOP operasional manufaktur via Bedrock.
-- `POST /api/v1/ai/reindex` — Membangun ulang indeks chunk & embedding dari S3.
-- `GET /api/v1/ai/status` — Memeriksa status kesiapan indeks RAG.
-- `POST /api/v1/ai/assistant` — **AI Dual-Assistant**: pilih persona `owner_tracker` atau `client_assistant`.
-
-### Modul Sample \& Time Study Tracker (`/api/v1/sample`)
-- `GET /api/v1/sample/` — Daftar sample beserta semua versi (filter per `client_id` opsional).
-- `POST /api/v1/sample/` — Membuat sample baru; v1 DRAFT otomatis terbuat.
-- `GET /api/v1/sample/{sample_id}` — Detail sample + semua versi.
-- `POST /api/v1/sample/{sample_id}/revisi` — Membuat versi revisi baru (status REVISION).
-- `GET /api/v1/sample/versions/{version_id}` — Detail versi + komponen time study + ringkasan.
-- `POST /api/v1/sample/versions/{version_id}/approve` — Menyetujui versi (→ APPROVED).
-- `POST /api/v1/sample/versions/{version_id}/components` — Menambahkan komponen garmen + stopwatch.
-- `PUT /api/v1/sample/components/{component_id}` — Memperbarui komponen garmen.
-
-### Modul Produksi & Terminal 30 Menit (`/api/v1/produksi`)
-- `GET /api/v1/produksi/orders` — Daftar order produksi (filter per `client_id` / `status`).
-- `POST /api/v1/produksi/orders` — Membuat order baru + komponen + rate card.
-- `GET /api/v1/produksi/orders/{order_id}` — Detail order + komponen + rate card.
-- `PATCH /api/v1/produksi/orders/{order_id}/status` — Transisi status order.
-- `POST /api/v1/produksi/orders/from-sample/{version_id}` — Konversi sample APPROVED → order massal (FR-4.1).
-- `GET /api/v1/produksi/orders/{order_id}/summary` — Ringkasan output vs target pcs.
-- `GET /api/v1/produksi/outputs` — Log output 30 menit (filter per order/line/status verifikasi).
-- `POST /api/v1/produksi/outputs` — Penjahit mencatat output per 30 menit dari terminal.
-- `PATCH /api/v1/produksi/outputs/{output_id}/verify` — Mandor memverifikasi log output.
-
-### Modul Quality Control (`/api/v1/qc`)
-- `GET /api/v1/qc/inspections` — Daftar inspeksi QC (filter per order / status).
-- `POST /api/v1/qc/inspections` — QC Inspector mencatat hasil pemeriksaan (LOLOS/REPAIR/DEFECT).
-- `GET /api/v1/qc/inspections/{inspection_id}` — Detail satu catatan inspeksi QC.
-- `GET /api/v1/qc/summary/{order_id}` — Ringkasan QC: total, lolos, repair, defect, % pass rate.
-- `POST /api/v1/qc/bonus/{order_id}` — **Skenario 3**: Hitung & bagi pool bonus QC 3-arah (Mandor + Kepala Ops).
-
-### Modul Payroll Engine (`/api/v1/payroll`)
-- `GET /api/v1/payroll/runs` — Daftar semua siklus penggajian.
-- `POST /api/v1/payroll/preview` — Preview kalkulasi slip upah sebelum dikonfirmasi.
-- `POST /api/v1/payroll/runs` — Buat siklus penggajian & simpan slip upah semua penjahit.
-- `GET /api/v1/payroll/runs/{run_id}` — Detail siklus penggajian + semua slip individu.
-- `POST /api/v1/payroll/runs/{run_id}/lock` — **FR-10 Audit Lock**: Kunci payroll permanen.
-- `POST /api/v1/payroll/runs/{run_id}/details/{detail_id}/payment` — Finance/Owner mencatat pembayaran aktual untuk slip dalam payroll terkunci.
-- `GET /api/v1/payroll/my-summary` — Rekap payroll terkunci milik Penjahit yang login, status/tanggal pembayaran, dan catatan output pribadi.
+Untuk menjalankan seluruh microservices dan frontend dalam container terisolasi:
+```bash
+docker compose -f docker-compose.microservices.yml up --build -d
+```
 
 ---
 
-## 4 Skenario Pengujian Operasional Kunci (Kriteria Hackathon)
+## 👥 Akun Sistem & Akses Pengguna
 
-1. **Proteksi Kontaminasi Silang Stok (FR-6.2):** Sistem memblokir otomatis transaksi pengeluaran bahan jika `item.client_id != order.client_id` dengan error HTTP 400 eksplisit sebelum stok berkurang.
-2. **Payroll Headcount Dinamis (FR-10.1 & FR-10.2):** Menambah penjahit baru di tengah minggu, mencatat output 30 menit, dan menghasilkan perhitungan upah borongan Sabtu + uang makan 10–15% secara otomatis tanpa batasan slot.
-3. **Pembagian Pool Bonus QC 3-Arah (FR-10.3):** Akumulasi produk lolos QC dikalikan rate bonus per pcs, lalu dibagi rata kepada 2 Mandor dan 1 Kepala Operasional.
-4. **Alur Revisi Sample ke Order Massal (FR-3.1 & FR-4.1):** Pembuatan Sample v1 dengan time study, revisi menjadi v2, persetujuan versi, dan konversi otomatis menjadi Order Produksi Massal (CMT / Semi-CMT / Full Package).
+| Peran (Role) | Username | Password | Deskripsi & Akses Modul |
+|---|---|---|---|
+| **OWNER** | `hendra_owner` | `Lukla@Owner2026` | Akses penuh seluruh modul: Dashboard Eksekutif, Owner AI Tracker, Gudang, Produksi, QC, Payroll, dan Manajemen Pengguna. |
+| **FINANCE_PAYROLL** | `rina_finance` | `Lukla@Finance2026` | Rekapitulasi payroll Sabtu, penguncian audit lock, dan pencatatan pembayaran upah. |
+| **MANDOR** | `agus_mandor` | `Lukla@Mandor2026` | Monitoring lini jahit, verifikasi log output penjahit interval 30 menit, pool bonus QC. |
+| **PENJAHIT** | `siti_jahit` | `Lukla@Jahit2026` | Terminal input hasil jahit berkala dan pantauan slip upah borongan pribadi. |
+| **GUDANG** | `budi_gudang` | `Lukla@Gudang2026` | Penerimaan bahan, pencatatan rak simpan, dan pengeluaran kain berproteksi anti-kontaminasi. |
+| **TIM_SAMPLE** | `adis_sample` | `Lukla@Sample2026` | Pembuatan versi prototipe (v1, v2), time study stopwatch detik, dan pengajuan approval. |
+| **QC_INSPECTOR** | `dewi_qc` | `Lukla@QC2026` | Pemeriksaan kualitas akhir (Lolos, Repair, Defect/Afkir). |
+| **KLIEN_MAKLON** | *Registrasi Mandiri* atau `busanatest` | *Password saat daftar* | Portal Klien B2B: Pantau progres pesanan, transparansi sisa bahan baku di gudang, konsultasi maklon. |
+
+> **Registrasi Klien**: Calon mitra/brand maklon dapat mendaftar mandiri melalui halaman **Login** $\rightarrow$ tab **Daftar Klien**. Sistem akan menerbitkan ID Klien resmi (misal: `LOE-C26D65`) untuk isolasi data pesanan dan bahan.
 
 ---
 
-## Hasil Pengujian QA (16 Oktober 2026)
+## 📌 Ringkasan Skenario Bisnis Utama (Core Factory Business Rules)
 
-Laporan lengkap (PDF): [qa/reports/qa-report-2026-10-16.pdf](qa/reports/qa-report-2026-10-16.pdf)
-
-- **Automation UI — Selenium** (`qa/selenium/test_web.py`, headless Chromium): **7/7 skenario PASS** — landing + widget chat, login OWNER → dashboard, password salah ditolak, portal klien terisolasi, guard auth tanpa login.
-- **Performance — k6** (`qa/k6/load.js`, ramp 10 VU + spike 30 VU, 736 iterasi / 4.446 request): **0,00% gagal**, latensi **p95 845 ms** (ambang 1.500 ms). Endpoint RAG/Bedrock sengaja tidak di-load-test (hemat biaya AWS).
+1. **Proteksi Anti-Kontaminasi Silang Gudang (Scenario 1)**:
+   Bahan baku kain yang didaftarkan terikat wajib ke `client_id`. Sistem menolak pengeluaran bahan (`/gudang/issue`) jika pesanan produksi bukan milik klien pemilik bahan tersebut.
+2. **Headcount Dinamis & Payroll Sabtu (Scenario 2)**:
+   Penjahit baru dapat langsung mencatat output tanpa batasan slot. Upah borongan, tunjangan makan 10–15%, dan bonus QC dihitung otomatis saat tutup buku Sabtu dengan proteksi **FR-10 Audit Lock** permanen.
+3. **Pembagian Pool Bonus QC 3-Arah (Scenario 3)**:
+   Total barang lolos QC dikalikan tarif bonus per pcs dan dibagikan secara adil kepada Mandor dan Kepala Operasional.
+4. **Alur Validasi State Machine Produksi (Scenario 4)**:
+   Tahapan produksi wajib melewati urutan:
+   $$\text{SAMPLE} \longrightarrow \text{CUTTING} \longrightarrow \text{SEWING} \longrightarrow \text{MENUNGGU\_QC} \longrightarrow \text{QC} \longrightarrow \text{COMPLETED}$$
+   Output jahit hanya dapat dicatat saat status order berada di tahap `SEWING`.
 
 ---
 
-## Perintah Harian Pengembang
+## 📂 Struktur Repositori
 
-| Tujuan | Perintah | Folder |
-|---|---|---|
-| Menyalakan database | `podman compose up -d` | root |
-| Menghentikan database | `podman compose stop db` | root |
-| Menjalankan backend | `uvicorn app.main:app --reload` | `backend/` |
-| Menjalankan unit test | `pytest` | `backend/` |
-| Memeriksa linter | `ruff check .` | `backend/` |
-| Membuat migrasi skema | `alembic revision --autogenerate -m "pesan"` | `backend/` |
-| Menerapkan migrasi | `alembic upgrade head` | `backend/` |
-| Seeding data demo | `python scripts/seed.py` | `backend/` |
-| Menjalankan frontend | `npm run dev` | `frontend/` |
-| Typecheck frontend | `npm run typecheck` | `frontend/` |
-| Build produksi frontend | `npm run build` | `frontend/` |
+```
+project-loe5-rag/
+├── frontend/                     # Next.js 15 Web Application
+│   ├── src/app/                  # App Router Pages & Styles
+│   ├── src/components/           # Reusable UI & Widget Components
+│   └── src/lib/                  # API Client & RBAC Utilities
+├── services/                     # Microservices Backend
+│   ├── auth-service/             # Port 8001: Autentikasi & Klien
+│   ├── manufacturing-service/    # Port 8002: Sampel, Gudang, Produksi, QC
+│   ├── finance-service/          # Port 8003: Payroll, Invoice, PO
+│   └── ai-agent-service/         # Port 8004: Chatbot RAG & Owner Tracker
+├── gateway/                      # Nginx API Gateway Configuration
+├── scripts/                      # Skrip automasi & runner lokal
+├── docker-compose.microservices.yml # Orkestrasi container production
+├── compose.yaml                  # Database PostgreSQL local container
+└── README.md                     # Dokumentasi resmi proyek
+```

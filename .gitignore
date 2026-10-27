@@ -8,9 +8,14 @@
 !.env.example
 **/.env*
 !**/.env.example
+*.env.local
+**/*.env.local
+
 # Cache indeks RAG lokal (dibangun ulang otomatis)
 .rag_index.json
 **/.rag_index.json
+
+# Certificates, Keys & Cloud Credentials
 *.pem
 *.key
 *.cert
@@ -18,15 +23,20 @@
 credentials.json
 client_secret*.json
 
-# 2. Python & Virtual Environments
+# 2. Python & Virtual Environments (Monorepo & Microservices)
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .venv/
+**/.venv/
 venv/
+**/venv/
 env/
+**/env/
 ENV/
 *.egg-info/
+**/*.egg-info/
 dist/
 build/
 .eggs/
@@ -34,8 +44,11 @@ build/
 
 # Testing & Linting Caches (Python)
 .pytest_cache/
+**/.pytest_cache/
 .ruff_cache/
+**/.ruff_cache/
 .mypy_cache/
+**/.mypy_cache/
 .coverage
 .coverage.*
 htmlcov/
@@ -45,7 +58,11 @@ coverage.xml
 
 # 3. Node.js & Frontend (Next.js)
 node_modules/
+**/node_modules/
 .next/
+**/.next/
+.next-dev/
+**/.next-dev/
 out/
 next-env.d.ts
 *.tsbuildinfo
@@ -63,6 +80,7 @@ lerna-debug.log*
 *.sqlite3
 *.db
 *.log
+**/*.log
 *.pid
 *.seed
 
@@ -90,4 +108,3 @@ Thumbs.db
 # 7. Antigravity IDE & Temporary Workspaces
 .system_generated/
 scratch/
-.next-dev/

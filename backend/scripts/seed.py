@@ -20,6 +20,7 @@ from app.modules.qc import models as qc_models  # noqa: F401
 from app.modules.sample import models as sample_models  # noqa: F401
 
 from app.modules.auth.models import Client, User, UserRole
+from app.modules.auth.client_code import build_client_code
 
 
 def seed_data() -> None:
@@ -36,6 +37,7 @@ def seed_data() -> None:
                 company_name="Snøhund (Internal Brand)",
                 contact_person="Internal Management",
                 phone_number="0811000001",
+                client_code=build_client_code("0811000001"),
             )
             db.add(snohund)
 
@@ -45,6 +47,7 @@ def seed_data() -> None:
                 company_name="PT Tekstil Maju (Klien A)",
                 contact_person="Ibu Maya",
                 phone_number="08123456789",
+                client_code=build_client_code("08123456789"),
             )
             db.add(klien_a)
 
@@ -54,6 +57,7 @@ def seed_data() -> None:
                 company_name="CV Busana Prima (Klien B)",
                 contact_person="Bapak Doni",
                 phone_number="08198765432",
+                client_code=build_client_code("08198765432"),
             )
             db.add(klien_b)
 

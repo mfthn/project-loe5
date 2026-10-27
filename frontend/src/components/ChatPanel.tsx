@@ -51,7 +51,7 @@ const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
   dual: {
     lockPersona: null,
     welcome:
-      "Halo! Saya adalah AI Assistant Lukla Operations Engine yang ditenagai oleh Amazon Bedrock RAG. Silakan pilih persona yang ingin Anda ajak diskusi atau tanyakan seputar SOP operasional dan layanan kami.",
+      "Halo! Saya adalah AI Assistant Lukla Operations Engine. Silakan pilih persona yang ingin Anda ajak diskusi atau tanyakan seputar SOP operasional dan layanan kami.",
     welcomePersona: "owner_tracker",
     prompts: { owner_tracker: OWNER_PROMPTS, client_assistant: CLIENT_PROMPTS },
     placeholders: {
@@ -73,7 +73,7 @@ const MODE_CONFIG: Record<ChatMode, ModeConfig> = {
   owner: {
     lockPersona: "owner_tracker",
     welcome:
-      "Halo! Saya adalah Analis Operasional Anda yang ditenagai Amazon Bedrock RAG. Saya memantau kapasitas produksi, QC, payroll, dan pesanan berdasarkan SOP pabrik. Apa yang ingin Anda analisis hari ini? 📊",
+      "Halo! Saya adalah Analis Operasional Anda. Saya memantau kapasitas produksi, QC, payroll, dan pesanan berdasarkan SOP pabrik. Apa yang ingin Anda analisis hari ini? 📊",
     welcomePersona: "owner_tracker",
     prompts: { owner_tracker: ANALYSIS_PROMPTS, client_assistant: [] },
     placeholders: {
@@ -140,7 +140,7 @@ export function ChatPanel({ mode }: { mode: ChatMode }) {
     } catch (err: any) {
       setNotice({
         type: "danger",
-        message: err.message || "Gagal menghubungi AI Bedrock RAG. Periksa kredensial AWS.",
+        message: err.message || "Gagal menghubungi AI Service. Silakan coba lagi beberapa saat.",
       });
     } finally {
       setLoading(false);
@@ -222,7 +222,7 @@ export function ChatPanel({ mode }: { mode: ChatMode }) {
               {/* RAG Document Sources Citation */}
               {msg.sources && msg.sources.length > 0 && (
                 <div className="chat-sources">
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>📚 Rujukan SOP (RAG Bedrock):</div>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>📚 Rujukan Dokumen SOP:</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {msg.sources.map((s, idx) => {
                       const label = s.source_file
@@ -277,11 +277,25 @@ export function ChatPanel({ mode }: { mode: ChatMode }) {
           ))}
 
           {loading && (
-            <div className="chat-bubble chat-bubble-ai">
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ animation: "pulse 1s infinite" }}>⏳</span>
-                <span>Menganalisis dokumen SOP dengan Amazon Bedrock...</span>
+            <div
+              className="chat-bubble chat-bubble-ai"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                background: "#ffffff",
+                border: "1px solid #EDE9FE",
+                boxShadow: "0 2px 6px rgba(109, 40, 217, 0.06)",
+              }}
+            >
+              <div className="typing-dots" style={{ color: "#7C3AED" }}>
+                <span />
+                <span />
+                <span />
               </div>
+              <span style={{ fontSize: "0.85rem", color: "#6D28D9" }}>
+                Sedang menganalisis dokumen SOP & menyiapkan jawaban...
+              </span>
             </div>
           )}
         </div>

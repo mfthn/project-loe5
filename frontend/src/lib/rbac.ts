@@ -110,7 +110,7 @@ export const MODULE_REGISTRY: Record<AppModule, ModuleMetadata> = {
     label: "AI Dual-Assistant",
     href: "/ai-assistant",
     icon: "🤖",
-    badge: "Bedrock RAG",
+    badge: "AI RAG",
     description: "Asisten cerdas dual-persona: Owner Business Tracker & Konsultan Maklon Calon Klien.",
   },
   konsultasi: {
@@ -118,7 +118,7 @@ export const MODULE_REGISTRY: Record<AppModule, ModuleMetadata> = {
     label: "Konsultasi Maklon",
     href: "/konsultasi",
     icon: "🤝",
-    badge: "Bedrock RAG",
+    badge: "AI RAG",
     description: "Chatbot konsultasi maklon: skema CMT, estimasi sample, MOQ, dan negosiasi pesanan.",
   },
   analisis: {
@@ -126,7 +126,7 @@ export const MODULE_REGISTRY: Record<AppModule, ModuleMetadata> = {
     label: "Analisis Operasional",
     href: "/analisis",
     icon: "📊",
-    badge: "Bedrock RAG",
+    badge: "AI RAG",
     description: "Chatbot analisis owner: kapasitas produksi, tren QC, payroll, dan prioritas order.",
   },
   pengguna: {

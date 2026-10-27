@@ -32,15 +32,15 @@ export function Navbar() {
         width: "100%",
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         background: scrolled
-          ? "rgba(255, 255, 255, 0.82)"
-          : "transparent",
-        backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
-        WebkitBackdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
+          ? "rgba(255, 255, 255, 0.65)"
+          : "rgba(255, 255, 255, 0.40)",
+        backdropFilter: "blur(24px) saturate(190%)",
+        WebkitBackdropFilter: "blur(24px) saturate(190%)",
         borderBottom: scrolled
           ? "1px solid rgba(196, 181, 253, 0.35)"
-          : "1px solid transparent",
+          : "1px solid rgba(255, 255, 255, 0.25)",
         boxShadow: scrolled
-          ? "0 4px 24px rgba(46, 16, 101, 0.06)"
+          ? "0 8px 32px 0 rgba(46, 16, 101, 0.07)"
           : "none",
       }}
     >

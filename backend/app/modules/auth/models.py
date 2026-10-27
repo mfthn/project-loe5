@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.modules.auth.client_code import CLIENT_CODE_MAX_LENGTH, fallback_client_code
 
 
 class UserRole(str, enum.Enum):
@@ -31,19 +32,20 @@ class Client(Base):
     )
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
     contact_person: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    phone_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Nomor HP disimpan ternormalisasi (08xxxx) dan unik untuk mencegah ID ganda.
+    phone_number: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, unique=True, index=True
+    )
+    # ID Klien resmi: LOE5-<nomor HP>, contoh LOE5-08123456789.
+    client_code: Mapped[str] = mapped_column(
+        String(CLIENT_CODE_MAX_LENGTH), nullable=False, unique=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relasi
     users: Mapped[list["User"]] = relationship("User", back_populates="client")
-
-    @property
-    def client_code(self) -> str:
-        """Format ID Klien 10 digit resmi: LOE-id_client (contoh: LOE-A1B2C3)."""
-        clean_hex = str(self.id).replace("-", "")[:6].upper()
-        return f"LOE-{clean_hex}"
 
 
 class User(Base):
@@ -81,8 +83,41 @@ class User(Base):
 
     @property
     def client_code(self) -> str | None:
-        """Format ID Klien 10 digit resmi jika user terikat ke klien."""
+        """ID Klien resmi jika user terikat ke entitas klien."""
         if not self.client_id:
             return None
-        clean_hex = str(self.client_id).replace("-", "")[:6].upper()
-        return f"LOE-{clean_hex}"
+        if self.client is not None:
+            return self.client.client_code
+        return fallback_client_code(self.client_id)
+
+
+class ClientCodeChange(Base):
+    """Audit log perubahan nomor HP yang berdampak pada ID Klien."""
+
+    __tablename__ = "client_code_changes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    client_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("clients.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    old_client_code: Mapped[str] = mapped_column(
+        String(CLIENT_CODE_MAX_LENGTH), nullable=False
+    )
+    new_client_code: Mapped[str] = mapped_column(
+        String(CLIENT_CODE_MAX_LENGTH), nullable=False
+    )
+    old_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    new_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

@@ -52,7 +52,7 @@ export default function PortalKlienPage() {
         />
       )}
 
-      {/* Profil Pendaftar & ID Klien (10 Karakter) — disembunyikan untuk Owner */}
+      {/* Profil Pendaftar & ID Klien (LOE5 + Nomor HP) — disembunyikan untuk Owner */}
       {!isOwner && <ClientProfileCard user={user} />}
 
       {/* Hubungi Tim Sample untuk Buat Sample / Tambah Pesanan Baru */}

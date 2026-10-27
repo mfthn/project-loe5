@@ -61,18 +61,6 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
   return (
     <header className="topbar">
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <img
-          src="/Lukla.jpeg"
-          alt="Logo Lukla"
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: "var(--radius-sm)",
-            objectFit: "cover",
-            boxShadow: "var(--shadow-coral)",
-            flexShrink: 0,
-          }}
-        />
         {onMenuClick && (
           <button
             type="button"
@@ -163,7 +151,7 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
 
         {/* AI RAG Status Pill */}
         <div
-          title="Status koneksi AWS Bedrock RAG Engine"
+          title="Status koneksi AI RAG Engine"
           style={{
             display: "flex",
             alignItems: "center",
@@ -211,13 +199,19 @@ export function TopBar({ title, subtitle, onMenuClick, menuOpen }: TopBarProps) 
           >
             <div
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: 6,
-                overflow: "hidden",
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                background: "#7C3AED",
+                color: "#FFFFFF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.68rem",
+                fontWeight: 700,
               }}
             >
-              <Image src="/icon.jpeg" alt="logo" width={20} height={20} style={{ objectFit: "cover" }} />
+              {user.name ? user.name.charAt(0).toUpperCase() : "U"}
             </div>
             <span className="topbar-user-name" style={{ color: "#84829a", fontWeight: 500 }}>{user.name}</span>
             <span

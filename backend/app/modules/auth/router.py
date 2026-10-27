@@ -1,4 +1,5 @@
 """Endpoint FastAPI untuk autentikasi pengguna."""
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -7,9 +8,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import ACCESS_TOKEN_EXPIRE_HOURS, create_access_token
 from app.modules.auth.dependencies import get_current_user, require_roles
-from app.modules.auth.models import Client, User, UserRole
+from app.modules.auth.models import Client, ClientCodeChange, User, UserRole
 from app.modules.auth.schemas import (
+    ClientCodeChangeResponse,
     ClientProfileResponse,
+    ClientUpdateRequest,
+    ClientUpdateResponse,
     LoginRequest,
     RegisterClientRequest,
     RegisterClientResponse,
@@ -18,25 +22,30 @@ from app.modules.auth.schemas import (
     UserResponse,
     UserUpdateAdmin,
 )
-from app.modules.auth.service import authenticate_user, register_client
+from app.modules.auth.service import (
+    DuplicatePhoneError,
+    authenticate_user,
+    register_client,
+    update_client,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger("app.auth")
 
 
 def build_user_response(user: User, db: Session) -> UserResponse:
-    """Helper untuk memetakan User ORM ke UserResponse lengkap dengan profil Client & Client Code 10 digit."""
+    """Helper untuk memetakan User ORM ke UserResponse lengkap dengan profil Client & ID Klien."""
     res = UserResponse.model_validate(user)
     if user.client_id:
-        c_code = f"LOE-{str(user.client_id).replace('-', '')[:6].upper()}"
-        res.client_code = c_code
         client = db.get(Client, user.client_id)
         if client:
+            res.client_code = client.client_code
             res.client = ClientProfileResponse(
                 id=client.id,
                 company_name=client.company_name,
                 contact_person=client.contact_person,
                 phone_number=client.phone_number,
-                client_code=c_code,
+                client_code=client.client_code,
                 created_at=client.created_at,
             )
     return res
@@ -95,13 +104,20 @@ def register(
         db.commit()
         db.refresh(client)
         db.refresh(user)
+    except DuplicatePhoneError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
 
-    client_code = f"LOE-{str(client.id).replace('-', '')[:6].upper()}"
+    client_code = client.client_code
     return RegisterClientResponse(
         message=(
             f"Registrasi berhasil! ID Klien Anda: {client_code}. "
@@ -159,6 +175,100 @@ def get_clients(
         )
         for c in clients
     ]
+
+
+@router.patch(
+    "/clients/{client_id}",
+    response_model=ClientUpdateResponse,
+)
+def update_client_by_owner(
+    client_id: uuid.UUID,
+    payload: ClientUpdateRequest,
+    current_user: User = Depends(require_roles([UserRole.OWNER])),
+    db: Session = Depends(get_db),
+) -> ClientUpdateResponse:
+    """Owner memperbarui data klien.
+
+    Mengubah nomor HP akan mengubah ID Klien (``LOE5-<nomor HP>``). Perubahan
+    dicatat ke tabel audit ``client_code_changes`` dan di-log oleh aplikasi.
+    """
+    client = db.get(Client, client_id)
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Client tidak ditemukan."
+        )
+
+    try:
+        changed, previous_code, previous_phone = update_client(
+            db, client, payload, changed_by=current_user.id
+        )
+        db.commit()
+        db.refresh(client)
+    except DuplicatePhoneError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+    warning = None
+    if changed:
+        warning = (
+            f"ID Klien berubah dari {previous_code} menjadi {client.client_code}. "
+            "ID lama tidak berlaku lagi pada dokumen, cetakan, dan percakapan "
+            "WhatsApp. Riwayat transaksi tidak terpengaruh karena tersimpan "
+            "berdasarkan client_id."
+        )
+        logger.info(
+            "ID Klien berubah: client_id=%s old=%s new=%s old_phone=%s new_phone=%s changed_by=%s",
+            client.id,
+            previous_code,
+            client.client_code,
+            previous_phone,
+            client.phone_number,
+            current_user.id,
+        )
+
+    return ClientUpdateResponse(
+        id=client.id,
+        company_name=client.company_name,
+        contact_person=client.contact_person,
+        phone_number=client.phone_number,
+        client_code=client.client_code,
+        created_at=client.created_at,
+        previous_client_code=previous_code,
+        client_code_changed=changed,
+        warning=warning,
+    )
+
+
+@router.get(
+    "/clients/{client_id}/code-history",
+    response_model=list[ClientCodeChangeResponse],
+    dependencies=[Depends(require_roles([UserRole.OWNER]))],
+)
+def get_client_code_history(
+    client_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> list[ClientCodeChange]:
+    """Riwayat perubahan ID Klien (audit) untuk satu klien."""
+    if db.get(Client, client_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Client tidak ditemukan."
+        )
+    from sqlalchemy import select as _select
+
+    return list(
+        db.scalars(
+            _select(ClientCodeChange)
+            .where(ClientCodeChange.client_id == client_id)
+            .order_by(ClientCodeChange.created_at.desc())
+        ).all()
+    )
 
 
 @router.get(

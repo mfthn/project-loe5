@@ -1,11 +1,14 @@
 import type React from "react";
-import { API_BASE_URL } from "./config";
+import { AI_AGENT_BASE_URL, API_BASE_URL } from "./config";
 import type {
   BatchFinancial,
   BatchFinancialCreate,
   BonusPoolPreview,
   Client,
+  ClientCodeChange,
   ClientProfile,
+  ClientUpdateRequest,
+  ClientUpdateResponse,
   CuttingResult,
   DualAskRequest,
   DualAskResponse,
@@ -163,6 +166,18 @@ export const authApi = {
   },
   getClients: async (): Promise<ClientProfile[]> => {
     return apiFetch<ClientProfile[]>("/auth/clients");
+  },
+  updateClient: async (
+    clientId: string,
+    data: ClientUpdateRequest,
+  ): Promise<ClientUpdateResponse> => {
+    return apiFetch<ClientUpdateResponse>(`/auth/clients/${clientId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+  getClientCodeHistory: async (clientId: string): Promise<ClientCodeChange[]> => {
+    return apiFetch<ClientCodeChange[]>(`/auth/clients/${clientId}/code-history`);
   },
   getUsers: async (): Promise<User[]> => {
     return apiFetch<User[]>("/auth/users");
@@ -801,17 +816,49 @@ export const financeApi = {
   },
 };
 // ================= AI Assistant API =================
+// Fungsi fetch khusus AI Agent Service (port 8004)
+async function aiAgentFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("loe_token") : null;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string> ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const doFetch = async (base: string): Promise<T> => {
+    const res = await fetch(`${base}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (typeof j?.detail === "string") detail = j.detail; } catch { /* ignore */ }
+      throw new ApiError(res.status, detail);
+    }
+    return res.json() as Promise<T>;
+  };
+  try {
+    return await doFetch(AI_AGENT_BASE_URL);
+  } catch (e) {
+    const fallback = AI_AGENT_BASE_URL.includes("localhost")
+      ? AI_AGENT_BASE_URL.replace("localhost", "127.0.0.1")
+      : AI_AGENT_BASE_URL.replace("127.0.0.1", "localhost");
+    if (fallback === AI_AGENT_BASE_URL) throw e;
+    return doFetch(fallback);
+  }
+}
+
 export const aiApi = {
-  // 1. /ai/rag — Chatbot publik & klien maklon (S3 SOP knowledge base)
+  // 1. /ai/rag — Chatbot publik & klien maklon (tanpa auth diperlukan)
   askClient: async (question: string): Promise<DualAskResponse> => {
-    return apiFetch<DualAskResponse>("/ai/rag", {
+    return aiAgentFetch<DualAskResponse>("/ai/rag", {
       method: "POST",
       body: JSON.stringify({ question }),
     });
   },
   // 2. /ai/ask-agent — Owner tracker (S3 SOP + live database context)
   askAgent: async (question: string): Promise<DualAskResponse> => {
-    return apiFetch<DualAskResponse>("/ai/ask-agent", {
+    return aiAgentFetch<DualAskResponse>("/ai/ask-agent", {
       method: "POST",
       body: JSON.stringify({ question }),
     });
@@ -850,27 +897,27 @@ export const aiApi = {
       }
     };
     try {
-      await doFetch(API_BASE_URL);
+      await doFetch(AI_AGENT_BASE_URL);
     } catch (e) {
-      const fallback = API_BASE_URL.includes("localhost")
-        ? API_BASE_URL.replace("localhost", "127.0.0.1")
-        : API_BASE_URL.replace("127.0.0.1", "localhost");
-      if (fallback === API_BASE_URL) throw e;
+      const fallback = AI_AGENT_BASE_URL.includes("localhost")
+        ? AI_AGENT_BASE_URL.replace("localhost", "127.0.0.1")
+        : AI_AGENT_BASE_URL.replace("127.0.0.1", "localhost");
+      if (fallback === AI_AGENT_BASE_URL) throw e;
       await doFetch(fallback);
     }
   },
   // Legacy backward-compatible assistant endpoint
   askAssistant: async (data: DualAskRequest): Promise<DualAskResponse> => {
-    return apiFetch<DualAskResponse>("/ai/assistant", {
+    return aiAgentFetch<DualAskResponse>("/ai/assistant", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
-  getStatus: async (): Promise<{ status: string; doc_count?: number; model_id?: string }> => {
-    return apiFetch<{ status: string; doc_count?: number; model_id?: string }>("/ai/status");
+  getStatus: async (): Promise<{ index_ready?: boolean; chunks?: number; status?: string; provider?: string }> => {
+    return aiAgentFetch<{ index_ready?: boolean; chunks?: number; status?: string; provider?: string }>("/ai/status");
   },
-  reindex: async (): Promise<{ message: string }> => {
-    return apiFetch<{ message: string }>("/ai/reindex", {
+  reindex: async (): Promise<{ chunks: number }> => {
+    return aiAgentFetch<{ chunks: number }>("/ai/reindex", {
       method: "POST",
     });
   },
@@ -924,7 +971,7 @@ export type AiStatus = {
 export async function fetchAiStatus(): Promise<AiStatus> {
   const none = { httpStatus: 0, ok: false, indexReady: false, chunks: 0 };
   try {
-    const res = await apiFetch<{ index_ready: boolean; chunks: number }>("/ai/status");
+    const res = await aiApi.getStatus();
     return { httpStatus: 200, ok: true, indexReady: !!res.index_ready, chunks: res.chunks || 0 };
   } catch (err: any) {
     const status = err instanceof ApiError ? err.status : 0;

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { formatClientId10 } from "../lib/config";
+import { formatClientCode } from "../lib/config";
 import type { User } from "../types/api";
 
 interface ClientProfileCardProps {
@@ -15,9 +15,9 @@ export function ClientProfileCard({ user, className = "" }: ClientProfileCardPro
 
   if (!user) return null;
 
-  // Format ID Klien menjadi tepat 10 karakter: LOE-XXXXXX
+  // ID Klien resmi: LOE5-<nomor HP>
   const rawClientId = user.client?.client_code || user.client_code || user.client_id;
-  const clientId10 = formatClientId10(rawClientId);
+  const clientCode = formatClientCode(rawClientId);
 
   const companyName = user.client?.company_name || user.name || "Perusahaan Klien";
   const contactPerson = user.client?.contact_person || user.name;
@@ -32,7 +32,7 @@ export function ClientProfileCard({ user, className = "" }: ClientProfileCardPro
     : "-";
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(clientId10);
+    navigator.clipboard.writeText(clientCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -110,7 +110,7 @@ export function ClientProfileCard({ user, className = "" }: ClientProfileCardPro
           </div>
         </div>
 
-        {/* Client ID Badge (10 Characters LOE-XXXXXX) */}
+        {/* Client ID Badge (LOE5-<nomor HP>) */}
         <div
           style={{
             background: "#2E1065",
@@ -124,10 +124,10 @@ export function ClientProfileCard({ user, className = "" }: ClientProfileCardPro
         >
           <div>
             <div style={{ fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#C4B5FD", fontWeight: 700 }}>
-              ID Klien Resmi (10 Karakter)
+              ID Klien Resmi (LOE5 + Nomor HP)
             </div>
             <div style={{ fontFamily: "monospace", fontSize: "1.15rem", fontWeight: 800, color: "#FAF5FF", letterSpacing: "0.05em" }}>
-              {clientId10}
+              {clientCode}
             </div>
           </div>
 
@@ -214,7 +214,7 @@ export function ClientProfileCard({ user, className = "" }: ClientProfileCardPro
         <div style={{ fontSize: "0.78rem", color: "#6D28D9", display: "flex", alignItems: "center", gap: 6 }}>
           <span>🔒</span>
           <span>
-            ID Klien <strong>{clientId10}</strong> digunakan sebagai identitas utama pemisahan stok bahan baku, rekap pesanan, dan pengajuan sample Anda di pabrik Lukla.
+            ID Klien <strong>{clientCode}</strong> digunakan sebagai identitas utama pemisahan stok bahan baku, rekap pesanan, dan pengajuan sample Anda di pabrik Lukla.
           </span>
         </div>
 

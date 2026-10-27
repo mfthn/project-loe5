@@ -265,6 +265,9 @@ def update_order_status(db: Session, order_id: uuid.UUID, new_status: OrderStatu
     current_idx = _STATUS_ORDER.index(order.status)
     target_idx = _STATUS_ORDER.index(new_status)
 
+    if target_idx == current_idx:
+        return order
+
     if target_idx != current_idx + 1:
         raise OrderStatusTransitionError(order.status.value, new_status.value)
 
@@ -616,6 +619,8 @@ def get_order_output_summary(db: Session, order_id: uuid.UUID) -> dict:
     return {
         "order_id": order.id,
         "order_number": order.order_number,
+        "status": order.status,
+        "scheme": order.scheme,
         "target_quantity": order.target_quantity,
         "total_completed": int(total),
         "verified_completed": int(verified),

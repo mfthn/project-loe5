@@ -16,7 +16,7 @@ export type ClientProfile = {
   company_name: string;
   contact_person: string | null;
   phone_number: string | null;
-  client_code: string; // Format LOE-XXXXXX (10 karakter)
+  client_code: string; // Format LOE5-<nomor HP>, contoh LOE5-08123456789
   created_at: string | null;
 };
 
@@ -27,7 +27,7 @@ export type User = {
   name: string;
   role: UserRole;
   client_id: string | null;
-  client_code?: string | null; // LOE-XXXXXX
+  client_code?: string | null; // LOE5-<nomor HP>
   client?: ClientProfile | null;
   is_active: boolean;
   created_at: string;
@@ -53,6 +53,29 @@ export type RegisterClientResponse = {
   client_id: string;
   client_code: string;
   user: User;
+};
+
+export type ClientUpdateRequest = {
+  company_name?: string;
+  contact_person?: string;
+  phone_number?: string;
+};
+
+export type ClientUpdateResponse = ClientProfile & {
+  previous_client_code: string | null;
+  client_code_changed: boolean;
+  warning: string | null;
+};
+
+export type ClientCodeChange = {
+  id: string;
+  client_id: string;
+  old_client_code: string;
+  new_client_code: string;
+  old_phone: string | null;
+  new_phone: string | null;
+  changed_by: string | null;
+  created_at: string;
 };
 
 export type Client = {

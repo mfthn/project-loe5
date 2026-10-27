@@ -265,7 +265,7 @@ export const LANDING_CONTENT = {
   },
 
   asistenCta: {
-    badge: "Didukung Amazon Bedrock RAG",
+    badge: "Didukung AI Knowledge RAG",
     title: "Belum Yakin Skema yang Cocok untuk Brand Anda?",
     subtitle: "Tanyakan langsung kepada Asisten Cerdas kami mengenai alur maklon, perbedaan CMT vs Semi-CMT, atau estimasi persiapan sampel.",
     sampleChat: [

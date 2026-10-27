@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
 import { authApi } from "../../lib/api";
-import { formatClientId10 } from "../../lib/config";
+import { formatClientCode, normalizePhone } from "../../lib/config";
 import { AmbientOrb } from "../../components/visuals/AmbientOrb";
 
 type TabMode = "login" | "register";
@@ -75,6 +75,11 @@ export default function LoginPage() {
       setErrorMsg("Semua kolom wajib diisi.");
       return;
     }
+    const normalizedPhone = normalizePhone(regPhone);
+    if (normalizedPhone.length < 8) {
+      setErrorMsg("Nomor HP tidak valid. Gunakan format 08xxxxxxxxxx atau +62xxxxxxxxxx.");
+      return;
+    }
     try {
       setRegLoading(true);
       const res = await authApi.register({
@@ -83,9 +88,9 @@ export default function LoginPage() {
         email: regEmail.trim(),
         company_name: regCompanyName.trim(),
         contact_person: regContactPerson.trim(),
-        phone_number: regPhone.trim(),
+        phone_number: normalizedPhone,
       });
-      const formattedId = res.client_code || formatClientId10(res.client_id);
+      const formattedId = formatClientCode(res.client_code);
       setRegSuccess({ clientId: formattedId, message: res.message });
     } catch (err: any) {
       setErrorMsg(err.message || "Registrasi gagal. Periksa data yang dimasukkan.");
@@ -433,7 +438,10 @@ export default function LoginPage() {
 
                 <div style={{ marginBottom: 24 }}>
                   <label htmlFor="reg-phone" style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#2E1065", marginBottom: 5 }}>No. WhatsApp / Telepon *</label>
-                  <input id="reg-phone" type="tel" className="form-input" placeholder="contoh: 08198765432" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} required />
+                  <input id="reg-phone" type="tel" inputMode="tel" className="form-input" placeholder="contoh: 08198765432" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} required />
+                  <p style={{ fontSize: "0.72rem", color: "#84829a", marginTop: 6, marginBottom: 0 }}>
+                    Nomor ini menjadi ID Klien Anda: <strong>LOE5-{normalizePhone(regPhone) || "0812..."}</strong>. Pastikan aktif untuk dihubungi tim sample/pemesanan.
+                  </p>
                 </div>
 
                 <button
@@ -490,7 +498,7 @@ export default function LoginPage() {
                     textAlign: "left",
                   }}
                 >
-                  <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#166534", marginBottom: 8 }}>🔑 ID Klien Anda (10 Karakter):</div>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#166534", marginBottom: 8 }}>🔑 ID Klien Anda (LOE5 + Nomor HP):</div>
                   <code
                     style={{
                       display: "block",

@@ -204,6 +204,8 @@ class OrderOutputSummary(BaseModel):
     """Ringkasan total output per order."""
     order_id: uuid.UUID
     order_number: str
+    status: OrderStatus
+    scheme: MaklonScheme
     target_quantity: int
     total_completed: int
     verified_completed: int
