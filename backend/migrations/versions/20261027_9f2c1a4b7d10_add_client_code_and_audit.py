@@ -111,10 +111,10 @@ def upgrade() -> None:
         nullable=False,
     )
     op.create_index(
-        "ix_clients_client_code", "clients", ["client_code"], unique=True
+        "ix_clients_client_code", "clients", ["client_code"], unique=True, if_not_exists=True
     )
     op.create_index(
-        "ix_clients_phone_number", "clients", ["phone_number"], unique=True
+        "ix_clients_phone_number", "clients", ["phone_number"], unique=True, if_not_exists=True
     )
 
     op.create_table(
