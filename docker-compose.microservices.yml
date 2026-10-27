@@ -75,9 +75,9 @@ services:
       DATABASE_URL: postgresql+psycopg://loe:loe_dev@postgres:5432/project_loe5
       AUTH_SECRET: lukla_operations_engine_super_secret_auth_key_2026_dev_secure
       ENVIRONMENT: development
-      LLM_PROVIDER: free
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       DOCS_LOCAL_PATH: data/docs
-      GEMINI_API_KEY: ""
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
