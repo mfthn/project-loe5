@@ -121,6 +121,7 @@ export default function LoginPage() {
 
       {/* ── Navbar minimal ── */}
       <header
+        className="login-header"
         style={{
           position: "sticky",
           top: 0,
@@ -134,21 +135,22 @@ export default function LoginPage() {
           borderBottom: "1px solid rgba(196,181,253,0.25)",
         }}
       >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 10px rgba(124,58,237,0.25)" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 10px rgba(124,58,237,0.25)", flexShrink: 0 }}>
             <Image src="/icon.jpeg" alt="Lukla L5" width={36} height={36} style={{ objectFit: "cover" }} priority />
           </div>
-          <div>
-            <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#2E1065", letterSpacing: "-0.02em" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#2E1065", letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               Lukla Operations Engine
             </div>
-            <div style={{ fontSize: "0.65rem", color: "#84829a", fontWeight: 600 }}>
+            <div className="login-header-subtitle" style={{ fontSize: "0.65rem", color: "#84829a", fontWeight: 600 }}>
               Lukla Manufacturing · Ciwidey
             </div>
           </div>
         </Link>
         <Link
           href="/"
+          className="login-back-btn"
           style={{
             fontSize: "0.82rem",
             fontWeight: 700,
@@ -157,17 +159,21 @@ export default function LoginPage() {
             border: "1px solid #EDE9FE",
             borderRadius: 9999,
             textDecoration: "none",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
             transition: "all 0.15s ease",
           }}
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C4B5FD"; e.currentTarget.style.color = "#7C3AED"; }}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#EDE9FE"; e.currentTarget.style.color = "#5B5870"; }}
         >
-          ← Kembali ke Landing
+          <span className="login-back-full">← Kembali ke Landing</span>
+          <span className="login-back-mobile">← Landing</span>
         </Link>
       </header>
 
       {/* ── Main ── */}
       <main
+        className="login-main"
         style={{
           flex: 1,
           display: "flex",
@@ -257,6 +263,7 @@ export default function LoginPage() {
 
           {/* ── Card ── */}
           <div
+            className="login-card"
             style={{
               background: "#ffffff",
               border: "1.5px solid #EDE9FE",

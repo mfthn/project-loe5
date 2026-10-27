@@ -14,21 +14,9 @@ export function ClosingCtaSection() {
         background: "#FFFFFF",
       }}
     >
-      <div className="container" style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px" }}>
+      <div className="container" style={{ maxWidth: 1100, margin: "0 auto", padding: "0 16px" }}>
         {/* Kartu Besar Ungu di Tengah (30% Ungu Dominan) */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #2E1065 0%, #1F0B46 100%)",
-            borderRadius: 36,
-            padding: "64px 48px",
-            color: "#ffffff",
-            textAlign: "center",
-            boxShadow: "0 24px 60px rgba(46, 16, 101, 0.35)",
-            border: "1.5px solid rgba(196, 181, 253, 0.3)",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
+        <div className="closing-cta-card">
           {/* Ambient Glow */}
           <div
             style={{
@@ -63,22 +51,22 @@ export function ClosingCtaSection() {
 
             <h2
               style={{
-                fontSize: "clamp(2.1rem, 4.2vw, 3rem)",
+                fontSize: "clamp(1.75rem, 4.2vw, 3rem)",
                 fontWeight: 800,
                 color: "#ffffff",
                 letterSpacing: "-0.03em",
-                lineHeight: 1.15,
-                margin: "0 0 18px 0",
+                lineHeight: 1.18,
+                margin: "0 0 16px 0",
               }}
             >
               {closingCta.title}
             </h2>
 
-            <p style={{ fontSize: "1.1rem", color: "#C4B5FD", lineHeight: 1.6, margin: "0 0 36px 0" }}>
+            <p style={{ fontSize: "1.02rem", color: "#C4B5FD", lineHeight: 1.6, margin: "0 0 32px 0" }}>
               {closingCta.subtitle}
             </p>
 
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div className="closing-cta-actions">
               <a
                 href={brand.consultationWhatsapp}
                 target="_blank"
@@ -89,13 +77,14 @@ export function ClosingCtaSection() {
                   gap: 10,
                   background: "#25D366",
                   color: "#ffffff",
-                  padding: "16px 36px",
+                  padding: "16px 32px",
                   borderRadius: 9999,
                   fontWeight: 700,
                   fontSize: "1rem",
                   textDecoration: "none",
                   boxShadow: "0 12px 28px rgba(37, 211, 102, 0.4)",
                   transition: "all 0.2s ease",
+                  textAlign: "center",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "#20BA5C";
@@ -119,12 +108,13 @@ export function ClosingCtaSection() {
                   background: "rgba(255, 255, 255, 0.12)",
                   color: "#ffffff",
                   border: "1.5px solid rgba(196, 181, 253, 0.4)",
-                  padding: "16px 30px",
+                  padding: "16px 28px",
                   borderRadius: 9999,
                   fontWeight: 700,
                   fontSize: "1rem",
                   textDecoration: "none",
                   transition: "all 0.2s ease",
+                  textAlign: "center",
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.22)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)")}

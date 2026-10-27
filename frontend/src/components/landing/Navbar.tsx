@@ -44,25 +44,18 @@ export function Navbar() {
           : "none",
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          padding: "14px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      <div className="navbar-inner">
         {/* Brand Logo (Sisi Paling Kiri) */}
         <Link
           href="/"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 12,
+            gap: 10,
             textDecoration: "none",
             color: "inherit",
-            flexShrink: 0,
+            flexShrink: 1,
+            minWidth: 0,
           }}
         >
           {/* Logo Mark: L5 Icon */}
@@ -85,7 +78,7 @@ export function Navbar() {
               priority
             />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
                 fontSize: "1.05rem",
@@ -93,11 +86,14 @@ export function Navbar() {
                 color: "#2E1065",
                 lineHeight: 1.15,
                 letterSpacing: "-0.02em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
               Lukla Operations Engine
             </div>
-            <div style={{ fontSize: "0.72rem", color: "#5B5870", fontWeight: 600 }}>
+            <div className="navbar-brand-subtitle">
               Lukla Manufacturing • Ciwidey
             </div>
           </div>
@@ -237,37 +233,11 @@ export function Navbar() {
               href="/login"
               aria-label="Masuk Portal / Login"
               title="Masuk ke Portal Operasional"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "9px 18px",
-                borderRadius: 9999,
-                background: "#FAF8FF",
-                border: "1.5px solid #C4B5FD",
-                color: "#2E1065",
-                fontWeight: 700,
-                fontSize: "0.88rem",
-                textDecoration: "none",
-                boxShadow: "0 2px 8px rgba(124, 58, 237, 0.08)",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#7C3AED";
-                e.currentTarget.style.background = "#7C3AED";
-                e.currentTarget.style.color = "#ffffff";
-                e.currentTarget.style.transform = "translateY(-1px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "#C4B5FD";
-                e.currentTarget.style.background = "#FAF8FF";
-                e.currentTarget.style.color = "#2E1065";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
+              className="navbar-login-btn"
             >
               <svg
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -279,7 +249,7 @@ export function Navbar() {
                 <polyline points="10 17 15 12 10 7" />
                 <line x1="15" y1="12" x2="3" y2="12" />
               </svg>
-              <span className="login-btn-text">Masuk</span>
+              <span>Masuk</span>
             </Link>
           )}
 
@@ -290,13 +260,18 @@ export function Navbar() {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle navigation menu"
             style={{
-              display: "none",
               background: "transparent",
               border: "1px solid #EDE9FE",
               borderRadius: 10,
-              padding: 8,
+              width: 38,
+              height: 38,
+              minWidth: 38,
+              minHeight: 38,
               cursor: "pointer",
               color: "#2E1065",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
             }}
           >
             <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>{mobileMenuOpen ? "✕" : "☰"}</span>
