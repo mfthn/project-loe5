@@ -1,5 +1,5 @@
 # Dependensi produksi backend (FastAPI)
-fastapi
+fastapi[standard]
 uvicorn[standard]
 sqlalchemy
 psycopg[binary]
