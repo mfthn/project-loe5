@@ -164,14 +164,7 @@ export default function QCPage() {
       </div>
 
       {/* Main Grid: Orders & Inspections */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "300px 1fr",
-          gap: 24,
-          alignItems: "start",
-        }}
-      >
+      <div className="responsive-split-grid">
         {/* Order Selector */}
         <div className="card">
           <h3 style={{ fontSize: "1.05rem", marginBottom: 14 }}>Pilih Pesanan untuk Inspeksi</h3>
@@ -369,7 +362,7 @@ export default function QCPage() {
 
           <div className="form-group">
             <label className="form-label">Hasil Penilaian QC</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div className="qc-result-buttons-grid">
               <button
                 type="button"
                 onClick={() => setResult("LOLOS")}

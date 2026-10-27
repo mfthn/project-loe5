@@ -382,14 +382,7 @@ export default function SamplePage() {
         )}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "380px 1fr",
-          gap: 24,
-          alignItems: "start",
-        }}
-      >
+      <div className="responsive-split-grid">
         {/* Sample List Sidebar (diperpanjang) */}
         <div className="card">
           <h3 style={{ fontSize: "1.05rem", marginBottom: 4 }}>Katalog Sampel</h3>

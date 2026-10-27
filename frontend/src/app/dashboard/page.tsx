@@ -583,7 +583,7 @@ export default function DashboardPage() {
               </Link>
             )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 24 }}>
             <div>
               <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Aliran Order per Tahap Proses</h3>
               {statusCounts.length > 0 ? (
@@ -1098,7 +1098,7 @@ export default function DashboardPage() {
         <section className="card-elevated" style={{ marginBottom: 24 }}>
           <span className="badge badge-purple">Visualisasi Data Riil</span>
           <h2 style={{ margin: "8px 0 16px", fontSize: "1.15rem" }}>Grafik Operasional & Finansial</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 24 }}>
             <div>
               <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Distribusi Status Order</h3>
               <DonutChart

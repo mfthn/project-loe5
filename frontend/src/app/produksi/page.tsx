@@ -299,14 +299,7 @@ export default function ProduksiPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "320px 1fr",
-          gap: 24,
-          alignItems: "start",
-        }}
-      >
+      <div className="responsive-split-grid">
         {/* Order List */}
         <div className="card">
           <h3 style={{ fontSize: "1.05rem", marginBottom: 14 }}>Daftar Antrean Order (PO)</h3>

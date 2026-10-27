@@ -23,10 +23,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           borderBottom: "1px solid rgba(196, 181, 253, 0.22)",
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
           gap: 10,
         }}
       >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0, flex: 1 }}>
           <div
             style={{
               width: 38,
@@ -48,7 +49,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             />
           </div>
 
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
                 fontWeight: 800,
@@ -56,6 +57,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                 color: "#ffffff",
                 lineHeight: 1.2,
                 letterSpacing: "-0.02em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
               Lukla <span style={{ color: "#C4B5FD" }}>Ops Engine</span>
@@ -73,6 +77,17 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             </div>
           </div>
         </Link>
+
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="mobile-sidebar-close"
+            aria-label="Tutup menu navigasi"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* ── Navigation Modules ── */}

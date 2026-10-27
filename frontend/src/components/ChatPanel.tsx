@@ -346,8 +346,13 @@ export function ChatPanel({ mode }: { mode: ChatMode }) {
             onChange={(e) => setInputText(e.target.value)}
             disabled={loading}
           />
-          <button type="submit" className="btn btn-primary" disabled={loading || !inputText.trim()}>
-            Kirim Pertanyaan 🚀
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading || !inputText.trim()}
+            style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+          >
+            Kirim 🚀
           </button>
         </form>
       </div>
