@@ -84,6 +84,8 @@ export default function QCPage() {
       });
       setInspectModalOpen(false);
       setRepairCount(1);
+      setDefectNotes("");
+      setQtyInspected(1);
       handleSelectOrder(selectedOrderId);
       // Refresh pool bonus preview
       const updatedPool = await qcApi

@@ -84,6 +84,8 @@ lerna-debug.log*
 **/*.log
 *.pid
 *.seed
+uploads/
+**/uploads/
 
 # 5. Editor & IDE
 .vscode/*

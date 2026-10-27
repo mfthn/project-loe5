@@ -185,6 +185,8 @@ export default function GudangPage() {
       });
       setNotice({ type: "success", message: `Berhasil menerima ${receiveQty} unit bahan.` });
       setReceiveModalOpen(false);
+      setReceiveQty(100);
+      setReceiveNotes("");
       loadData();
     } catch (err: any) {
       unlockFormSubmit(e); // gagal → izinkan coba lagi
@@ -204,6 +206,8 @@ export default function GudangPage() {
       });
       setNotice({ type: "success", message: `Berhasil mengeluarkan ${issueQty} unit bahan ke cutting.` });
       setIssueModalOpen(false);
+      setIssueQty(50);
+      setIssueNotes("");
       loadData();
     } catch (err: any) {
       unlockFormSubmit(e); // gagal → izinkan coba lagi

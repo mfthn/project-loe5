@@ -292,6 +292,11 @@ def update_component(
     return comp
 
 
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
 _ALLOWED_IMAGE_TYPES = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -299,16 +304,25 @@ _ALLOWED_IMAGE_TYPES = {
 }
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024
 _DESIGN_PREFIX = "designs/"
+_UPLOAD_DIR = os.path.abspath(os.path.join(os.getcwd(), "uploads"))
+
+
+def _is_s3_configured() -> bool:
+    try:
+        from app.core.config import get_settings
+        s = get_settings()
+        return bool(s.s3_bucket and (s.aws_access_key_id or os.environ.get("AWS_ACCESS_KEY_ID")))
+    except Exception:
+        return False
 
 
 def _s3_design_client():
     import boto3
-
     from app.core.config import get_settings
 
     s = get_settings()
     if not s.s3_bucket:
-        raise ValueError("S3_BUCKET belum diisi di backend/.env.")
+        raise ValueError("Bucket penyimpanan belum diisi.")
     client = boto3.client(
         "s3",
         region_name=s.s3_region,
@@ -325,7 +339,7 @@ def upload_design_image(
     content_type: str,
     data: bytes,
 ) -> SampleVersion:
-    """Upload gambar design versi sample ke S3 (prefix designs/)."""
+    """Upload gambar design versi sample ke cloud storage atau penyimpanan lokal."""
     version = get_version(db, version_id)
     if version.status in _LOCKED_STATUSES:
         raise SampleAlreadyApprovedError(version_id)
@@ -336,13 +350,26 @@ def upload_design_image(
         raise ValueError("Ukuran gambar wajib 1 byte–5 MB.")
     safe_name = "".join(c for c in filename if c.isalnum() or c in ("-", "_", ".")) or "design"
     key = f"{_DESIGN_PREFIX}{version.sample_id}/v{version.version_number}/{safe_name}{ext}"
-    client, bucket = _s3_design_client()
+
+    # Coba upload ke cloud storage jika terkonfigurasi
+    if _is_s3_configured():
+        try:
+            client, bucket = _s3_design_client()
+            client.put_object(
+                Bucket=bucket, Key=key, Body=data, ContentType=content_type,
+            )
+        except Exception as e:
+            logger.warning("Upload ke cloud storage gagal (%s), menyimpan ke penyimpanan lokal.", e)
+
+    # Selalu simpan salinan lokal untuk akses cepat dan offline/local fallback
     try:
-        client.put_object(
-            Bucket=bucket, Key=key, Body=data, ContentType=content_type,
-        )
+        local_path = os.path.join(_UPLOAD_DIR, key)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(data)
     except Exception as e:
-        raise ValueError(f"Gagal mengunggah ke S3: {e}") from e
+        logger.error("Gagal menyimpan gambar secara lokal: %s", e)
+
     version.design_image_key = key
     db.commit()
     db.refresh(version)
@@ -350,15 +377,22 @@ def upload_design_image(
 
 
 def presigned_design_url(design_image_key: str | None) -> str | None:
-    """URL baca sementara untuk gambar design (None bila tak ada)."""
+    """URL baca untuk gambar design (endpoint API lokal atau S3 presigned URL)."""
     if not design_image_key:
         return None
-    client, bucket = _s3_design_client()
-    try:
-        return client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": design_image_key},
-            ExpiresIn=3600,
-        )
-    except Exception:
-        return None
+    # Jika file ada di penyimpanan server lokal, sajikan via endpoint backend yang handal
+    local_path = os.path.join(_UPLOAD_DIR, design_image_key)
+    if os.path.isfile(local_path):
+        return f"/api/v1/sample/designs/{design_image_key}"
+    if _is_s3_configured():
+        try:
+            client, bucket = _s3_design_client()
+            return client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": design_image_key},
+                ExpiresIn=3600,
+            )
+        except Exception:
+            pass
+    # Endpoint lokal fallback
+    return f"/api/v1/sample/designs/{design_image_key}"

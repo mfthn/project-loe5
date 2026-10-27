@@ -6,6 +6,7 @@ import { Modal } from "../../components/Modal";
 import { Notice } from "../../components/Notice";
 import { useAuth } from "../../lib/auth-context";
 import { sampleApi, qcApi, authApi, produksiApi, lockFormSubmit, unlockFormSubmit } from "../../lib/api";
+import { API_BASE_URL } from "../../lib/config";
 import type { Sample, SampleVersion, GarmentComponent, QCInspection, ClientProfile, Order } from "../../types/api";
 
 export default function SamplePage() {
@@ -28,7 +29,7 @@ export default function SamplePage() {
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [studyNotes, setStudyNotes] = useState("");
 
-  // Modals
+  // Modals & submission state
   const [newSampleModal, setNewSampleModal] = useState(false);
   const [newVersionModal, setNewVersionModal] = useState(false);
   const [newComponentModal, setNewComponentModal] = useState(false);
@@ -37,6 +38,24 @@ export default function SamplePage() {
   const [revOrderId, setRevOrderId] = useState("");
   const [revNotes, setRevNotes] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
+
+  // Submitting guards to prevent multiple identical submissions
+  const [submittingSample, setSubmittingSample] = useState(false);
+  const [submittingComponent, setSubmittingComponent] = useState(false);
+  const [submittingVersion, setSubmittingVersion] = useState(false);
+  const [submittingTimeStudy, setSubmittingTimeStudy] = useState(false);
+  const [submittingOwner, setSubmittingOwner] = useState(false);
+  const [approvingTahap1, setApprovingTahap1] = useState(false);
+
+  // Helper untuk normalisasi URL gambar (lokal / cloud / data URL)
+  const resolveImageUrl = (url: string | null) => {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+      return url;
+    }
+    const base = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
+    return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
 
   // Form states
   const [sampleItemName, setSampleItemName] = useState("");
@@ -130,12 +149,14 @@ export default function SamplePage() {
 
   // Submit Time Study from Stopwatch
   const handleSaveTimeStudy = async () => {
+    if (submittingTimeStudy) return;
     if (!selectedComponentId) {
       setNotice({ type: "warning", message: "Pilih komponen garmen terlebih dahulu untuk mencatat time study." });
       return;
     }
     const durationSeconds = Math.max(1, Math.round(elapsedMs / 1000));
     try {
+      setSubmittingTimeStudy(true);
       const comp = activeVersion?.components?.find((c) => c.id === selectedComponentId);
       await sampleApi.recordTimeStudy(selectedComponentId, {
         component_name: comp?.component_name || "Komponen",
@@ -149,26 +170,32 @@ export default function SamplePage() {
       resetStopwatch();
       setStudyNotes("");
       if (selectedSample) {
-        handleSelectSample(selectedSample.id);
+        await handleSelectSample(selectedSample.id);
       }
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal menyimpan time study." });
+    } finally {
+      setSubmittingTimeStudy(false);
     }
   };
 
   // Approve Version Tahap 1 (tim sample)
   const handleApproveVersion = async (versionId: string) => {
+    if (approvingTahap1) return;
     try {
+      setApprovingTahap1(true);
       await sampleApi.approveVersion(versionId);
       setNotice({
         type: "success",
         message: "Tahap 1 lolos! Versi APPROVED — menunggu approval owner beserta harga.",
       });
       if (selectedSample) {
-        handleSelectSample(selectedSample.id);
+        await handleSelectSample(selectedSample.id);
       }
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal menyetujui versi sampel." });
+    } finally {
+      setApprovingTahap1(false);
     }
   };
 
@@ -178,8 +205,9 @@ export default function SamplePage() {
   const [ownerNotes, setOwnerNotes] = useState("");
 
   const handleApproveOwner = async () => {
-    if (!activeVersion) return;
+    if (submittingOwner || !activeVersion) return;
     try {
+      setSubmittingOwner(true);
       await sampleApi.approveOwner(activeVersion.id, {
         agreed_price: Number(ownerPrice),
         costing_notes: ownerNotes || undefined,
@@ -189,9 +217,12 @@ export default function SamplePage() {
         message: `Owner APPROVED Rp ${Number(ownerPrice).toLocaleString("id-ID")}/pcs — versi siap jadi order massal.`,
       });
       setOwnerModalOpen(false);
-      if (selectedSample) handleSelectSample(selectedSample.id);
+      setOwnerNotes("");
+      if (selectedSample) await handleSelectSample(selectedSample.id);
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal approval owner." });
+    } finally {
+      setSubmittingOwner(false);
     }
   };
 
@@ -201,21 +232,21 @@ export default function SamplePage() {
     try {
       await sampleApi.rejectOwner(versionId, reason || undefined);
       setNotice({ type: "warning", message: "Versi DITOLAK owner — buat revisi baru untuk lanjut." });
-      if (selectedSample) handleSelectSample(selectedSample.id);
+      if (selectedSample) await handleSelectSample(selectedSample.id);
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal menolak versi." });
     }
   };
 
   const handleDesignUpload = async (file: File | undefined) => {
-    if (!file || !activeVersion) return;
+    if (!file || !activeVersion || designUploading) return;
     try {
       setDesignUploading(true);
       await sampleApi.uploadDesignImage(activeVersion.id, file);
       const detail = await sampleApi.getVersionDetail(activeVersion.id).catch(() => null);
       setDesignUrl(detail?.design_image_url || null);
       if (selectedSample) await handleSelectSample(selectedSample.id);
-      setNotice({ type: "success", message: "Gambar design terunggah." });
+      setNotice({ type: "success", message: "Gambar design berhasil diunggah." });
     } catch (err: any) {
       setNotice({ type: "danger", message: err.message || "Gagal mengunggah gambar." });
     } finally {
@@ -451,8 +482,9 @@ export default function SamplePage() {
                         <button
                           onClick={() => handleApproveVersion(activeVersion.id)}
                           className="btn btn-success btn-sm"
+                          disabled={approvingTahap1}
                         >
-                          ✅ Setujui Tahap 1 (Tim Sample)
+                          {approvingTahap1 ? "Menyetujui..." : "✅ Setujui Tahap 1 (Tim Sample)"}
                         </button>
                       )}
 
@@ -476,7 +508,7 @@ export default function SamplePage() {
                       </span>
                     )}
 
-                    {activeVersion && selectedSample && !isOwner && (
+                    {activeVersion && selectedSample && (
                       <button
                         onClick={() => {
                           setRevOrderId(activeVersion.order_id || "");
@@ -495,9 +527,14 @@ export default function SamplePage() {
               {/* Design Image */}
               <div className="card" style={{ marginTop: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
-                  <h3 style={{ fontSize: "1.05rem", margin: 0 }}>Gambar Design Versi</h3>
-                  {!isOwner && activeVersion && (
-                    <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer" }}>
+                  <div>
+                    <h3 style={{ fontSize: "1.05rem", margin: 0 }}>Gambar Design Versi (v{activeVersion?.version_number ?? 1})</h3>
+                    <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Lampiran desain acuan prototipe yang diperlihatkan ke Owner sebelum persetujuan massal.
+                    </p>
+                  </div>
+                  {activeVersion && activeVersion.status !== "OWNER_APPROVED" && (
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer", opacity: designUploading ? 0.7 : 1 }}>
                       {designUploading ? "Mengunggah…" : "📤 Upload Gambar Design"}
                       <input
                         type="file"
@@ -513,15 +550,32 @@ export default function SamplePage() {
                   )}
                 </div>
                 {designUrl ? (
-                  <img
-                    src={designUrl}
-                    alt={`Design ${selectedSample?.sample_code} v${activeVersion?.version_number}`}
-                    style={{ maxWidth: "100%", maxHeight: 420, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", objectFit: "contain", background: "#FAF8FF" }}
-                  />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ textAlign: "center", background: "#FAF8FF", padding: 14, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                      <img
+                        src={resolveImageUrl(designUrl) || ""}
+                        alt={`Design ${selectedSample?.sample_code} v${activeVersion?.version_number}`}
+                        style={{ maxWidth: "100%", maxHeight: 420, borderRadius: "var(--radius-md)", objectFit: "contain" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <a
+                        href={resolveImageUrl(designUrl) || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: "0.8rem", color: "var(--accent-primary)" }}
+                      >
+                        🔍 Buka Gambar Ukuran Penuh
+                      </a>
+                    </div>
+                  </div>
                 ) : (
-                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
-                    Belum ada gambar design untuk versi ini. Unggah JPG/PNG/WebP ≤ 5 MB.
-                  </p>
+                  <div style={{ padding: "20px 0", textAlign: "center" }}>
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
+                      Belum ada gambar design untuk versi ini. Unggah JPG/PNG/WebP ≤ 5 MB untuk diperlihatkan ke Owner.
+                    </p>
+                  </div>
                 )}
               </div>
 
@@ -658,10 +712,11 @@ export default function SamplePage() {
                     <button
                       onClick={handleSaveTimeStudy}
                       className="btn btn-primary btn-lg"
-                      disabled={elapsedMs === 0 || !selectedComponentId}
+                      disabled={elapsedMs === 0 || !selectedComponentId || submittingTimeStudy}
                     >
-                      💾 Simpan Rekam Time Study (
-                      {Math.max(1, Math.round(elapsedMs / 1000))} Detik)
+                      {submittingTimeStudy
+                        ? "Menyimpan Data..."
+                        : `💾 Simpan Rekam Time Study (${Math.max(1, Math.round(elapsedMs / 1000))} Detik)`}
                     </button>
                   </div>
                 </div>
@@ -773,15 +828,21 @@ export default function SamplePage() {
       {/* Modal: Tambah Komponen Garmen */}
       <Modal
         isOpen={newComponentModal}
-        onClose={() => setNewComponentModal(false)}
+        onClose={() => {
+          if (!submittingComponent) {
+            setNewComponentModal(false);
+            setComponentName("");
+          }
+        }}
         title="➕ Tambah Komponen Garmen"
       >
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            
+            if (submittingComponent || !lockFormSubmit(e)) return;
             if (!activeVersion) return;
             try {
+              setSubmittingComponent(true);
               await sampleApi.addComponent(activeVersion.id, {
                 component_name: componentName,
                 material_usage_est: Number(fabricConsumption),
@@ -789,10 +850,13 @@ export default function SamplePage() {
               setNotice({ type: "success", message: `Komponen ${componentName} berhasil ditambahkan.` });
               setNewComponentModal(false);
               setComponentName("");
-              if (selectedSample) handleSelectSample(selectedSample.id);
+              setFabricConsumption(0.45);
+              if (selectedSample) await handleSelectSample(selectedSample.id);
             } catch (err: any) {
-            unlockFormSubmit(e); // gagal → izinkan coba lagi
+              unlockFormSubmit(e); // gagal → izinkan coba lagi
               setNotice({ type: "danger", message: err.message || "Gagal menambah komponen." });
+            } finally {
+              setSubmittingComponent(false);
             }
           }}
         >
@@ -804,6 +868,7 @@ export default function SamplePage() {
               placeholder="Contoh: Kerah Rib, Badan Depan, Lengan Raglan"
               value={componentName}
               onChange={(e) => setComponentName(e.target.value)}
+              disabled={submittingComponent}
               required
             />
           </div>
@@ -816,16 +881,25 @@ export default function SamplePage() {
               className="form-input"
               value={fabricConsumption}
               onChange={(e) => setFabricConsumption(Number(e.target.value))}
+              disabled={submittingComponent}
               required
             />
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setNewComponentModal(false)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setNewComponentModal(false);
+                setComponentName("");
+              }}
+              disabled={submittingComponent}
+            >
               Batal
             </button>
-            <button type="submit" className="btn btn-primary">
-              Simpan Komponen
+            <button type="submit" className="btn btn-primary" disabled={submittingComponent}>
+              {submittingComponent ? "Menyimpan Komponen..." : "Simpan Komponen"}
             </button>
           </div>
         </form>
@@ -834,14 +908,21 @@ export default function SamplePage() {
       {/* Modal: Buat Sampel Baru */}
       <Modal
         isOpen={newSampleModal}
-        onClose={() => setNewSampleModal(false)}
+        onClose={() => {
+          if (!submittingSample) {
+            setNewSampleModal(false);
+            setSampleItemName("");
+            setSampleCategoryCustom("");
+          }
+        }}
         title="➕ Buat Prototipe Sampel Baru"
       >
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            
+            if (submittingSample || !lockFormSubmit(e)) return;
             try {
+              setSubmittingSample(true);
               // Klien pemilik sample wajib dipilih (Tag ID Klien anti-kontaminasi)
               const category = sampleCategory === "LAINNYA" ? sampleCategoryCustom : sampleCategory;
               const created = await sampleApi.createSample({
@@ -852,10 +933,13 @@ export default function SamplePage() {
               setNotice({ type: "success", message: `Sampel ${created.sample_code} berhasil dibuat!` });
               setNewSampleModal(false);
               setSampleItemName("");
-              loadSamples();
+              setSampleCategoryCustom("");
+              await loadSamples();
             } catch (err: any) {
-            unlockFormSubmit(e); // gagal → izinkan coba lagi
+              unlockFormSubmit(e); // gagal → izinkan coba lagi
               setNotice({ type: "danger", message: err.message || "Gagal membuat sampel." });
+            } finally {
+              setSubmittingSample(false);
             }
           }}
         >
@@ -865,6 +949,7 @@ export default function SamplePage() {
               className="form-select"
               value={sampleClientId}
               onChange={(e) => setSampleClientId(e.target.value)}
+              disabled={submittingSample}
               required
             >
               <option value="">Pilih klien</option>
@@ -882,6 +967,7 @@ export default function SamplePage() {
                 className="form-select"
                 value={sampleCategory}
                 onChange={(e) => setSampleCategory(e.target.value)}
+                disabled={submittingSample}
                 required
               >
                 <option value="TAS">TAS</option>
@@ -899,6 +985,7 @@ export default function SamplePage() {
                   placeholder="Contoh: TOPI"
                   value={sampleCategoryCustom}
                   onChange={(e) => setSampleCategoryCustom(e.target.value.toUpperCase())}
+                  disabled={submittingSample}
                   required
                 />
               </div>
@@ -919,16 +1006,26 @@ export default function SamplePage() {
               placeholder="Contoh: Heavyweight Fleece Hoodie 330gsm"
               value={sampleItemName}
               onChange={(e) => setSampleItemName(e.target.value)}
+              disabled={submittingSample}
               required
             />
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setNewSampleModal(false)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setNewSampleModal(false);
+                setSampleItemName("");
+                setSampleCategoryCustom("");
+              }}
+              disabled={submittingSample}
+            >
               Batal
             </button>
-            <button type="submit" className="btn btn-primary">
-              Buat Sampel
+            <button type="submit" className="btn btn-primary" disabled={submittingSample}>
+              {submittingSample ? "Membuat Sampel..." : "Buat Sampel"}
             </button>
           </div>
         </form>
@@ -937,31 +1034,47 @@ export default function SamplePage() {
       {/* Modal: Revisi Design per Pesanan */}
       <Modal
         isOpen={newVersionModal}
-        onClose={() => setNewVersionModal(false)}
+        onClose={() => {
+          if (!submittingVersion) {
+            setNewVersionModal(false);
+            setRevNotes("");
+            setRevOrderId("");
+          }
+        }}
         title="📝 Revisi Design / Ketentuan Pesanan"
       >
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            
+            if (submittingVersion || !lockFormSubmit(e)) return;
             if (!selectedSample) return;
             try {
+              setSubmittingVersion(true);
               const rev = await sampleApi.createVersion(selectedSample.id, {
                 tech_pack_notes: revNotes || undefined,
                 order_id: revOrderId || undefined,
               });
               setNotice({ type: "success", message: `Revisi v${rev.version_number} tercatat.` });
               setNewVersionModal(false);
-              handleSelectSample(selectedSample.id);
+              setRevNotes("");
+              setRevOrderId("");
+              await handleSelectSample(selectedSample.id);
             } catch (err: any) {
-            unlockFormSubmit(e); // gagal → izinkan coba lagi
+              unlockFormSubmit(e); // gagal → izinkan coba lagi
               setNotice({ type: "danger", message: err.message || "Gagal membuat revisi." });
+            } finally {
+              setSubmittingVersion(false);
             }
           }}
         >
           <div className="form-group">
             <label className="form-label">Tautkan ke Pesanan (opsional)</label>
-            <select className="form-select" value={revOrderId} onChange={(e) => setRevOrderId(e.target.value)}>
+            <select
+              className="form-select"
+              value={revOrderId}
+              onChange={(e) => setRevOrderId(e.target.value)}
+              disabled={submittingVersion}
+            >
               <option value="">Tanpa pesanan spesifik</option>
               {orders
                 .filter((o) => !selectedSample || o.client_id === selectedSample.client_id)
@@ -979,23 +1092,39 @@ export default function SamplePage() {
               value={revNotes}
               onChange={(e) => setRevNotes(e.target.value)}
               placeholder="Contoh: Ganti design kerah sesuai permintaan pemesan"
+              disabled={submittingVersion}
               rows={3}
             />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setNewVersionModal(false)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setNewVersionModal(false);
+                setRevNotes("");
+                setRevOrderId("");
+              }}
+              disabled={submittingVersion}
+            >
               Batal
             </button>
-            <button type="submit" className="btn btn-primary">
-              Simpan Revisi
+            <button type="submit" className="btn btn-primary" disabled={submittingVersion}>
+              {submittingVersion ? "Menyimpan Revisi..." : "Simpan Revisi"}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Modal: Approval Owner + Harga */}      <Modal
+      {/* Modal: Approval Owner + Harga */}
+      <Modal
         isOpen={ownerModalOpen}
-        onClose={() => setOwnerModalOpen(false)}
+        onClose={() => {
+          if (!submittingOwner) {
+            setOwnerModalOpen(false);
+            setOwnerNotes("");
+          }
+        }}
         title="💰 Approval Owner — Produk + Harga Kesepakatan"
       >
         <div className="notice notice-info" style={{ marginBottom: 16 }}>
@@ -1005,6 +1134,21 @@ export default function SamplePage() {
             Setelah ini versi menjadi OWNER_APPROVED dan bisa dikonversi ke order massal.
           </div>
         </div>
+
+        {/* Gambar Desain Lampiran untuk Verifikasi Owner */}
+        {designUrl && (
+          <div style={{ marginBottom: 16, textAlign: "center", background: "#FAF8FF", padding: 10, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+            <p style={{ margin: "0 0 6px", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>
+              Lampiran Desain Prototipe
+            </p>
+            <img
+              src={resolveImageUrl(designUrl) || ""}
+              alt="Preview Desain"
+              style={{ maxHeight: 200, maxWidth: "100%", borderRadius: 8, objectFit: "contain" }}
+            />
+          </div>
+        )}
+
         <div className="form-group">
           <label className="form-label">Harga Deal per Pcs (Rp, wajib &gt; 0)</label>
           <input
@@ -1012,6 +1156,7 @@ export default function SamplePage() {
             className="form-input"
             value={ownerPrice}
             onChange={(e) => setOwnerPrice(Number(e.target.value))}
+            disabled={submittingOwner}
             min={1}
             required
           />
@@ -1023,15 +1168,29 @@ export default function SamplePage() {
             className="form-input"
             value={ownerNotes}
             onChange={(e) => setOwnerNotes(e.target.value)}
+            disabled={submittingOwner}
             placeholder="Contoh: Deal CMT 45rb/pcs, MOQ 100"
           />
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-          <button type="button" className="btn btn-secondary" onClick={() => setOwnerModalOpen(false)}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setOwnerModalOpen(false);
+              setOwnerNotes("");
+            }}
+            disabled={submittingOwner}
+          >
             Batal
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleApproveOwner}>
-            Kunci & Setujui Owner
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleApproveOwner}
+            disabled={submittingOwner}
+          >
+            {submittingOwner ? "Mengunci Versi..." : "Kunci & Setujui Owner"}
           </button>
         </div>
       </Modal>

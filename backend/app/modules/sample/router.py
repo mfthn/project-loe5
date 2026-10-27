@@ -2,9 +2,11 @@
 
 Endpoint tersedia di /api/v1/sample.
 """
+import os
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -329,3 +331,18 @@ def update_time_study_component(
     except (SampleAlreadyApprovedError, ValueError) as e:
         raise _handle_sample_error(e) from e
     return SampleComponentResponse.model_validate(comp)
+
+
+@router.get("/designs/{file_path:path}", summary="Akses Gambar Desain Sampel")
+def get_design_image_file(file_path: str):
+    """Menyajikan file gambar desain sampel yang tersimpan."""
+    candidates = [
+        os.path.abspath(os.path.join(os.getcwd(), "uploads", file_path)),
+        os.path.abspath(os.path.join(os.getcwd(), "uploads", "designs", file_path)),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads", file_path)),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads", "designs", file_path)),
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return FileResponse(p)
+    raise HTTPException(status_code=404, detail="File gambar desain tidak ditemukan.")
