@@ -290,7 +290,7 @@ class RagService:
     def ask_client(self, question: str) -> dict:
         """Endpoint /rag — Chatbot publik untuk calon klien & klien aktif B2B.
 
-        Hanya menggunakan S3 knowledge base. Selalu menambahkan WhatsApp
+        Hanya menggunakan knowledge base. Selalu menambahkan WhatsApp
         handoff URL di akhir jawaban untuk mendorong kontak lebih lanjut.
         Mem-blokir pertanyaan terkait data internal perusahaan.
         """
@@ -345,7 +345,7 @@ class RagService:
         }
 
     def ask_agent(self, question: str, db_context: str) -> dict:
-        """Endpoint /ask-agent — Owner Tracker dengan S3 RAG + data live database.
+        """Endpoint /ask-agent — Owner Tracker dengan knowledge base + data live database.
 
         db_context: string hasil build_db_context(db) dari db_context.py yang
         berisi snapshot operasional real-time (orders, produksi, QC, payroll,

@@ -1,4 +1,4 @@
-"""Pemanggilan AWS untuk RAG: S3 (dokumen), Bedrock embedding (Titan), dan Bedrock LLM (Nova Lite).
+"""Implementasi klien RAG: lokal (Gemini + dokumen markdown) dan opsional AWS.
 
 Hanya file ini yang memakai boto3 untuk RAG. Kredensial diambil dari default credential chain
 AWS (aws configure, profile, atau IAM role), tidak ditulis di kode maupun di .env.
@@ -15,7 +15,7 @@ from app.modules.ai.errors import RagUpstreamError
 
 logger = logging.getLogger(__name__)
 
-_AWS_HINT = "Periksa kredensial AWS, region, izin IAM, dan akses model di konsol Bedrock."
+_UPSTREAM_HINT = "Periksa konfigurasi layanan AI dan pastikan koneksi aktif."
 
 
 class AwsRagClients:
@@ -37,7 +37,7 @@ class AwsRagClients:
             return obj["Body"].read().decode("utf-8")
         except (ClientError, BotoCoreError) as e:
             logger.exception("Gagal membaca s3://%s/%s", self._s.s3_bucket, self._s.s3_document_key)
-            raise RagUpstreamError(f"Gagal membaca dokumen dari S3. {_AWS_HINT}") from e
+            raise RagUpstreamError(f"Gagal membaca dokumen. {_UPSTREAM_HINT}") from e
 
     def list_md_documents(self) -> list[str]:
         """Daftar semua key .md di bucket (tahan terhadap ganti-tambah dokumen)."""
@@ -59,7 +59,7 @@ class AwsRagClients:
             return sorted(keys)
         except (ClientError, BotoCoreError) as e:
             logger.exception("Gagal membaca daftar isi s3://%s", self._s.s3_bucket)
-            raise RagUpstreamError(f"Gagal membaca daftar dokumen dari S3. {_AWS_HINT}") from e
+            raise RagUpstreamError(f"Gagal membaca daftar dokumen. {_UPSTREAM_HINT}") from e
 
     def read_documents(self) -> dict[str, str]:
         """Baca seluruh dokumen .md di bucket. Key → isi teks."""
@@ -79,7 +79,7 @@ class AwsRagClients:
             except (ClientError, BotoCoreError) as e:
                 logger.exception("Gagal membaca s3://%s/%s", self._s.s3_bucket, key)
                 raise RagUpstreamError(
-                    f"Gagal membaca dokumen {key} dari S3. {_AWS_HINT}"
+                    f"Gagal membaca dokumen {key}. {_UPSTREAM_HINT}"
                 ) from e
         if not docs:
             raise RagUpstreamError(
@@ -104,7 +104,7 @@ class AwsRagClients:
             return [float(x) for x in payload["embedding"]]
         except (ClientError, BotoCoreError) as e:
             logger.exception("Gagal embedding dengan model %s", self._s.embedding_model_id)
-            raise RagUpstreamError(f"Gagal membuat embedding di Bedrock. {_AWS_HINT}") from e
+            raise RagUpstreamError(f"Gagal membuat embedding. {_UPSTREAM_HINT}") from e
 
     def converse(self, system_prompt: str, user_text: str) -> str:
         try:
@@ -119,7 +119,7 @@ class AwsRagClients:
             )
         except (ClientError, BotoCoreError) as e:
             logger.exception("Gagal memanggil LLM %s", self._s.llm_model_id)
-            raise RagUpstreamError(f"Gagal memanggil model LLM di Bedrock. {_AWS_HINT}") from e
+            raise RagUpstreamError(f"Gagal memanggil model AI. {_UPSTREAM_HINT}") from e
 
         blocks = resp["output"]["message"]["content"]
         return "".join(block.get("text", "") for block in blocks).strip()
@@ -148,7 +148,7 @@ class AwsRagClients:
             return h.hexdigest()
         except (ClientError, BotoCoreError) as e:
             logger.exception("Gagal fingerprint s3://%s", self._s.s3_bucket)
-            raise RagUpstreamError(f"Gagal membaca daftar dokumen dari S3. {_AWS_HINT}") from e
+            raise RagUpstreamError(f"Gagal membaca daftar dokumen. {_UPSTREAM_HINT}") from e
 
     def converse_stream(self, system_prompt: str, user_text: str):
         """Yield potongan teks jawaban via Bedrock converse_stream."""
@@ -170,7 +170,7 @@ class AwsRagClients:
                         yield text
         except (ClientError, BotoCoreError) as e:
             logger.exception("Gagal streaming LLM %s", self._s.llm_model_id)
-            raise RagUpstreamError(f"Gagal memanggil model LLM di Bedrock. {_AWS_HINT}") from e
+            raise RagUpstreamError(f"Gagal memanggil model AI. {_UPSTREAM_HINT}") from e
 
 
 import glob
@@ -180,7 +180,7 @@ import re
 
 
 class FreeRagClients:
-    """Implementasi RAG menggunakan Gemini dan dokumen lokal tanpa ketergantungan AWS S3."""
+    """Implementasi RAG menggunakan AI generatif dan dokumen knowledge base lokal."""
 
     def __init__(self, settings: Settings) -> None:
         self._s = settings

@@ -837,13 +837,15 @@ async function aiAgentFetch<T>(path: string, init: RequestInit = {}): Promise<T>
     }
     return res.json() as Promise<T>;
   };
+  // Hanya coba localhost fallback jika memang URL lokal
+  const isLocal = AI_AGENT_BASE_URL.includes("localhost") || AI_AGENT_BASE_URL.includes("127.0.0.1");
   try {
     return await doFetch(AI_AGENT_BASE_URL);
   } catch (e) {
+    if (!isLocal) throw e;
     const fallback = AI_AGENT_BASE_URL.includes("localhost")
       ? AI_AGENT_BASE_URL.replace("localhost", "127.0.0.1")
       : AI_AGENT_BASE_URL.replace("127.0.0.1", "localhost");
-    if (fallback === AI_AGENT_BASE_URL) throw e;
     return doFetch(fallback);
   }
 }
@@ -856,7 +858,7 @@ export const aiApi = {
       body: JSON.stringify({ question }),
     });
   },
-  // 2. /ai/ask-agent — Owner tracker (S3 SOP + live database context)
+  // 2. /ai/ask-agent — Owner tracker (knowledge base + live database context)
   askAgent: async (question: string): Promise<DualAskResponse> => {
     return aiAgentFetch<DualAskResponse>("/ai/ask-agent", {
       method: "POST",
@@ -926,14 +928,14 @@ export const aiApi = {
 /** Pesan error AI yang dibedakan: dokumen hilang vs model/offline vs auth. */
 export function friendlyAiError(raw?: string): string {
   const msg = (raw || "").toLowerCase();
-  if (!msg) return "Layanan AI tidak menjawab. Coba lagi beberapa saat.";
-  if (msg.includes("tidak ada dokumen") || msg.includes("s3_bucket") || msg.includes("sop"))
-    return "Dokumen SOP belum tersedia di server. Minta admin mengunggah dokumen lalu sinkron ulang.";
-  if (msg.includes("embedding") || msg.includes("model") || msg.includes("llm") || msg.includes("bedrock"))
-    return "Model AI sedang gangguan. Coba lagi; bila berlanjut hubungi tim IT.";
+  if (!msg) return "Asisten AI tidak menjawab. Coba lagi beberapa saat.";
+  if (msg.includes("tidak ada dokumen") || msg.includes("belum dikonfigurasi") || msg.includes("sop"))
+    return "Dokumen knowledge base belum tersedia. Coba lagi beberapa saat atau hubungi admin.";
+  if (msg.includes("gagal memanggil") || msg.includes("gagal membuat") || msg.includes("model ai"))
+    return "Asisten AI sedang sibuk. Coba lagi dalam beberapa saat.";
   if (msg.includes("401") || msg.includes("403") || msg.includes("login") || msg.includes("akses ditolak"))
     return "Sesi berakhir atau akses ditolak. Silakan login ulang.";
-  return raw || "Layanan AI tidak menjawab. Coba lagi beberapa saat.";
+  return raw || "Asisten AI tidak menjawab. Coba lagi beberapa saat.";
 }
 
 /**
