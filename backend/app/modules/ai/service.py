@@ -155,9 +155,9 @@ class RagService:
         s3_bucket = getattr(self._s, "s3_bucket", None)
         s3_key = getattr(self._s, "s3_document_key", None)
         if s3_bucket and s3_key and getattr(self._clients, "_s3", None):
-            return f"s3://{s3_bucket}/{s3_key}"
+            return f"cloud-storage://{s3_bucket}/{s3_key}"
         docs_path = getattr(self._s, "docs_local_path", "docs")
-        return f"local://{docs_path}"
+        return f"knowledge-base://{docs_path}"
 
     @property
     def is_ready(self) -> bool:

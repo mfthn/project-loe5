@@ -1,7 +1,7 @@
 """Pipeline RAG manual: chunking, retrieval berbasis cosine similarity, dan jawaban LLM.
 
-Aturan RAG ada di file ini. Pemanggilan AWS dilakukan lewat FreeRagClients (clients.py),
-sehingga logika di sini bisa diuji tanpa koneksi ke AWS.
+Aturan RAG ada di file ini. Pemanggilan layanan RAG dilakukan lewat FreeRagClients (clients.py),
+sehingga logika di sini bisa diuji tanpa koneksi eksternal.
 """
 import math
 import threading
@@ -168,12 +168,8 @@ class RagService:
 
     @property
     def document_uri(self) -> str:
-        s3_bucket = getattr(self._s, "s3_bucket", None)
-        s3_key = getattr(self._s, "s3_document_key", None)
-        if s3_bucket and s3_key:
-            return f"s3://{s3_bucket}/{s3_key}"
         docs_path = getattr(self._s, "docs_local_path", "data/docs")
-        return f"local://{docs_path}"
+        return f"knowledge-base://{docs_path}"
 
     @property
     def is_ready(self) -> bool:
@@ -193,7 +189,7 @@ class RagService:
         if callable(read_multi):
             docs = read_multi()
             if not docs:
-                raise RagUnavailableError("Tidak ada dokumen SOP lokal atau S3 yang ditemukan.")
+                raise RagUnavailableError("Tidak ada dokumen SOP knowledge base yang ditemukan.")
             text = "\n\n".join(f"# Sumber: {key}\n{body}" for key, body in docs.items())
             uri = f"knowledge-base ({len(docs)} dokumen .md)"
         elif getattr(self._clients, "read_document", None):
@@ -308,7 +304,7 @@ class RagService:
     def ask_client(self, question: str) -> dict:
         """Endpoint /rag — Chatbot publik untuk calon klien & klien aktif B2B.
 
-        Hanya menggunakan S3 knowledge base. Selalu menambahkan WhatsApp
+        Hanya menggunakan knowledge base. Selalu menambahkan WhatsApp
         handoff URL di akhir jawaban untuk mendorong kontak lebih lanjut.
         Mem-blokir pertanyaan terkait data internal perusahaan.
         """
@@ -370,7 +366,7 @@ class RagService:
         }
 
     def ask_agent(self, question: str, db_context: str) -> dict:
-        """Endpoint /ask-agent — Owner Tracker dengan S3 RAG + data live database.
+        """Endpoint /ask-agent — Owner Tracker dengan knowledge base RAG + data live database.
 
         db_context: string hasil build_db_context(db) dari db_context.py yang
         berisi snapshot operasional real-time (orders, produksi, QC, payroll,
@@ -484,7 +480,7 @@ _service_lock = threading.Lock()
 
 
 def get_rag_service() -> RagService:
-    """Satu instance per proses. Klien AWS dibuat saat pertama kali dipakai, bukan saat import."""
+    """Satu instance per proses. Klien AI dibuat saat pertama kali dipakai, bukan saat import."""
     global _service
     if _service is None:
         with _service_lock:

@@ -242,6 +242,11 @@ def reindex(rag: RagService = Depends(get_rag_service)) -> ReindexResponse:
     response_model=RagStatusResponse,
 )
 def rag_status(rag: RagService = Depends(get_rag_service)) -> RagStatusResponse:
+    if not rag.is_ready:
+        try:
+            rag.build_index()
+        except Exception:
+            pass
     return RagStatusResponse(
         index_ready=rag.is_ready,
         chunks=rag.chunk_count,

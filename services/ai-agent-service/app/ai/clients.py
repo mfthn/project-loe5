@@ -1,8 +1,7 @@
 """Provider klien untuk RAG & Chatbot:
-Mendukung:
-1. Local Docs Reader (pengganti S3)
-2. Free Fast TF-IDF / Term-Frequency Vector Embedding (pengganti Titan Embedding)
-3. Free Local Intelligent Response Generator / Gemini API (pengganti Bedrock Nova Lite)
+1. Local Knowledge Base Docs Reader
+2. Fast Term-Frequency Vector Embedding
+3. Gemini API / Context-aware Heuristic Generator
 """
 import glob
 import hashlib
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class FreeRagClients:
-    """Implementasi klien RAG 100% GRATIS dan lokal tanpa perlu akun AWS Bedrock atau S3."""
+    """Implementasi klien RAG mandiri berbasis knowledge base dokumen dan Gemini API."""
 
     def __init__(self, settings: Settings) -> None:
         self._s = settings

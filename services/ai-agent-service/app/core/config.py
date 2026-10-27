@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     groq_api_key: str = ""
 
-    # Knowledge Base Path Lokal (pengganti S3)
+    # Knowledge Base Path
     docs_local_path: str = "data/docs"
 
     # Chunking & Retrieval

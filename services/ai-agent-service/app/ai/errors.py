@@ -6,12 +6,12 @@ class RagError(Exception):
 
 
 class RagNotConfiguredError(RagError):
-    """Konfigurasi belum lengkap, misalnya S3_BUCKET belum diisi."""
+    """Konfigurasi knowledge base belum lengkap."""
 
 
 class RagUnavailableError(RagError):
-    """Index tidak bisa dibangun karena kondisi data, misalnya dokumen di S3 kosong."""
+    """Index tidak bisa dibangun karena kondisi data."""
 
 
 class RagUpstreamError(RagError):
-    """Pemanggilan layanan AWS (S3 atau Bedrock) gagal."""
+    """Pemanggilan layanan AI gagal."""
